@@ -11,25 +11,28 @@ SRC_FILES := $(wildcard $(SRC_DIR)/$(ALGO_DIR)/*.c)
 OBJ_FILES := $(patsubst $(SRC_DIR)/$(ALGO_DIR)/%.c,$(OBJ_DIR)/$(ALGO_DIR)/%.o,$(SRC_FILES))
 BIN_FILES := $(patsubst $(SRC_DIR)/$(ALGO_DIR)/%, $(BIN_DIR)/$(ALGO_DIR)/%, $(SRC_FILES:.c=))
 
-$(OBJ_DIR)/$(ALGO_DIR)/%.o: $(SRC_DIR)/$(ALGO_DIR)/%.c
-	$(CC) -c -o $@ $< $(CFLAGS)
+dir_guard=@mkdir -p $(@D)
 
+$(OBJ_DIR)/$(ALGO_DIR)/%.o: $(SRC_DIR)/$(ALGO_DIR)/%.c
+	$(dir_guard)
+	$(CC) -c -o $@ $< $(CFLAGS)
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
+	$(dir_guard)
 	$(CC) -c -o $@ $< $(CFLAGS)
 
-$(BIN_DIR)/algos/%: $(OBJ_DIR)/algos/%.o
+$(BIN_DIR)/$(ALGO_DIR)/%: $(OBJ_DIR)/$(ALGO_DIR)/%.o
+	$(dir_guard)
+	$(CC) -o $@ $< $(CFLAGS)
+ 
+$(BIN_DIR)/%: $(OBJ_DIR)/%.o
+	$(dir_guard)
 	$(CC) -o $@ $< $(CFLAGS)
 
 all: algos executables
 
 algos: $(BIN_FILES)
-executables: $(BIN_DIR)/smart $(BIN_DIR)/test $(BIN_DIR)/show $(BIN_DIR)/select $(BIN_DIR)/textgen   
-		
-$(BIN_DIR)/%: $(OBJ_DIR)/%.o
-	$(CC) -o $@ $< $(CFLAGS)
-
-
+executables: $(BIN_DIR)/smart $(BIN_DIR)/test $(BIN_DIR)/show $(BIN_DIR)/select $(BIN_DIR)/textgen
 
 .PHONY: clean debug
 	clean:
