@@ -34,7 +34,6 @@ typedef struct run_command_opts
         occ,
         txt,
         pre,
-        dif,
         tex,
         php;
 } run_command_opts_t;
@@ -87,8 +86,6 @@ void print_run_usage_and_exit(const char *command)
     printf("\t-occ          prints the average number of occurrences\n");
     printf("\t-pre          computes separately preprocessing times and searching times\n");
     printf("\t-tb L         set to L the upper bound for any wort case running time (in ms). The default value is 300 ms\n");
-    printf("\t-dif          prints the number the best and the worst running time (they refer to searching time if the -pre option is selected)\n");
-    printf("\t-std          prints the standard deviations of the running times (it refers to searching time if the -pre option is selected)\n");
     printf("\t-txt          output results in txt tabular format\n");
     printf("\t-tex          output results in latex tabular format\n");
     printf("\t-simple P T   executes a single run searching T (max 1000 chars) for occurrences of P (max 100 chars)\n");
@@ -121,7 +118,6 @@ void opts_init_default(run_command_opts_t *opts)
     opts->simple = 0;
     opts->occ = 0;
     opts->txt = 0;
-    opts->dif = 0;
     opts->tex = 0;
     opts->php = 0;
 }
@@ -231,11 +227,6 @@ int parse_flag(run_command_opts_t *line, int curr_arg, int argc, const char **ar
     else if (!strcmp("-pre", argv[curr_arg]))
     {
         line->pre = 1;
-        return 1;
-    }
-    if (!strcmp("-dif", argv[curr_arg]))
-    {
-        line->dif = 1;
         return 1;
     }
     if (!strcmp("-txt", argv[curr_arg]))

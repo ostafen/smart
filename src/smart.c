@@ -280,18 +280,11 @@ int run_setting(char *filename, key_t tkey, unsigned char *T, int n, const run_c
 	// initializes the vector which will contain running times
 	// performs experiments on a text
 	double SEARCH_TIME[num_running][NumPatt],
-		PRE_TIME[num_running][NumPatt],
-		BEST[num_running][NumPatt],
-		WORST[num_running][NumPatt];
+		PRE_TIME[num_running][NumPatt];
 
 	for (int i = 0; i < num_running; i++)
-	{
 		for (int j = 0; j < NumPatt; j++)
-		{
-			SEARCH_TIME[i][j] = PRE_TIME[i][j] = WORST[i][j] = 0;
-			BEST[i][j] = MAXTIME;
-		}
-	}
+			SEARCH_TIME[i][j] = PRE_TIME[i][j] = 0;
 
 	for (int pattern_size = 0; PATT_SIZE[pattern_size] > 0; pattern_size++)
 	{
@@ -352,12 +345,6 @@ int run_setting(char *filename, key_t tkey, unsigned char *T, int n, const run_c
 					TIME[k] = (*e_time);
 					PRE_TIME[algo][pattern_size] += (*pre_time);
 
-					if (BEST[algo][pattern_size] > (*e_time))
-						BEST[algo][pattern_size] = (*e_time);
-
-					if (WORST[algo][pattern_size] < (*e_time))
-						WORST[algo][pattern_size] = (*e_time);
-
 					if ((*e_time) > opts->time_limit_millis)
 					{
 						SEARCH_TIME[algo][pattern_size] = 0;
@@ -383,14 +370,6 @@ int run_setting(char *filename, key_t tkey, unsigned char *T, int n, const run_c
 					printf("%s", output_line);
 					for (int i = 0; i < 25 - strlen(output_line); i++)
 						printf(" ");
-
-					if (opts->dif)
-					{
-						sprintf(output_line, " [%.2f, %.2f]", BEST[algo][pattern_size], WORST[algo][pattern_size]);
-						printf("%s", output_line);
-						for (int i = 0; i < 20 - strlen(output_line); i++)
-							printf(" ");
-					}
 
 					if (opts->occ)
 					{
