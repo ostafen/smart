@@ -12,7 +12,7 @@
  * GNU General Public License for more details.
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
- * 
+ *
  * contact the authors at: faro@dmi.unict.it, thierry.lecroq@univ-rouen.fr
  * download the tool at: http://www.dmi.unict.it/~faro/smart/
  */
@@ -20,176 +20,159 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#define NumAlgo     500		 		//numero di algoritmi da testare
-#define NumPatt     17				//maximal number of pattern lengths
-#define NumSetting	12				//number of text buffers
-#include "function.h"
+#include "string_set.h"
 
-/***********************************************/
-/* SELECTS ALGORITHMS FOR EXPERIMENATL RESULTS */
-/***********************************************/
-
-
-void printManual() {
-	printf("\n\tSMART UTILITY FOR SELECTING STRING MATCHING ALGORITHMS\n\n");
-	printf("\t-show           shows the list of all algorithms\n");
-	printf("\t-which          shows the list of all selected algorithms\n");
-	printf("\tALGO            selects/deselects the algorithm ALGO (ex. select bf)\n");
-	printf("\t-all            selects all algorithms\n");
-	printf("\t-none           deselects all algorithms\n");
-	//printf("\t-group A-B-C:D  group a list of algorithms (separated by a -) in a single algorithm named D\n");
-	printf("\t-add ALGO       add the new alorithm ALGO to the set\n");
-	printf("\t                the executable file of the new algorithm must be in /source/bin\n");
-	printf("\t-h              gives this help list\n");
-	printf("\n\n");
+FILE *open_algo_file(const char *filename)
+{
+	return fopen(filename, "ab+");
 }
 
-int search_ALGO(char *ALGO_NAME[], char* algo)  {
-	int i;
-	for(i=0; i<NumAlgo; i++)
-		if(ALGO_NAME[i] && !strcmp(str2lower(ALGO_NAME[i]),str2lower(algo))) return i;
-	return -1;
-}
+#define STR_BUF 100
 
+int list_algos_from_file(FILE *fp, const char output[][STR_BUF])
+{
+	char *line = NULL;
+	size_t len;
 
-
-int main(int argc, const char *argv[]) {
-	int EXECUTE[NumAlgo];
-	char *ALGO_NAME[NumAlgo];
-	char *ALGO_DESCRIPTION[NumAlgo];
-	char *PATH[NumAlgo];
-   	char filename[20], command[100]; 
-	int i,j; 
-
-	getAlgo(ALGO_NAME,EXECUTE);
-
-	/* processing of input parameters */
-	if (argc==1) {printf("\n\tNo parameter given. Use -h for help.\n\n"); return 0;}
-	if (!strcmp("-h", argv[1])) {printManual(); return 0;}
-	int par = 1;
-	while(par<argc) {
-		int selected = 0;
-		if (par<argc && !strcmp("-show", argv[par])) {
-			par++;
-			//shows all algorithms
-			printf("The list of all string matching algorithms\n");
-			for(i=0; i<NumAlgo; i++) if(ALGO_NAME[i]) {
-				printf("%s\n",ALGO_NAME[i]);
-			}
-			return 1;
-		}
-		if (par<argc && !strcmp("-which", argv[par])) {
-			par++;
-			//shows all selected algorithms
-			printf("\n\tThe list of selected algorithms:\n");
-			for(i=0; i<NumAlgo; i++) if(ALGO_NAME[i] && EXECUTE[i]) {
-				printf("\t-%s\n",ALGO_NAME[i]);
-			}
-			printf("\n");
-			return 1;
-		}
-		if (par<argc && !strcmp("-add", argv[par])) {
-			par++;
-			if(par>=argc) {printf("\n\n\tError in input parameters. Use -h for help.\n\n"); return 0;}
-			strcpy(filename, argv[par++]);
-			char path[50] = "source/bin/";
-			strcat(path,filename);
-			FILE *fp = fopen(path, "r");
-			if( fp ) { 
-				//the file exists
-				if(search_ALGO(ALGO_NAME,filename)>=0) 
-					printf("\n\n\tSMART error message\n\tError in input parameters....algorithm %s already in the set\n\n",filename);
-				else {
-					printf("\n\n\tAdding the algorithm %s to SMART\n",filename); fflush(stdout);
-					printf("\tTesting the algorithm for correctness...."); fflush(stdout);
-					//testing correctness of the algorithm
-					sprintf(command,"./test ../bin/%s -nv",filename);
-					fflush(stdout);
-					if(system(command)) { 
-						printf("failed!\n");
-						printf("\tThe system is unable to add the algorithm %s to SMART.\n\tPlease, check for algorithm's correctness.\n\n",filename);
-					}
-					else {
-						printf("ok\n");
-						for(i=0; i<NumAlgo && ALGO_NAME[i]; i++);
-						EXECUTE[i] = 0;
-						ALGO_NAME[i] = filename;
-						printf("\tAlgorithm %s added succesfully.\n\n",filename);
-					}
-				}
-			}
-			else printf("\n\n\tSMART error message\n\tError in input parameters....program %s does not exist\n\n",path);
-		}
-		if (par<argc && !strcmp("-group", argv[par])) {
-			par++;
-			if(par>=argc) {printf("\n\n\tError in input parameters. Use -h for help.\n\n"); return 0;}
-			
-			strcpy(filename, argv[par++]);
-			char path[50] = "source/bin/";
-			strcat(path,filename);
-			FILE *fp = fopen(path, "r");
-			if( fp ) { 
-				//the file exists
-				if(search_ALGO(ALGO_NAME,filename)>=0) 
-					printf("\n\n\tSMART error message\n\tError in input parameters....algorithm %s already in the set\n\n",filename);
-				else {
-					printf("\n\n\tAdding the algorithm %s to SMART\n",filename); fflush(stdout);
-					printf("\tTesting the algorithm for correctness...."); fflush(stdout);
-					//testing correctness of the algorithm
-					sprintf(command,"./test ../bin/%s -nv",filename);
-					fflush(stdout);
-					if(system(command)) { 
-						printf("failed!\n");
-						printf("\tThe system is unable to add the algorithm %s to SMART.\n\tPlease, check for algorithm's correctness.\n\n",filename);
-					}
-					else {
-						printf("ok\n");
-						for(i=0; i<NumAlgo && ALGO_NAME[i]; i++);
-						EXECUTE[i] = 0;
-						ALGO_NAME[i] = filename;
-						printf("\tAlgorithm %s added succesfully.\n\n",filename);
-					}
-				}
-			}
-			else printf("\n\n\tSMART error message\n\tError in input parameters....program %s does not exist\n\n",path);
-		}
-		for(i=0; i<NumAlgo; i++) if(ALGO_NAME[i]) {
-			if (par<argc && !strcmp(argv[par],ALGO_NAME[i])) {
-				par++;
-				if(EXECUTE[i]==0) {
-					EXECUTE[i]=1;
-					printf("\tThe %s algorithm has been selected\n",ALGO_NAME[i]);
-				}
-				else {
-					EXECUTE[i]=0;
-					printf("\tThe %s algorithm has been deselected\n",ALGO_NAME[i]);
-				}
-				selected = 1;
-			}
-		}
-		if(selected) continue;
-		if (par<argc && !strcmp("-all", argv[par])) {
-			par++;
-			for(i=0; i<NumAlgo; i++) if(ALGO_NAME[i]) EXECUTE[i]=1;
-			continue;
-		}
-		if (par<argc && !strcmp("-none", argv[par])) {
-			par++;
-			for(i=0; i<NumAlgo; i++) if(ALGO_NAME[i]) EXECUTE[i]=0;
-			continue;
-		}
-		if (par<argc) {printf("\tError in input parameters....no parameter %s\n\n",argv[par]); return 0;}
+	int k = 0;
+	while ((getline(&line, &len, fp)) != -1)
+	{
+		trim_str(line);
+		strcpy(output[k++], line);
 	}
-	int order[NumAlgo];
-	for(i=0; i<NumAlgo; i++) order[i] = i;
-	for(i=0; i<NumAlgo; i++)
-		for(j=0; j<NumAlgo; j++)
-			if(ALGO_NAME[order[j]] && ALGO_NAME[order[j+1]] && strcmp(ALGO_NAME[order[j]],ALGO_NAME[order[j+1]])>0)  {
-				int tmp = order[j];
-				order[j] = order[j+1];
-				order[j+1] = tmp;
-			}
-	FILE *fp = fopen("source/algorithms.h", "w");
-	for(j=0; j<NumAlgo; j++) if(ALGO_NAME[j]) fprintf(fp,"#%d #%s \n", EXECUTE[order[j]], ALGO_NAME[order[j]] );
+	return k;
+}
+
+void add_algos(FILE *fp, const char **algos, int n_algos)
+{
+	char selected_algos[MAX_SELECT_ALGOS][STR_BUF];
+	int n_selected_algos = list_algos_from_file(fp, selected_algos);
+
+	str_set_t set;
+	str_set_init(&set);
+
+	for (int i = 0; i < n_selected_algos; i++)
+		str_set_add(&set, selected_algos[i]);
+
+	for (int i = 0; i < n_algos; i++)
+	{
+		if (!str_set_contains(&set, algos[i]))
+		{
+			printf("adding %s algo to the set.\n", algos[i]);
+			fprintf(fp, "%s\n", algos[i]);
+			str_set_add(&set, algos[i]);
+		}
+		else
+		{
+			printf("%s algo already in the set.\n", algos[i]);
+		}
+	}
+
+	str_set_free(&set);
+}
+
+void copy_lines(FILE *dst_fp, FILE *src_fp, str_set_t *exclude_set)
+{
+	char *line = NULL;
+	size_t len;
+	while ((getline(&line, &len, src_fp)) != -1)
+	{
+		trim_str(line);
+
+		if (!str_set_contains(exclude_set, line))
+			fprintf(dst_fp, "%s\n", line);
+	}
+}
+
+void rewrite_file_without_strings(FILE *fp, const char **algos, int n)
+{
+	FILE *tmp_fp = fopen("selected_algos.tmp", "ab+");
+
+	str_set_t algos_set;
+	str_set_init(&algos_set);
+
+	for (int i = 0; i < n; i++)
+		str_set_add(&algos_set, algos[i]);
+
+	copy_lines(tmp_fp, fp, &algos_set);
+
+	rename("selected_algos.tmp", "selected_algos");
+	remove("selected_algos.tmp");
+
+	fclose(tmp_fp);
+	str_set_free(&algos_set);
+}
+
+void remove_algos(FILE *fp, const char **algos, int n_algos)
+{
+	char selected_algos[MAX_SELECT_ALGOS][STR_BUF];
+	int n_selected_algos = list_algos_from_file(fp, selected_algos);
+
+	str_set_t selected_algos_set;
+	str_set_init(&selected_algos_set);
+
+	for (int i = 0; i < n_selected_algos; i++)
+		str_set_add(&selected_algos_set, selected_algos[i]);
+
+	// check that we need to remove at leastone algorithm
+	int rewrite_file = 0;
+	for (int i = 0; i < n_algos; i++)
+	{
+		if (str_set_contains(&selected_algos_set, algos[i]))
+		{
+			rewrite_file = 1;
+			break;
+		}
+	}
+
+	FILE *tmp_fp = fopen("selected_algos.tmp", "ab+");
+	if (rewrite_file)
+	{
+		rewind(fp);
+		rewrite_file_without_strings(fp, algos, n_algos);
+	}
+
+	str_set_free(&selected_algos_set);
+}
+
+void list_algo_file(FILE *fp)
+{
+	char algos[MAX_SELECT_ALGOS][STR_BUF];
+
+	int n = list_algos_from_file(fp, algos);
+	for (int i = 0; i < n; i++)
+		printf("%s\n", algos[i]);
+}
+
+int exec_select(select_command_opts_t *opts)
+{
+	if (opts->show_all)
+	{
+		// shows all selected algorithms
+		printf("\n\tThe list of selected algorithms:\n");
+		printf("\n");
+		return 0;
+	}
+
+	FILE *fp = open_algo_file("selected_algos");
+	if (opts->n_algos > 0)
+	{
+		if (opts->add)
+			add_algos(fp, opts->algos, opts->n_algos);
+		else
+			remove_algos(fp, opts->algos, opts->n_algos);
+	}
+	else if (opts->show_selected)
+	{
+		list_algo_file(fp);
+	}
+	else if (opts->deselect_all)
+	{
+		if (ftruncate(fileno(fp), 0))
+		{
+			printf("error while truncating the file\n");
+			return 1;
+		}
+	}
 	fclose(fp);
 }

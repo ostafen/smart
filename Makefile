@@ -13,6 +13,11 @@ BIN_FILES=$(patsubst $(SRC_DIR)/$(ALGO_DIR)/%, $(BIN_DIR)/$(ALGO_DIR)/%, $(SRC_F
 
 dir_guard=@mkdir -p $(@D)
 
+smart: $(BIN_DIR)/smart
+all: algos smart
+
+algos: $(BIN_FILES)
+
 $(OBJ_DIR)/$(ALGO_DIR)/%.o: $(SRC_DIR)/$(ALGO_DIR)/%.c
 	$(dir_guard)
 	$(CC) -c -o $@ $< $(CFLAGS)
@@ -21,18 +26,18 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 	$(dir_guard)
 	$(CC) -c -o $@ $< $(CFLAGS)
 
+$(OBJ_DIR)/smart.o: $(SRC_DIR)/smart.c $(SRC_DIR)/parser.h $(SRC_DIR)/function.h
+	$(dir_guard)
+	$(CC) -c -o $@ $< $(CFLAGS)
+
 $(BIN_DIR)/$(ALGO_DIR)/%: $(OBJ_DIR)/$(ALGO_DIR)/%.o
 	$(dir_guard)
 	$(CC) -o $@ $< $(CFLAGS)
  
-$(BIN_DIR)/%: $(OBJ_DIR)/%.o
+$(BIN_DIR)/smart: $(OBJ_DIR)/smart.o $(OBJ_DIR)/string_set.o
 	$(dir_guard)
-	$(CC) -o $@ $< $(CFLAGS)
+	$(CC) -o $@ $^ $(CFLAGS)
 
-all: algos executables
-
-algos: $(BIN_FILES)
-executables: $(BIN_DIR)/smart $(BIN_DIR)/test $(BIN_DIR)/show $(BIN_DIR)/select $(BIN_DIR)/textgen
 
 .PHONY: clean
 
