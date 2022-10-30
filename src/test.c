@@ -46,12 +46,11 @@ int *count;
 /* the brute force algorithm used for comparing occurrences */
 int search(unsigned char *x, int m, unsigned char *y, int n)
 {
-	int i, count, j;
-
 	/* Searching */
-	count = 0;
-	for (j = 0; j <= n - m; ++j)
+	int count = 0;
+	for (int j = 0; j <= n - m; ++j)
 	{
+		int i;
 		for (i = 0; i < m && x[i] == y[i + j]; ++i)
 			;
 		if (i >= m)

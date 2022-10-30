@@ -16,13 +16,13 @@
  * contact the authors at: faro@dmi.unict.it and thierry.lecroq@univ-rouen.fr
  * download the tool at: http://www.dmi.unict.it/~faro/smart/
  */
+
 #define PATTERN_SIZE_MAX 4200 // maximal length of the pattern
 
-#define SIGMA 256		 // constant alphabet size
-#define MG (1024 * 1024) // costant for 1 MB size
-#define NumAlgo 500		 // maximal number of algorithms
-#define NumPatt 17		 // maximal number of pattern lengths
-#define NumSetting 15	 // number of text buffers
+#define SIGMA 256 // constant alphabet size
+#define NumAlgo 500
+#define NumPatt 17	  // maximal number of pattern lengths
+#define NumSetting 15 // number of text buffers
 #define MAXTIME 999.00
 
 /* DEFINITION OF VARIABLES */
@@ -47,6 +47,8 @@ unsigned int MINLEN = 1, MAXLEN = 4200; // min length and max length of pattern 
 #include <dirent.h>
 
 #define TEXT_SIZE_DEFAULT 1048576
+
+#define TOP_EDGE_WIDTH 60
 
 void print_top_edge(int len)
 {
@@ -190,6 +192,23 @@ void free_shm(unsigned char *T, unsigned char *P, int *count, double *e_time, do
 	shmctl(preshmid, IPC_RMID, 0);
 }
 
+double compute_average(double *T, int n)
+{
+	double avg = 0.0;
+	for (int i = 0; i < n; i++)
+		avg += T[i];
+	return avg / n;
+}
+
+double compute_std(double avg, double *T, int n)
+{
+	double std = 0.0;
+	for (int i = 0; i < n; i++)
+		std += pow(avg - T[i], 2.0);
+
+	return sqrt(std / n);
+}
+
 int run_setting(char *filename, key_t tkey, unsigned char *T, int n, const run_command_opts_t *opts,
 				char *code, int tshmid, char *time_format)
 {
@@ -214,7 +233,7 @@ int run_setting(char *filename, key_t tkey, unsigned char *T, int n, const run_c
 
 	srand(time(NULL));
 
-	// allocate space for running time in shered memory
+	// allocate space for running time in shared memory
 	key_t ekey;
 	int eshmid = alloc_shared_mem(sizeof(double), (void **)&e_time, &ekey);
 	if (eshmid < 0)
@@ -260,31 +279,29 @@ int run_setting(char *filename, key_t tkey, unsigned char *T, int n, const run_c
 
 	// initializes the vector which will contain running times
 	// performs experiments on a text
-	double TIME[num_running][NumPatt],
+	double SEARCH_TIME[num_running][NumPatt],
 		PRE_TIME[num_running][NumPatt],
 		BEST[num_running][NumPatt],
-		WORST[num_running][NumPatt],
-		STD[num_running][NumPatt],
-		STDTIME[5000];
+		WORST[num_running][NumPatt];
 
 	for (int i = 0; i < num_running; i++)
 	{
 		for (int j = 0; j < NumPatt; j++)
 		{
-			TIME[i][j] = PRE_TIME[i][j] = WORST[i][j] = STD[i][j] = 0;
+			SEARCH_TIME[i][j] = PRE_TIME[i][j] = WORST[i][j] = 0;
 			BEST[i][j] = MAXTIME;
 		}
 	}
 
-	for (int il = 0; PATT_SIZE[il] > 0; il++)
+	for (int pattern_size = 0; PATT_SIZE[pattern_size] > 0; pattern_size++)
 	{
-		if (PATT_SIZE[il] >= opts->pattern_min_len && PATT_SIZE[il] <= opts->pattern_max_len)
+		if (PATT_SIZE[pattern_size] >= opts->pattern_min_len && PATT_SIZE[pattern_size] <= opts->pattern_max_len)
 		{
-			int m = PATT_SIZE[il];
+			int m = PATT_SIZE[pattern_size];
 			gen_random_patterns(pattern_list, m, T, n, opts->num_runs);
 
 			printf("\n");
-			print_top_edge(60);
+			print_top_edge(TOP_EDGE_WIDTH);
 
 			printf("\tExperimental results on %s: %s\n", filename, code);
 
@@ -297,12 +314,15 @@ int run_setting(char *filename, key_t tkey, unsigned char *T, int n, const run_c
 			{
 				current_running++;
 
-				char data[30];
-				sprintf(data, "\t - [%d/%d] %s ", current_running, num_running, str2upper(algo_names[algo]));
-				printf("%s", data);
+				char output_line[30];
+				sprintf(output_line, "\t - [%d/%d] %s ", current_running, num_running, str2upper(algo_names[algo]));
+				printf("%s", output_line);
 				fflush(stdout);
-				for (int i = 0; i < 35 - strlen(data); i++)
+
+				for (int i = 0; i < 35 - strlen(output_line); i++)
 					printf(".");
+
+				double TIME[opts->num_runs];
 
 				int total_occur = 0;
 				for (int k = 1; k <= opts->num_runs; k++)
@@ -312,7 +332,6 @@ int run_setting(char *filename, key_t tkey, unsigned char *T, int n, const run_c
 					int j;
 					for (j = 0; j < m; j++)
 						P[j] = pattern_list[k - 1][j];
-
 					P[j] = '\0'; // creates the pattern
 
 					(*e_time) = (*pre_time) = 0.0;
@@ -321,8 +340,8 @@ int run_setting(char *filename, key_t tkey, unsigned char *T, int n, const run_c
 
 					if (occur <= 0 && !opts->simple)
 					{
-						TIME[algo][il] = 0;
-						PRE_TIME[algo][il] = 0;
+						SEARCH_TIME[algo][pattern_size] = 0;
+						PRE_TIME[algo][pattern_size] = 0;
 						total_occur = occur;
 						break;
 					}
@@ -330,72 +349,56 @@ int run_setting(char *filename, key_t tkey, unsigned char *T, int n, const run_c
 					if (!opts->pre)
 						(*e_time) += (*pre_time);
 
-					STDTIME[k] = (*e_time);
-					TIME[algo][il] += (*e_time);
-					PRE_TIME[algo][il] += (*pre_time);
+					TIME[k] = (*e_time);
+					PRE_TIME[algo][pattern_size] += (*pre_time);
 
-					if (BEST[algo][il] > (*e_time))
-						BEST[algo][il] = (*e_time);
+					if (BEST[algo][pattern_size] > (*e_time))
+						BEST[algo][pattern_size] = (*e_time);
 
-					if (WORST[algo][il] < (*e_time))
-						WORST[algo][il] = (*e_time);
+					if (WORST[algo][pattern_size] < (*e_time))
+						WORST[algo][pattern_size] = (*e_time);
 
 					if ((*e_time) > opts->time_limit_millis)
 					{
-						TIME[algo][il] = 0;
-						PRE_TIME[algo][il] = 0;
+						SEARCH_TIME[algo][pattern_size] = 0;
+						PRE_TIME[algo][pattern_size] = 0;
 						total_occur = -2;
 						break;
 					}
 				}
 
-				TIME[algo][il] /= (double)opts->num_runs;
-				PRE_TIME[algo][il] /= (double)opts->num_runs;
+				SEARCH_TIME[algo][pattern_size] = compute_average(TIME, opts->num_runs);
+				PRE_TIME[algo][pattern_size] /= (double)opts->num_runs;
 
-				for (int k = 1; k <= opts->num_runs; k++)
-					STD[algo][il] += pow(STDTIME[k] - TIME[algo][il], 2.0);
-
-				STD[algo][il] /= (double)opts->num_runs;
-				STD[algo][il] = sqrt(STD[algo][il]);
-
-				if (total_occur > 0 || (total_occur >= 0 && opts->simple))
+				if (total_occur > 0)
 				{
-					int nchar = 15;
-					if (opts->dif)
-						nchar += 20;
+					double std = compute_std(SEARCH_TIME[algo][pattern_size], TIME, opts->num_runs);
 
-					if (opts->std)
-						nchar += 15;
-
-					int i;
 					printf("\b\b\b\b\b\b\b.[OK]  ");
 					if (opts->pre)
-						sprintf(data, "\t\%.2f + \%.2f ms", PRE_TIME[algo][il], TIME[algo][il]);
+						sprintf(output_line, "\t%.2f + [%.2f ± %.2f] ms", PRE_TIME[algo][pattern_size], SEARCH_TIME[algo][pattern_size], std);
 					else
-						sprintf(data, "\t\%.2f ms", TIME[algo][il]);
-					printf("%s", data);
-					for (i = 0; i < 20 - strlen(data); i++)
+						sprintf(output_line, "\t[%.2f ± %.2f] ms", SEARCH_TIME[algo][pattern_size], std);
+
+					printf("%s", output_line);
+					for (int i = 0; i < 25 - strlen(output_line); i++)
 						printf(" ");
 
 					if (opts->dif)
 					{
-						sprintf(data, " [%.2f, %.2f]", BEST[algo][il], WORST[algo][il]);
-						printf("%s", data);
-						for (i = 0; i < 20 - strlen(data); i++)
-							printf(" ");
-					}
-
-					if (opts->std)
-					{
-						sprintf(data, " std %.2f", STD[algo][il]);
-						printf("%s", data);
-						for (i = 0; i < 15 - strlen(data); i++)
+						sprintf(output_line, " [%.2f, %.2f]", BEST[algo][pattern_size], WORST[algo][pattern_size]);
+						printf("%s", output_line);
+						for (int i = 0; i < 20 - strlen(output_line); i++)
 							printf(" ");
 					}
 
 					if (opts->occ)
-						printf("\tocc \%d", total_occur / opts->num_runs);
-
+					{
+						if (opts->pre)
+							printf("\t\tocc \%d", total_occur / opts->num_runs);
+						else
+							printf("\tocc \%d", total_occur / opts->num_runs);
+					}
 					printf("\n");
 				}
 				else if (total_occur == 0)
@@ -407,30 +410,25 @@ int run_setting(char *filename, key_t tkey, unsigned char *T, int n, const run_c
 			}
 
 			printf("\n");
-			print_top_edge(60);
+			print_top_edge(TOP_EDGE_WIDTH);
 
-			if (!opts->simple)
-			{
-				fclose(stream);
+			// TODO: extract method: output_running_times();
 
-				// TODO: extract method: output_running_times();
+			/*
+			printf("\tOUTPUT RUNNING TIMES %s\n", code);
+			if (opts->txt)
+				outputTXT(TIME, opts->alphabet_size, filename, code, time_format);
 
-				/*
-				printf("\tOUTPUT RUNNING TIMES %s\n", code);
-				if (opts->txt)
-					outputTXT(TIME, opts->alphabet_size, filename, code, time_format);
+			outputXML(TIME, opts->alphabet_size, filename, code);
 
-				outputXML(TIME, opts->alphabet_size, filename, code);
+			outputHTML2(PRE_TIME, TIME, BEST, WORST, STD, opts->pre, opts->dif, opts->alphabet_size, n, opts->num_runs, filename, code, time_format);
 
-				outputHTML2(PRE_TIME, TIME, BEST, WORST, STD, opts->pre, opts->dif, opts->alphabet_size, n, opts->num_runs, filename, code, time_format);
+			if (opts->tex)
+				outputLatex(TIME, opts->alphabet_size, filename, code, time_format);
 
-				if (opts->tex)
-					outputLatex(TIME, opts->alphabet_size, filename, code, time_format);
-
-				if (opts->php)
-					outputPHP(TIME, BEST, WORST, STD, opts->alphabet_size, filename, code, opts->dif, opts->std);
-					*/
-			}
+			if (opts->php)
+				outputPHP(TIME, BEST, WORST, STD, opts->alphabet_size, filename, code, opts->dif, opts->std);
+				*/
 		}
 	}
 	// free shared memory

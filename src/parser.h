@@ -35,7 +35,6 @@ typedef struct run_command_opts
         txt,
         pre,
         dif,
-        std,
         tex,
         php;
 } run_command_opts_t;
@@ -48,7 +47,7 @@ void print_logo()
     printf("	/ __|  _   _ \\ / _  |  __| __|\n");
     printf("	\\__ \\ | | | | | (_| | |  | |_ \n");
     printf("	|___/_| |_| |_|\\__,_|_|   \\__|\n");
-    printf("	A String Matching Researc Tool\n");
+    printf("	A String Matching Research Tool\n");
     printf("	by Simone Faro and Thierry Lecroq\n");
     printf("	Last Update: May 2017\n");
     printf("\n");
@@ -123,7 +122,6 @@ void opts_init_default(run_command_opts_t *opts)
     opts->occ = 0;
     opts->txt = 0;
     opts->dif = 0;
-    opts->std = 0;
     opts->tex = 0;
     opts->php = 0;
 }
@@ -243,11 +241,6 @@ int parse_flag(run_command_opts_t *line, int curr_arg, int argc, const char **ar
     if (!strcmp("-txt", argv[curr_arg]))
     {
         line->txt = 1;
-        return 1;
-    }
-    if (!strcmp("-std", argv[curr_arg]))
-    {
-        line->std = 1;
         return 1;
     }
     if (!strcmp("-tex", argv[curr_arg]))
