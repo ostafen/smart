@@ -167,6 +167,7 @@ int outputTXT(double TIME[NumAlgo][NumPatt], int alpha, char *filename, char *ex
 			fprintf(fp, "%s", str2upper(ALGO_NAME[algo]));
 			for (i = 0; i < 20 - strlen(ALGO_NAME[algo]); i++)
 				fprintf(fp, " ");
+
 			for (il = 0; il < NumPatt; il++)
 				if (PATT_SIZE[il] >= MINLEN && PATT_SIZE[il] <= MAXLEN)
 				{

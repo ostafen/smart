@@ -51,7 +51,7 @@ unsigned int MINLEN = 1, MAXLEN = 4200; // min length and max length of pattern 
 
 #define TOP_EDGE_WIDTH 60
 
-void print_top_edge(int len)
+void print_edge(int len)
 {
 	int i;
 	fprintf(stdout, "\t");
@@ -202,7 +202,7 @@ void free_matrix(char **M, int n)
 
 double search_time, pre_time;
 
-int run_setting(char *filename, unsigned char *T, int n, const run_command_opts_t *opts,
+int run_setting(unsigned char *T, int n, const run_command_opts_t *opts,
 				char *code, char *time_format)
 {
 	printf("\tExperimental tests started on %s\n", time_format);
@@ -244,9 +244,7 @@ int run_setting(char *filename, unsigned char *T, int n, const run_command_opts_
 			gen_random_patterns(pattern_list, m, T, n, opts->num_runs);
 
 			printf("\n");
-			print_top_edge(TOP_EDGE_WIDTH);
-
-			printf("\tExperimental results on %s: %s\n", filename, code);
+			print_edge(TOP_EDGE_WIDTH);
 
 			printf("\tSearching for a set of %d patterns with length %d\n", opts->num_runs, m);
 			printf("\tTesting %d algorithms\n", num_running);
@@ -335,12 +333,10 @@ int run_setting(char *filename, unsigned char *T, int n, const run_command_opts_
 					printf("\b\b\b\b\b\b.[OUT]  \n");
 			}
 
-			printf("\n");
-			print_top_edge(TOP_EDGE_WIDTH);
-
 			// TODO: extract method: output_running_times();
 		}
 	}
+	printf("\n");
 
 	// free memory allocated for patterns
 	free_matrix(pattern_list, opts->num_runs);
@@ -425,7 +421,7 @@ void run_benchmarks(run_command_opts_t *opts, char *T)
 		printf("\n\tTry to process archive %s\n", fullpath);
 
 		int n = gen_search_text(fullpath, T, opts->text_size);
-		if (n == 0)
+		if (n <= 0)
 		{
 			printf("\tunable to generate search text\n");
 			return;
@@ -439,7 +435,7 @@ void run_benchmarks(run_command_opts_t *opts, char *T)
 		tm_info = localtime(&date_timer);
 		strftime(time_format, 26, "%Y:%m:%d %H:%M:%S", tm_info);
 
-		run_setting(filename_list[k], T, n, opts, expcode, time_format);
+		run_setting(T, n, opts, expcode, time_format);
 	}
 
 	// outputINDEX(filename_list, num_buffers, expcode);

@@ -72,20 +72,6 @@ int execute(char *algoname, key_t pkey, int m, key_t tkey, int n, key_t rkey, ke
 
 int FREQ[SIGMA];
 
-void free_shm()
-{
-	shmdt(T);
-	shmdt(P);
-	shmdt(count);
-	shmdt(e_time);
-	shmdt(pre_time);
-	shmctl(tshmid, IPC_RMID, 0);
-	shmctl(pshmid, IPC_RMID, 0);
-	shmctl(rshmid, IPC_RMID, 0);
-	shmctl(eshmid, IPC_RMID, 0);
-	shmctl(preshmid, IPC_RMID, 0);
-}
-
 int attempt(int *rip, int *count, unsigned char *P, int m, unsigned char *T, int n,
 			char *algoname, key_t pkey, key_t tkey, key_t rkey, key_t ekey, key_t prekey,
 			int alpha, char *parameter, int ncase)
