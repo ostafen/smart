@@ -39,7 +39,6 @@
 #define VERBOSE !strcmp(parameter, "-nv")
 
 int tshmid, eshmid, preshmid, pshmid, rshmid;
-unsigned char *T, *P;
 double *e_time, *pre_time;
 int *count;
 

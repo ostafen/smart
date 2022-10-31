@@ -45,6 +45,7 @@ unsigned int MINLEN = 1, MAXLEN = 4200; // min length and max length of pattern 
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <dirent.h>
+#include <dlfcn.h>
 
 #define TEXT_SIZE_DEFAULT 1048576
 
@@ -87,6 +88,10 @@ int load_text(const char *filename, char *T, int max_len)
 	return i;
 }
 
+// TODO: list all texts to a matrix, using list_regular_files().
+// create a merged text, and memorize the size of each loaded buffer, so that you can replicate it
+// at the ending of the text to reach max_text_size.
+
 int merge_all_texts(const char *path, char *T, int max_text_size)
 {
 	int curr_size = 0;
@@ -94,7 +99,6 @@ int merge_all_texts(const char *path, char *T, int max_text_size)
 	DIR *dir = dir = opendir(path);
 	if (dir != NULL)
 	{
-
 		struct dirent *entry;
 		while ((entry = readdir(dir)) != NULL)
 		{
@@ -125,7 +129,15 @@ int merge_all_texts(const char *path, char *T, int max_text_size)
 
 int gen_search_text(const char *path, unsigned char *T, int max_text_size)
 {
-	return merge_all_texts(path, T, max_text_size);
+	int size = 0;
+	while (size < max_text_size)
+	{
+		int n = merge_all_texts(path, T + size, max_text_size - size);
+		if (n < 0)
+			return n;
+		size += n;
+	}
+	return size;
 }
 
 #define MAX_ALLOC_TRIALS 10
@@ -165,33 +177,6 @@ void gen_random_patterns(unsigned char **patterns, int m, unsigned char *T, int 
 	}
 }
 
-int execute_algo(const char *algo_name, key_t pkey, int m, key_t tkey, int n, key_t rkey, key_t ekey, key_t prekey, int *count, int alpha)
-{
-	char command[100];
-	sprintf(command, "./bin/algos/%s shared %d %d %d %d %d %d %d", str2lower(algo_name), pkey, m, tkey, n, rkey, ekey, prekey);
-	int res = system(command);
-	if (!res)
-		return (*count);
-	else
-		return -1;
-}
-
-/* Free up shared memory allocated by sm execution */
-void free_shm(unsigned char *T, unsigned char *P, int *count, double *e_time, double *pre_time,
-			  int tshmid, int pshmid, int rshmid, int eshmid, int preshmid)
-{
-	shmdt(T);
-	shmdt(P);
-	shmdt(count);
-	shmdt(e_time);
-	shmdt(pre_time);
-	shmctl(tshmid, IPC_RMID, 0);
-	shmctl(pshmid, IPC_RMID, 0);
-	shmctl(rshmid, IPC_RMID, 0);
-	shmctl(eshmid, IPC_RMID, 0);
-	shmctl(preshmid, IPC_RMID, 0);
-}
-
 double compute_average(double *T, int n)
 {
 	double avg = 0.0;
@@ -209,17 +194,46 @@ double compute_std(double avg, double *T, int n)
 	return sqrt(std / n);
 }
 
-int run_setting(char *filename, key_t tkey, unsigned char *T, int n, const run_command_opts_t *opts,
-				char *code, int tshmid, char *time_format)
+#define SEARCH_FUNC_NAME "search"
+
+int load_algos(const char algo_names[][STR_BUF], int num_algos, int (**functions)(unsigned char *, int, unsigned char *, int))
+{
+	for (int i = 0; i < num_algos; i++)
+	{
+		char algo_lib_filename[STR_BUF];
+		sprintf(algo_lib_filename, "bin/algos/%s.so", str2lower(algo_names[i]));
+
+		void *lib_handle = dlopen(algo_lib_filename, RTLD_NOW);
+		int (*search)(unsigned char *, int, unsigned char *, int) = dlsym(lib_handle, SEARCH_FUNC_NAME);
+		if (lib_handle == NULL || search == NULL)
+		{
+			printf("unable to load algorithm %s\n", algo_names[i]);
+			exit(1);
+		}
+		functions[i] = search;
+	}
+	return 0;
+}
+
+void free_matrix(char **M, int n)
+{
+	for (int i = 0; i < n; i++)
+		free(M[i]);
+}
+
+double search_time, pre_time;
+
+int run_setting(char *filename, unsigned char *T, int n, const run_command_opts_t *opts,
+				char *code, char *time_format)
 {
 	printf("\tExperimental tests started on %s\n", time_format);
 
-	unsigned char **pattern_list = (unsigned char **)malloc(sizeof(unsigned char *) * opts->num_runs);
-	for (int i = 0; i < opts->num_runs; i++)
+	unsigned char *pattern_list[opts->num_runs];
+	for (int i = 0; i < opts->num_runs; i++) // TODO: allocate the correct size for each pattern
 		pattern_list[i] = (unsigned char *)malloc(sizeof(unsigned char) * (PATTERN_SIZE_MAX + 1));
 
-	unsigned char c, *P;
-	FILE *fp, *ip, *stream;
+	unsigned char c;
+
 	/*
 	char logfile[100];
 	sprintf(logfile, "results/%s", code);
@@ -228,59 +242,16 @@ int run_setting(char *filename, key_t tkey, unsigned char *T, int n, const run_c
 	stream = freopen(logfile, "w", stderr); // redirect of stderr
 	*/
 
-	double *e_time, *pre_time;
-	int *count;
-
-	srand(time(NULL));
-
-	// allocate space for running time in shared memory
-	key_t ekey;
-	int eshmid = alloc_shared_mem(sizeof(double), (void **)&e_time, &ekey);
-	if (eshmid < 0)
-	{
-		perror("alloc_shared_mem");
-		free_shm(T, P, count, e_time, pre_time, tshmid, -1, -1, eshmid, -1);
-		exit(1);
-	}
-
-	key_t prekey;
-	int preshmid = alloc_shared_mem(sizeof(double), (void **)&pre_time, &prekey);
-	if (preshmid < 0)
-	{
-		perror("alloc_shared_mem");
-		free_shm(T, P, count, e_time, pre_time, tshmid, -1, -1, eshmid, preshmid);
-		exit(1);
-	}
-
-	// allocate space for pattern in shared memory
-	key_t pkey;
-	int pshmid = alloc_shared_mem(PATTERN_SIZE_MAX + 1, (void **)&P, &pkey);
-	if (pshmid < 0)
-	{
-		perror("alloc_shared_mem");
-		free_shm(T, P, count, e_time, pre_time, tshmid, pshmid, -1, eshmid, preshmid);
-		exit(1);
-	}
-
-	// allocate space for the result number of occurrences in shared memory
-	key_t rkey = rand() % 1000;
-	int rshmid = alloc_shared_mem(4, (void **)&count, &rkey);
-	if (rshmid < 0)
-	{
-		perror("alloc_shared_mem");
-		free_shm(T, P, count, e_time, pre_time, tshmid, pshmid, rshmid, eshmid, preshmid);
-		exit(1);
-	}
-
-	// count how many algorithms are going to run
 	FILE *algo_file = fopen("selected_algos", "r");
 	char algo_names[MAX_SELECT_ALGOS][STR_BUF];
 	int num_running = list_algos_from_file(algo_file, algo_names);
 
+	int (*algo_functions[MAX_SELECT_ALGOS])(unsigned char *, int, unsigned char *, int);
+	load_algos(algo_names, num_running, algo_functions);
+
 	// initializes the vector which will contain running times
 	// performs experiments on a text
-	double SEARCH_TIME[num_running][NumPatt],
-		PRE_TIME[num_running][NumPatt];
+	double SEARCH_TIME[num_running][NumPatt], PRE_TIME[num_running][NumPatt];
 
 	for (int i = 0; i < num_running; i++)
 		for (int j = 0; j < NumPatt; j++)
@@ -317,21 +288,21 @@ int run_setting(char *filename, key_t tkey, unsigned char *T, int n, const run_c
 
 				double TIME[opts->num_runs];
 
+				// TODO: extract this loop into a function
 				int total_occur = 0;
 				for (int k = 1; k <= opts->num_runs; k++)
 				{
 					print_percentage((100 * k) / opts->num_runs);
 
-					int j;
-					for (j = 0; j < m; j++)
-						P[j] = pattern_list[k - 1][j];
-					P[j] = '\0'; // creates the pattern
+					unsigned char P[m + 1];
+					strcpy(P, pattern_list[k - 1]);
 
-					(*e_time) = (*pre_time) = 0.0;
-					int occur = execute_algo(algo_names[algo], pkey, m, tkey, n, rkey, ekey, prekey, count, opts->alphabet_size);
+					search_time = pre_time = 0.0;
+
+					int occur = algo_functions[algo](P, m, T, n);
 					total_occur += occur;
 
-					if (occur <= 0 && !opts->simple)
+					if (occur <= 0)
 					{
 						SEARCH_TIME[algo][pattern_size] = 0;
 						PRE_TIME[algo][pattern_size] = 0;
@@ -340,12 +311,12 @@ int run_setting(char *filename, key_t tkey, unsigned char *T, int n, const run_c
 					}
 
 					if (!opts->pre)
-						(*e_time) += (*pre_time);
+						search_time += pre_time;
 
-					TIME[k] = (*e_time);
-					PRE_TIME[algo][pattern_size] += (*pre_time);
+					TIME[k] = search_time;
+					PRE_TIME[algo][pattern_size] += pre_time;
 
-					if ((*e_time) > opts->time_limit_millis)
+					if (search_time > opts->time_limit_millis)
 					{
 						SEARCH_TIME[algo][pattern_size] = 0;
 						PRE_TIME[algo][pattern_size] = 0;
@@ -368,9 +339,6 @@ int run_setting(char *filename, key_t tkey, unsigned char *T, int n, const run_c
 						sprintf(output_line, "\t[%.2f ± %.2f] ms", SEARCH_TIME[algo][pattern_size], std);
 
 					printf("%s", output_line);
-					for (int i = 0; i < 25 - strlen(output_line); i++)
-						printf(" ");
-
 					if (opts->occ)
 					{
 						if (opts->pre)
@@ -392,31 +360,11 @@ int run_setting(char *filename, key_t tkey, unsigned char *T, int n, const run_c
 			print_top_edge(TOP_EDGE_WIDTH);
 
 			// TODO: extract method: output_running_times();
-
-			/*
-			printf("\tOUTPUT RUNNING TIMES %s\n", code);
-			if (opts->txt)
-				outputTXT(TIME, opts->alphabet_size, filename, code, time_format);
-
-			outputXML(TIME, opts->alphabet_size, filename, code);
-
-			outputHTML2(PRE_TIME, TIME, BEST, WORST, STD, opts->pre, opts->dif, opts->alphabet_size, n, opts->num_runs, filename, code, time_format);
-
-			if (opts->tex)
-				outputLatex(TIME, opts->alphabet_size, filename, code, time_format);
-
-			if (opts->php)
-				outputPHP(TIME, BEST, WORST, STD, opts->alphabet_size, filename, code, opts->dif, opts->std);
-				*/
 		}
 	}
-	// free shared memory
-	free_shm(T, P, count, e_time, pre_time, tshmid, pshmid, rshmid, eshmid, preshmid);
 
 	// free memory allocated for patterns
-	for (int i = 0; i < opts->num_runs; i++)
-		free(pattern_list[i]);
-	free(pattern_list);
+	free_matrix(pattern_list, opts->num_runs);
 
 	return 0;
 }
@@ -467,7 +415,7 @@ void print_text_info(const char *T, int n)
 	printf("\tGreater chararacter has code %d.\n", max_code);
 }
 
-void run_benchmarks(key_t tkey, int tshmid, run_command_opts_t *opts, char *T)
+void run_benchmarks(run_command_opts_t *opts, char *T)
 {
 	char filename_list[NumSetting][50];
 	int num_buffers = split_filename(opts->filename, filename_list);
@@ -502,7 +450,7 @@ void run_benchmarks(key_t tkey, int tshmid, run_command_opts_t *opts, char *T)
 		tm_info = localtime(&date_timer);
 		strftime(time_format, 26, "%Y:%m:%d %H:%M:%S", tm_info);
 
-		run_setting(filename_list[k], tkey, T, n, opts, expcode, tshmid, time_format);
+		run_setting(filename_list[k], T, n, opts, expcode, time_format);
 	}
 
 	// outputINDEX(filename_list, num_buffers, expcode);
@@ -516,9 +464,7 @@ int exec_run(run_command_opts_t *opts)
 
 	print_logo();
 
-	key_t tkey;
-	unsigned char *T; // text and pattern
-	int tshmid = alloc_shared_mem(opts->text_size + PATTERN_SIZE_MAX, (void **)&T, &tkey);
+	unsigned char *T = malloc(sizeof(unsigned char) * (opts->text_size + PATTERN_SIZE_MAX));
 
 	if (!strcmp(opts->filename, "all"))
 	{
@@ -527,9 +473,9 @@ int exec_run(run_command_opts_t *opts)
 
 	// TODO: add context_t type to store all shared_memory variables
 
-	run_benchmarks(tkey, tshmid, opts, T);
+	run_benchmarks(opts, T);
 
-	shmctl(tshmid, IPC_RMID, 0);
+	free(T);
 
 	return 0;
 }

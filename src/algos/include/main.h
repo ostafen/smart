@@ -25,37 +25,38 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* global variables used for computing preprocessing and searching times */
+extern double search_time, pre_time; // searching time and preprocessing time
+
+clock_t start, end;
+TIMER timer;
+
+int search(unsigned char *x, int m, unsigned char *y, int n);
+
 #define BEGIN_PREPROCESSING  \
 	{                        \
-		timer_start(_timer); \
+		timer_start(&timer); \
 		start = clock();     \
 	}
 #define BEGIN_SEARCHING      \
 	{                        \
-		timer_start(_timer); \
+		timer_start(&timer); \
 		start = clock();     \
 	}
-#define END_PREPROCESSING                           \
-	{                                               \
-		timer_stop(_timer);                         \
-		end = clock();                              \
-		(*pre_time) = timer_elapsed(_timer) * 1000; \
+#define END_PREPROCESSING                        \
+	{                                            \
+		timer_stop(&timer);                      \
+		end = clock();                           \
+		pre_time = timer_elapsed(&timer) * 1000; \
 	}
 #define END_SEARCHING                               \
 	{                                               \
-		timer_stop(_timer);                         \
+		timer_stop(&timer);                         \
 		end = clock();                              \
-		(*run_time) = timer_elapsed(_timer) * 1000; \
+		search_time = timer_elapsed(&timer) * 1000; \
 	}
 
-/* global variables used for computing preprocessing and searching times */
-double *run_time, // searching time
-	*pre_time;	  // preprocessing time
-clock_t start, end;
-TIMER *_timer;
-
-int search(unsigned char *p, int m, unsigned char *t, int n);
-
+/*
 int main(int argc, char *argv[])
 {
 	_timer = (TIMER *)malloc(sizeof(TIMER));
@@ -75,49 +76,49 @@ int main(int argc, char *argv[])
 		n = atoi(argv[5]);			  // segment size for the text
 		key_t ekey = atoi(argv[7]);	  // segment name for the running time
 		key_t prekey = atoi(argv[8]); // segment name for the preprocessing running time
-		/* Locate the pattern. */
+
 		if ((pshmid = shmget(pkey, m, 0666)) < 0)
 		{
 			perror("shmget");
 			return 1;
 		}
-		/* Now we attach the segment to our data space. */
+
 		if ((p = shmat(pshmid, NULL, 0)) == (unsigned char *)-1)
 		{
 			perror("shmat");
 			return 1;
 		}
-		/* Locate the text. */
+
 		if ((tshmid = shmget(tkey, n, 0666)) < 0)
 		{
 			perror("shmget");
 			return 1;
 		}
-		/* Now we attach the segment to our data space. */
+
 		if ((t = shmat(tshmid, NULL, 0)) == (unsigned char *)-1)
 		{
 			perror("shmat");
 			return 1;
 		}
-		/* Locate the running time variable */
+
 		if ((eshmid = shmget(ekey, 8, 0666)) < 0)
 		{
 			perror("shmget");
 			return 1;
 		}
-		/* Now we attach the segment to our time variable space. */
+
 		if ((run_time = shmat(eshmid, NULL, 0)) == (double *)-1)
 		{
 			perror("shmat");
 			return 1;
 		}
-		/* Locate the preprocessing running time variable */
+
 		if ((preshmid = shmget(prekey, 8, 0666)) < 0)
 		{
 			perror("shmget");
 			return 1;
 		}
-		/* Now we attach the segment to our time variable space. */
+
 		if ((pre_time = shmat(preshmid, NULL, 0)) == (double *)-1)
 		{
 			perror("shmat");
@@ -160,3 +161,4 @@ int main(int argc, char *argv[])
 		return 0;
 	}
 }
+*/
