@@ -47,7 +47,7 @@ void print_logo()
     printf("	\\__ \\ | | | | | (_| | |  | |_ \n");
     printf("	|___/_| |_| |_|\\__,_|_|   \\__|\n");
     printf("	A String Matching Research Tool\n");
-    printf("	by Simone Faro and Thierry Lecroq\n");
+    printf("	by Simone Faro, Stefano Scafiti and Thierry Lecroq\n");
     printf("	Last Update: May 2017\n");
     printf("\n");
     printf("	If you use this tool in your research please cite the following paper:\n");
