@@ -27,7 +27,7 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 	$(dir_guard)
 	$(CC) -c -o $@ $< $(CFLAGS)
 
-$(OBJ_DIR)/smart.o: $(SRC_DIR)/smart.c $(SRC_DIR)/parser.h $(SRC_DIR)/function.h
+$(OBJ_DIR)/smart.o: $(SRC_DIR)/smart.c $(SRC_DIR)/*.h
 	$(dir_guard)
 	$(CC) -c -o $@ $< $(CFLAGS)
 

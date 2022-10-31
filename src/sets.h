@@ -29,4 +29,4 @@ int EXECUTE[NumAlgo];
 char *ALGO_NAME[NumAlgo];
 char *ALGO_DESCRIPTION[NumAlgo];
 
-#include "function.h"
+#include "utils.h"

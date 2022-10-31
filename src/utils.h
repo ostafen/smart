@@ -17,6 +17,12 @@
  * download the tool at: http://www.dmi.unict.it/~faro/smart/
  */
 
+#ifndef UTILS_H
+#define UTILS_H
+
+#include <dirent.h>
+#include <strings.h>
+
 int trim_str(char *s)
 {
 	int len = strlen(s);
@@ -30,19 +36,6 @@ int trim_str(char *s)
 
 	if (len >= 0)
 		s[len] = '\0';
-}
-
-int string2decimal(char *s)
-{
-	int i;
-	int decimal;
-	int len = strlen(s);
-	decimal = 0;
-	for (i = 0; i < len; i++)
-	{
-		decimal = (decimal * 10) + (s[i] - '0');
-	}
-	return decimal;
 }
 
 /* returns 1 if s is an integer number. 0 otherwise */
@@ -79,26 +72,6 @@ char *str2upper(char *s)
 	return s;
 }
 
-void getAlgoDescription(char *ALGO_DESCRIPTION[])
-{
-	FILE *fp = fopen("source/algodescription.h", "r");
-	char c;
-	int i = 0;
-	while ((c = getc(fp)) != EOF)
-		if (c == '#')
-		{
-			ALGO_DESCRIPTION[i] = (char *)malloc(sizeof(char) * 100);
-			int j = 0;
-			while ((c = getc(fp)) != ',')
-				ALGO_DESCRIPTION[i][j++] = c;
-			ALGO_DESCRIPTION[i][j] = '\0';
-			i++;
-		}
-	while (i < NumAlgo)
-		ALGO_DESCRIPTION[i++] = NULL;
-	fclose(fp);
-}
-
 int split_filename(const char *filename, char list_of_filenames[NumSetting][50])
 {
 	int i, j, k;
@@ -121,3 +94,36 @@ int split_filename(const char *filename, char list_of_filenames[NumSetting][50])
 	}
 	return (k + 1);
 }
+
+#define STR_BUF 100
+
+int list_dir(const char *path, char filenames[][STR_BUF], int f_type)
+{
+	DIR *dir = dir = opendir(path);
+	if (dir == NULL)
+		return -1;
+
+	int n = 0;
+	struct dirent *entry;
+	while ((entry = readdir(dir)) != NULL)
+	{
+		if (entry->d_type == f_type)
+		{
+			// TODO: extract function join_path();
+			char full_path[STR_BUF];
+			memset(full_path, 0, sizeof(char) * STR_BUF);
+
+			strcat(full_path, path);
+			strcat(full_path, "/");
+			strcat(full_path, entry->d_name);
+
+			strcpy(filenames[n++], full_path);
+		}
+	}
+
+	if (closedir(dir) < 0)
+		return -1;
+
+	return n;
+}
+#endif

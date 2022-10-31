@@ -71,7 +71,7 @@ void print_percentage(int perc)
 	fflush(stdout);
 }
 
-int load_text(const char *filename, char *T, int max_len)
+int load_text_buffer(const char *filename, unsigned char *buffer, int n)
 {
 	printf("\tLoading the file %s\n", filename);
 
@@ -81,45 +81,24 @@ int load_text(const char *filename, char *T, int max_len)
 
 	int i = 0;
 	char c;
-	while (i < max_len && (c = getc(input)) != EOF)
-		T[i++] = c;
+	while (i < n && (c = getc(input)) != EOF)
+		buffer[i++] = c;
 
 	fclose(input);
 	return i;
 }
 
-// TODO: list all texts to a matrix, using list_regular_files().
-// create a merged text, and memorize the size of each loaded buffer, so that you can replicate it
-// at the ending of the text to reach max_text_size.
-
-int merge_all_texts(const char *path, char *T, int max_text_size)
+#define MAX_FILES 500
+int merge_text_buffers(const char filenames[][STR_BUF], int n_files, char *T, int max_text_size)
 {
 	int curr_size = 0;
-
-	DIR *dir = dir = opendir(path);
-	if (dir != NULL)
+	for (int i = 0; i < n_files && curr_size < max_text_size; i++)
 	{
-		struct dirent *entry;
-		while ((entry = readdir(dir)) != NULL)
-		{
-			if (entry->d_type == DT_REG)
-			{
-				// TODO: extract function join_path();
-				char full_path[STR_BUF];
-				memset(full_path, 0, sizeof(char) * STR_BUF);
+		int size = load_text_buffer(filenames[i], T + curr_size, max_text_size - curr_size);
+		if (size < 0)
+			return 0;
 
-				strcat(full_path, path);
-				strcat(full_path, "/");
-				strcat(full_path, entry->d_name);
-
-				int size = load_text(full_path, T + curr_size, max_text_size - curr_size);
-				if (size < 0)
-					return 0;
-
-				curr_size += size;
-			}
-		}
-		closedir(dir);
+		curr_size += size;
 	}
 
 	T[curr_size < max_text_size ? curr_size : max_text_size - 1] = '\0';
@@ -127,41 +106,41 @@ int merge_all_texts(const char *path, char *T, int max_text_size)
 	return curr_size;
 }
 
-int gen_search_text(const char *path, unsigned char *T, int max_text_size)
+size_t fsize(const char *path)
 {
-	int size = 0;
-	while (size < max_text_size)
-	{
-		int n = merge_all_texts(path, T + size, max_text_size - size);
-		if (n < 0)
-			return n;
-		size += n;
-	}
-	return size;
+	struct stat st;
+	if (stat(path, &st) < 0)
+		return -1;
+	return st.st_size;
 }
 
-#define MAX_ALLOC_TRIALS 10
-
-int alloc_shared_mem(int size, void **buffer, key_t *tkey)
+int replicate_buffer(unsigned char *buffer, int size, int target_size)
 {
-	int shmid = -1;
-	for (int n = 0; shmid < 0 && n < MAX_ALLOC_TRIALS; n++)
+	int i = 0;
+	while (size < target_size)
 	{
-		*tkey = rand() % 1000;
-		shmid = shmget(*tkey, sizeof(char) * size, IPC_CREAT | 0666);
+		int cpy_size = (target_size - size) < size ? (target_size - size) : size;
+		memcpy(buffer + size, buffer, cpy_size);
+		size += cpy_size;
 	}
+	buffer[size - 1] = '\0';
+}
 
-	if (shmid < 0)
-		return shmid;
+int gen_search_text(const char *path, unsigned char *buffer, int bufsize)
+{
+	char filenames[MAX_FILES][STR_BUF];
 
-	if ((*buffer = shmat(shmid, NULL, 0)) == (unsigned char *)-1)
-	{
-		printf("\nShared memory allocation failed!\nYou need at least 12Mb of shared memory\nPlease, change your system settings and try again.\n");
-		perror("shmat");
-		shmctl(shmid, IPC_RMID, 0);
-		exit(1);
-	}
-	return shmid;
+	int n_files = list_dir(path, filenames, DT_REG);
+	if (n_files < 0)
+		return -1;
+
+	int n = merge_text_buffers(filenames, n_files, buffer, bufsize);
+	if (n >= bufsize)
+		return n;
+
+	replicate_buffer(buffer, n, bufsize);
+
+	return bufsize;
 }
 
 void gen_random_patterns(unsigned char **patterns, int m, unsigned char *T, int n, int num_patterns)
@@ -415,14 +394,25 @@ void print_text_info(const char *T, int n)
 	printf("\tGreater chararacter has code %d.\n", max_code);
 }
 
+#define SMART_DATA_PATH_DEFAULT "data"
+#define SMART_DATA_DIR_ENV "SMART_DATA_DIR"
+
+const char *get_smart_data_dir()
+{
+	const char *path = getenv(SMART_DATA_DIR_ENV);
+	return path != NULL ? path : SMART_DATA_PATH_DEFAULT;
+}
+
 void run_benchmarks(run_command_opts_t *opts, char *T)
 {
+	const char *data_path = get_smart_data_dir();
+
 	char filename_list[NumSetting][50];
 	int num_buffers = split_filename(opts->filename, filename_list);
 
 	srand(time(NULL));
 
-	char expcode[100];
+	char expcode[STR_BUF];
 	gen_experiment_code(expcode);
 
 	printf("\tStarting experimental tests with code %s\n", expcode);
@@ -430,8 +420,7 @@ void run_benchmarks(run_command_opts_t *opts, char *T)
 	for (int k = 0; k < num_buffers; k++)
 	{
 		char fullpath[100];
-		strcpy(fullpath, "data/");
-		strcat(fullpath, filename_list[k]);
+		sprintf(fullpath, "%s/%s", data_path, filename_list[k]);
 
 		printf("\n\tTry to process archive %s\n", fullpath);
 
@@ -465,13 +454,6 @@ int exec_run(run_command_opts_t *opts)
 	print_logo();
 
 	unsigned char *T = malloc(sizeof(unsigned char) * (opts->text_size + PATTERN_SIZE_MAX));
-
-	if (!strcmp(opts->filename, "all"))
-	{
-		// TODO: replace filename_list with the list of all the buffers
-	}
-
-	// TODO: add context_t type to store all shared_memory variables
 
 	run_benchmarks(opts, T);
 
