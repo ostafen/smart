@@ -174,5 +174,7 @@ int exec_select(select_command_opts_t *opts)
 			return 1;
 		}
 	}
-	fclose(fp);
+
+	if (fp)
+		fclose(fp);
 }

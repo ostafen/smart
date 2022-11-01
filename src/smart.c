@@ -175,6 +175,7 @@ double compute_std(double avg, double *T, int n)
 
 #define SEARCH_FUNC_NAME "search"
 
+// TODO: dlclose() all lib_handle pointers
 int load_algos(const char algo_names[][STR_BUF], int num_algos, int (**functions)(unsigned char *, int, unsigned char *, int))
 {
 	for (int i = 0; i < num_algos; i++)
@@ -212,14 +213,6 @@ int run_setting(unsigned char *T, int n, const run_command_opts_t *opts,
 		pattern_list[i] = (unsigned char *)malloc(sizeof(unsigned char) * (PATTERN_SIZE_MAX + 1));
 
 	unsigned char c;
-
-	/*
-	char logfile[100];
-	sprintf(logfile, "results/%s", code);
-	mkdir(logfile, 0775);
-	strcat(logfile, "/errorlog.txt");
-	stream = freopen(logfile, "w", stderr); // redirect of stderr
-	*/
 
 	FILE *algo_file = fopen("selected_algos", "r");
 	char algo_names[MAX_SELECT_ALGOS][STR_BUF];

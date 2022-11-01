@@ -49,6 +49,7 @@ int search(unsigned char *x, int m, unsigned char *y, int n);
 		end = clock();                           \
 		pre_time = timer_elapsed(&timer) * 1000; \
 	}
+
 #define END_SEARCHING                               \
 	{                                               \
 		timer_stop(&timer);                         \
