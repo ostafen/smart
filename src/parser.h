@@ -374,7 +374,7 @@ void parse_select_args(int argc, const char **argv, smart_subcommand_t *subcomma
     int k = 0;
     for (int i = 2; i < argc; i++)
     {
-        if (!strcmpany(argv[i], 3, "-a", "--add"))
+        if (!strcmpany(argv[i], 2, "-a", "--add"))
         {
             opts->add = 1;
         }
