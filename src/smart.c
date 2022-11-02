@@ -280,13 +280,10 @@ int run_setting(unsigned char *T, int n, const run_command_opts_t *opts,
 						break;
 					}
 
-					if (!opts->pre)
-						search_time += pre_time;
-
 					TIME[k] = search_time;
 					PRE_TIME[algo][pattern_size] += pre_time;
 
-					if (search_time > opts->time_limit_millis)
+					if (search_time > opts->time_limit_millis) // TODO: fix this check by computing total_time
 					{
 						SEARCH_TIME[algo][pattern_size] = 0;
 						PRE_TIME[algo][pattern_size] = 0;
