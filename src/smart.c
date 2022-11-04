@@ -26,13 +26,13 @@ int main(int argc, const char *argv[])
 	smart_subcommand_t subcommand;
 	parse_args(argc, argv, &subcommand);
 
-	if (!strcmp(subcommand.subcommand, "select"))
+	if (!strcmp(subcommand.subcommand, SELECT_COMMAND))
 	{
 		exec_select((select_command_opts_t *)subcommand.opts);
 		exit(0);
 	}
 
-	if (!strcmp(subcommand.subcommand, "run"))
+	if (!strcmp(subcommand.subcommand, RUN_COMMAND))
 	{
 		exec_run((run_command_opts_t *)subcommand.opts);
 		exit(0);

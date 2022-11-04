@@ -7,6 +7,9 @@
 #include <stdio.h>
 #include "utils.h"
 
+#define RUN_COMMAND "run"
+#define SELECT_COMMAND "select"
+
 typedef struct smart_opts
 {
     const char *subcommand;
