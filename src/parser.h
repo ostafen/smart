@@ -1,6 +1,11 @@
+#ifndef PARSER_H
+#define PARSER_H
+
 #include <stdlib.h>
-#include <strings.h>
+#include <string.h>
 #include <stdarg.h>
+#include <stdio.h>
+#include "utils.h"
 
 typedef struct smart_opts
 {
@@ -246,12 +251,12 @@ int parse_flag(run_command_opts_t *line, int curr_arg, int argc, const char **ar
     }
     if (!strcmp("-short", argv[curr_arg]))
     {
-        PATT_SIZE = PATT_SHORT_SIZE;
+        // PATT_SIZE = PATT_SHORT_SIZE;
         return 1;
     }
     if (!strcmp("-vshort", argv[curr_arg]))
     {
-        PATT_SIZE = PATT_VERY_SHORT;
+        // PATT_SIZE = PATT_VERY_SHORT;
         return 1;
     }
     return 0;
@@ -384,11 +389,11 @@ void parse_select_args(int argc, const char **argv, smart_subcommand_t *subcomma
         }
         else if (!strcmpany(argv[i], 3, "-sa", "-show-all", "--show-all"))
         {
-            opts->show_selected = 1;
+            opts->show_all = 1;
         }
         else if (!strcmpany(argv[i], 3, "-ss", "-show-selected", "--show-selected"))
         {
-            opts->show_all = 1;
+            opts->show_selected = 1;
         }
         else if (!strcmpany(argv[i], 2, "-n", "--none"))
         {
@@ -452,3 +457,5 @@ void parse_args(int argc, const char **argv, smart_subcommand_t *subcommand)
         print_subcommand_usage_and_exit(argv[0]);
     }
 }
+
+#endif

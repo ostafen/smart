@@ -23,6 +23,25 @@
 #include <dirent.h>
 #include <strings.h>
 
+static int str_compare(const void *str1, const void *str2)
+{
+	if (strcmp(str1, str2) >= 0)
+		return 1;
+	else
+		return 0;
+}
+
+int has_suffix(const char *s, const char *suffix)
+{
+	return !strcmp(s + strlen(s) - strlen(suffix), suffix);
+}
+
+void trim_suffix(char *s, const char *suffix)
+{
+	if (has_suffix(s, suffix))
+		s[strlen(s) - strlen(suffix)] = '\0';
+}
+
 int trim_str(char *s)
 {
 	int len = strlen(s);
@@ -72,7 +91,7 @@ char *str2upper(char *s)
 	return s;
 }
 
-int split_filename(const char *filename, char list_of_filenames[NumSetting][50])
+int split_filename(const char *filename, char list_of_filenames[500][50])
 {
 	int i, j, k;
 	i = j = k = 0;
@@ -97,7 +116,24 @@ int split_filename(const char *filename, char list_of_filenames[NumSetting][50])
 
 #define STR_BUF 100
 
-int list_dir(const char *path, char filenames[][STR_BUF], int f_type)
+int read_all_lines(FILE *fp, char output[][STR_BUF])
+{
+	char *line = NULL;
+	size_t len;
+
+	int k = 0;
+	while ((getline(&line, &len, fp)) != -1)
+	{
+		trim_str(line);
+		strcpy(output[k++], line);
+	}
+	return k;
+}
+
+#define STR_BUF 100
+#define MAX_FILE_LINES 1000
+
+int list_dir(const char *path, char filenames[][STR_BUF], int f_type, int include_path)
 {
 	DIR *dir = dir = opendir(path);
 	if (dir == NULL)
@@ -113,8 +149,11 @@ int list_dir(const char *path, char filenames[][STR_BUF], int f_type)
 			char full_path[STR_BUF];
 			memset(full_path, 0, sizeof(char) * STR_BUF);
 
-			strcat(full_path, path);
-			strcat(full_path, "/");
+			if (include_path)
+			{
+				strcat(full_path, path);
+				strcat(full_path, "/");
+			}
 			strcat(full_path, entry->d_name);
 
 			strcpy(filenames[n++], full_path);

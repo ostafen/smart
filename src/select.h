@@ -20,33 +20,23 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+
 #include "string_set.h"
+#include "parser.h"
+#include "utils.h"
 
 FILE *open_algo_file(const char *filename)
 {
 	return fopen(filename, "ab+");
 }
 
-#define STR_BUF 100
-
-int list_algos_from_file(FILE *fp, const char output[][STR_BUF])
-{
-	char *line = NULL;
-	size_t len;
-
-	int k = 0;
-	while ((getline(&line, &len, fp)) != -1)
-	{
-		trim_str(line);
-		strcpy(output[k++], line);
-	}
-	return k;
-}
+#define MAX_SELECT_ALGOS 100
 
 void add_algos(FILE *fp, const char **algos, int n_algos)
 {
 	char selected_algos[MAX_SELECT_ALGOS][STR_BUF];
-	int n_selected_algos = list_algos_from_file(fp, selected_algos);
+	int n_selected_algos = read_all_lines(fp, selected_algos);
 
 	str_set_t set;
 	str_set_init(&set);
@@ -106,7 +96,7 @@ void rewrite_file_without_strings(FILE *fp, const char **algos, int n)
 void remove_algos(FILE *fp, const char **algos, int n_algos)
 {
 	char selected_algos[MAX_SELECT_ALGOS][STR_BUF];
-	int n_selected_algos = list_algos_from_file(fp, selected_algos);
+	int n_selected_algos = read_all_lines(fp, selected_algos);
 
 	str_set_t selected_algos_set;
 	str_set_init(&selected_algos_set);
@@ -139,22 +129,42 @@ void list_algo_file(FILE *fp)
 {
 	char algos[MAX_SELECT_ALGOS][STR_BUF];
 
-	int n = list_algos_from_file(fp, algos);
+	int n = read_all_lines(fp, algos);
 	for (int i = 0; i < n; i++)
 		printf("%s\n", algos[i]);
+}
+
+#define SMART_BIN_FOLDER "./bin/algos"
+
+void list_selectable_algos()
+{
+	char filenames[MAX_FILE_LINES][STR_BUF];
+	int n = list_dir(SMART_BIN_FOLDER, filenames, DT_REG, 0);
+	if (n < 0)
+	{
+		printf("unable to list dir\n");
+		exit(1);
+	}
+
+	qsort(filenames, n, sizeof(char) * STR_BUF, str_compare);
+
+	for (int i = 0; i < n; i++)
+	{
+		trim_suffix(filenames[i], ".so");
+		str2upper(filenames[i]);
+		printf("%s\n", filenames[i]);
+	}
 }
 
 int exec_select(select_command_opts_t *opts)
 {
 	if (opts->show_all)
 	{
-		// shows all selected algorithms
-		printf("\n\tThe list of selected algorithms:\n");
-		printf("\n");
+		list_selectable_algos();
 		return 0;
 	}
 
-	FILE *fp = open_algo_file("selected_algos");
+	FILE *fp = fopen("selected_algos", "ab+");
 	if (opts->n_algos > 0)
 	{
 		if (opts->add)
