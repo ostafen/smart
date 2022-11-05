@@ -90,7 +90,7 @@ void print_run_usage_and_exit(const char *command)
     printf("\t              Use option \"all\" to performe experimental results using all text buffers.\n");
     printf("\t              Use the style A-B-C to performe experimental results using multiple text buffers.\n");
     printf("\t              Separate the list of text buffers using the symbol \"-\"\n");
-    printf("\t-random A     performs experimental results using random text with an alphabet A between 1 and 255 inclusive\n");
+    printf("\t-random A     performs experimental results using random text with an alphabet A between 1 and 256 inclusive\n");
     printf("\t-short        computes experimental results using short length patterns (from 2 to 32)\n");
     printf("\t-vshort       computes experimental results using very short length patterns (from 1 to 16)\n");
     printf("\t-occ          prints the average number of occurrences\n");
@@ -210,8 +210,8 @@ int parse_random_text(run_command_opts_t *line, int curr_arg, int argc, const ch
     line->filename = SMART_RANDOM_TEXT;
     line->alphabet_size = atoi(argv[curr_arg + 1]);
 
-    if (line->alphabet_size < 1 || line->alphabet_size > 255)
-        print_error_message_and_exit("Random alphabet must be between 1 and 255 inclusive.");
+    if (line->alphabet_size < 1 || line->alphabet_size > 256)
+        print_error_message_and_exit("Random alphabet must be between 1 and 256 inclusive.");
 
     return 1;
 }
