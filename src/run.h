@@ -16,6 +16,9 @@
 #include "timer.h"
 #include "parser.h"
 
+#define __USE_GNU // required to use CPU_ macros in sched.h.
+#include <sched.h>
+
 #define PATTERN_SIZE_MAX 4200 // maximal length of the pattern
 
 #define SIGMA 256 // constant alphabet size
@@ -432,12 +435,34 @@ void run_benchmarks(run_command_opts_t *opts, unsigned char *T)
     // outputINDEX(filename_list, num_buffers, expcode);
 }
 
+/*
+ * Sets the scheduler affinity to pin this process to one CPU core.
+ * This can avoid benchmarking variation caused by processes moving from one core to another, causing cache misses.
+ */
+void pin_to_one_CPU_core() {
+    cpu_set_t cpus;
+    int lastCPU = sysconf(_SC_NPROCESSORS_ONLN) - 1;
+    int processId = getpid();
+    CPU_ZERO(&cpus);
+    CPU_SET(lastCPU, &cpus);
+    if (sched_setaffinity(processId, sizeof(cpu_set_t), &cpus) == -1)
+    {
+        printf("\n\tCould not pin the benchmark to a core - variation in benchmarking may be higher.\n\n");
+    }
+    else
+    {
+        printf("\n\tPinned benchmark process %d to core %d of %d processors.\n\n", processId, lastCPU, lastCPU + 1);
+    }
+}
+
 int exec_run(run_command_opts_t *opts)
 {
     print_logo();
 
     srand(opts->random_seed);
     printf("\n\tSetting random seed for this benchmarking run to %d\n", opts->random_seed);
+
+    pin_to_one_CPU_core();
 
     unsigned char *T = (unsigned char *)malloc(sizeof(unsigned char) * (opts->text_size + PATTERN_SIZE_MAX));
 
