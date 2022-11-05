@@ -10,6 +10,7 @@
 
 #define RUN_COMMAND "run"
 #define SELECT_COMMAND "select"
+#define SMART_RANDOM_TEXT "SMART_random_text"
 
 typedef struct smart_opts
 {
@@ -90,6 +91,7 @@ void print_run_usage_and_exit(const char *command)
     printf("\t              Use option \"all\" to performe experimental results using all text buffers.\n");
     printf("\t              Use the style A-B-C to performe experimental results using multiple text buffers.\n");
     printf("\t              Separate the list of text buffers using the symbol \"-\"\n");
+    printf("\t-random A     performs experimental results using random text with an alphabet A between 1 and 256 inclusive\n");
     printf("\t-seed S       Sets the random seed to integer S, ensuring tests and benchmarks can be precisely repeated.\n");
     printf("\t-short        computes experimental results using short length patterns (from 2 to 32)\n");
     printf("\t-vshort       computes experimental results using very short length patterns (from 1 to 16)\n");
@@ -122,7 +124,6 @@ void opts_init_default(run_command_opts_t *opts)
     opts->pattern_min_len = PATTERN_MIN_LEN_DEFAULT;
     opts->pattern_max_len = PATTERN_MAX_LEN_DEFAULT;
     opts->num_runs = NUM_RUNS_DEFAULT;
-    opts->alphabet_size = -1;
     opts->num_runs = NUM_RUNS_DEFAULT;
     opts->time_limit_millis = TIME_LIMIT_MILLIS_DEFAULT;
     opts->random_seed = time(NULL);
@@ -136,6 +137,11 @@ void opts_init_default(run_command_opts_t *opts)
 void print_error_and_exit()
 {
     printf("Error in input parameters. Use -h for help.\n\n");
+    exit(1);
+}
+
+void print_error_message_and_exit(const char * message) {
+    printf("Error in input parameters: %s\nUse -h for help.\n\n", message);
     exit(1);
 }
 
@@ -188,8 +194,28 @@ int parse_text(run_command_opts_t *line, int curr_arg, int argc, const char **ar
     if (curr_arg + 1 >= argc)
         print_error_and_exit();
 
+    if (!(strcmp(line->filename, SMART_RANDOM_TEXT)))
+        print_error_message_and_exit("Random text is already set - you cannot have both -random and -text.");
+
     const char *filename = argv[curr_arg + 1];
     line->filename = filename;
+    return 1;
+}
+
+int parse_random_text(run_command_opts_t *line, int curr_arg, int argc, const char **argv)
+{
+    if (curr_arg + 1 >= argc)
+        print_error_and_exit();
+
+    if (line->filename != NULL)
+        print_error_message_and_exit("Text files are already set - you cannot have both -random and -text.");
+
+    line->filename = SMART_RANDOM_TEXT;
+    line->alphabet_size = atoi(argv[curr_arg + 1]);
+
+    if (line->alphabet_size < 1 || line->alphabet_size > 256)
+        print_error_message_and_exit("Random alphabet must be between 1 and 256 inclusive.");
+
     return 1;
 }
 
@@ -305,6 +331,10 @@ void parse_run_args(int argc, const char **argv, smart_subcommand_t *subcommand)
         else if (!strcmp("-text", argv[curr_arg]))
         {
             curr_arg += parse_text(opts, curr_arg, argc, argv);
+        }
+        else if (!strcmp("-random", argv[curr_arg]))
+        {
+            curr_arg += parse_random_text(opts, curr_arg, argc, argv);
         }
         else if (!strcmp("-plen", argv[curr_arg]))
         {

@@ -122,6 +122,20 @@ int gen_search_text(const char *path, unsigned char *buffer, int bufsize)
     return bufsize;
 }
 
+int gen_random_text(unsigned char *buffer, int sigma, int bufsize)
+{
+    // An alphabet of one means all symbols are the same - so just set zero.
+    if (sigma == 1) {
+        memset(buffer, 0, bufsize);
+    } else {
+        for (int i = 0; i < bufsize; i++)
+        {
+            buffer[i] = rand() % sigma;
+        }
+    }
+    return bufsize;
+}
+
 void gen_random_patterns(unsigned char **patterns, int m, unsigned char *T, int n, int num_patterns)
 {
     for (int i = 0; i < num_patterns; i++)
@@ -242,8 +256,7 @@ int run_setting(unsigned char *T, int n, const run_command_opts_t *opts,
                 print_percentage((100 * k) / opts->num_runs);
 
                 unsigned char P[m + 1];
-                strcpy((char *)P, (char *)pattern_list[k - 1]);
-
+                memcpy(P, pattern_list[k - 1], sizeof(unsigned char) * (m + 1));
                 search_time = pre_time = 0.0;
 
                 int occur = algo_functions[algo](P, m, T, n);
@@ -365,9 +378,31 @@ const char *get_smart_data_dir()
     return path != NULL ? path : SMART_DATA_PATH_DEFAULT;
 }
 
+int get_text(run_command_opts_t *opts, const char *filename, unsigned char *T)
+{
+    int size;
+    if (!strcmp(filename, SMART_RANDOM_TEXT))
+    {
+        printf("\n\tTry to process random text with alphabet size of %d\n", opts->alphabet_size);
+        size = gen_random_text(T, opts->alphabet_size, opts->text_size);
+    } else {
+        char fullpath[100];
+        const char *data_path = get_smart_data_dir();
+        sprintf(fullpath, "%s/%s", data_path, filename);
+        printf("\n\tTry to process archive %s\n", fullpath);
+
+        int size = gen_search_text(fullpath, T, opts->text_size);
+        if (size <= 0)
+        {
+            printf("\tunable to generate search text\n");
+            exit(1);
+        }
+    }
+    return size;
+}
+
 void run_benchmarks(run_command_opts_t *opts, unsigned char *T)
 {
-    const char *data_path = get_smart_data_dir();
 
     char filename_list[NumSetting][50];
     int num_buffers = split_filename(opts->filename, filename_list);
@@ -381,17 +416,7 @@ void run_benchmarks(run_command_opts_t *opts, unsigned char *T)
 
     for (int k = 0; k < num_buffers; k++)
     {
-        char fullpath[100];
-        sprintf(fullpath, "%s/%s", data_path, filename_list[k]);
-
-        printf("\n\tTry to process archive %s\n", fullpath);
-
-        int n = gen_search_text(fullpath, T, opts->text_size);
-        if (n <= 0)
-        {
-            printf("\tunable to generate search text\n");
-            return;
-        }
+        int n = get_text(opts, filename_list[k], T);
         print_text_info(T, n);
 
         time_t date_timer;
