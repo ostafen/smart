@@ -394,7 +394,7 @@ int get_text(run_command_opts_t *opts, const char *filename, unsigned char *T)
         sprintf(fullpath, "%s/%s", data_path, filename);
         printf("\n\tTry to process archive %s\n", fullpath);
 
-        int size = gen_search_text(fullpath, T, opts->text_size);
+        size = gen_search_text(fullpath, T, opts->text_size);
         if (size <= 0)
         {
             printf("\tunable to generate search text\n");
@@ -409,8 +409,6 @@ void run_benchmarks(run_command_opts_t *opts, unsigned char *T)
 
     char filename_list[NumSetting][50];
     int num_buffers = split_filename(opts->filename, filename_list);
-
-    srand(time(NULL));
 
     char expcode[STR_BUF];
     gen_experiment_code(expcode);
