@@ -434,9 +434,10 @@ void run_benchmarks(run_command_opts_t *opts, unsigned char *T)
 
 int exec_run(run_command_opts_t *opts)
 {
-    srand(time(NULL));
-
     print_logo();
+
+    srand(opts->random_seed);
+    printf("\n\tSetting random seed for this benchmarking run to %d\n", opts->random_seed);
 
     unsigned char *T = (unsigned char *)malloc(sizeof(unsigned char) * (opts->text_size + PATTERN_SIZE_MAX));
 
