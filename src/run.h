@@ -124,8 +124,14 @@ int gen_search_text(const char *path, unsigned char *buffer, int bufsize)
 
 int gen_random_text(unsigned char *buffer, int sigma, int bufsize)
 {
-    for (int i = 0; i < bufsize; i++) {
-        buffer[i] = 1 + (rand() % sigma);
+    // An alphabet of one means all symbols are the same - so just set zero.
+    if (sigma == 1) {
+        memset(buffer, 0, bufsize);
+    } else {
+        for (int i = 0; i < bufsize; i++)
+        {
+            buffer[i] = rand() % sigma;
+        }
     }
     return bufsize;
 }
@@ -250,8 +256,7 @@ int run_setting(unsigned char *T, int n, const run_command_opts_t *opts,
                 print_percentage((100 * k) / opts->num_runs);
 
                 unsigned char P[m + 1];
-                strcpy((char *)P, (char *)pattern_list[k - 1]);
-
+                memcpy(P, pattern_list[k - 1], sizeof(unsigned char) * (m + 1));
                 search_time = pre_time = 0.0;
 
                 int occur = algo_functions[algo](P, m, T, n);
