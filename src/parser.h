@@ -194,8 +194,8 @@ int parse_text(run_command_opts_t *line, int curr_arg, int argc, const char **ar
     if (curr_arg + 1 >= argc)
         print_error_and_exit();
 
-    if (!(strcmp(line->filename, SMART_RANDOM_TEXT)))
-        print_error_message_and_exit("Random text is already set - you cannot have both -random and -text.");
+    if (line->filename != NULL && !(strcmp(line->filename, SMART_RANDOM_TEXT)))
+       print_error_message_and_exit("Random text is already set - you cannot have both -random and -text.");
 
     const char *filename = argv[curr_arg + 1];
     line->filename = filename;
