@@ -44,17 +44,16 @@ void trim_suffix(char *s, const char *suffix)
 
 int trim_str(char *s)
 {
-	int len = strlen(s);
-	while (len >= 0)
+	int pos = strlen(s) - 1;
+	while (pos >= 0)
 	{
-		if (s[len - 1] == '\n' || s[len - 1] == '\r')
-			len--;
+		char c = s[pos];
+        if (c == '\n' || c == '\r' || c == ' ' || c == '\t')
+			pos--;
 		else
 			break;
 	}
-
-	if (len >= 0)
-		s[len] = '\0';
+    s[pos + 1] = '\0';
 }
 
 /* returns 1 if s is an integer number. 0 otherwise */
@@ -125,7 +124,10 @@ int read_all_lines(FILE *fp, char output[][STR_BUF])
 	while ((getline(&line, &len, fp)) != -1)
 	{
 		trim_str(line);
-		strcpy(output[k++], line);
+        if (strlen(line) > 0)
+        {
+            strcpy(output[k++], line);
+        }
 	}
 	return k;
 }
