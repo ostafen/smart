@@ -128,9 +128,12 @@ int gen_search_text(const char *path, unsigned char *buffer, int bufsize)
 int gen_random_text(unsigned char *buffer, int sigma, int bufsize)
 {
     // An alphabet of one means all symbols are the same - so just set zero.
-    if (sigma == 1) {
+    if (sigma == 1)
+    {
         memset(buffer, 0, bufsize);
-    } else {
+    }
+    else
+    {
         for (int i = 0; i < bufsize; i++)
         {
             buffer[i] = rand() % sigma;
@@ -143,12 +146,11 @@ void gen_random_patterns(unsigned char **patterns, int m, unsigned char *T, int 
 {
     for (int i = 0; i < num_patterns; i++)
     {
-        int j;
         int k = random() % (n - m);
-        for (j = 0; j < m; j++)
+        for (int j = 0; j < m; j++)
             patterns[i][j] = T[k + j];
 
-        patterns[i][j] = '\0';
+        patterns[i][m] = '\0';
     }
 }
 
@@ -157,6 +159,7 @@ double compute_average(double *T, int n)
     double avg = 0.0;
     for (int i = 0; i < n; i++)
         avg += T[i];
+
     return avg / n;
 }
 
@@ -198,6 +201,47 @@ void free_matrix(unsigned char **M, int n)
 }
 
 double search_time, pre_time;
+
+typedef struct bechmark_res
+{
+    int total_occ;
+    double search_time, pre_time, std;
+
+} benchmark_res_t;
+
+void run_algo(const unsigned char **pattern_list, int m,
+              unsigned char *T, int n, const run_command_opts_t *opts,
+              int (*search_func)(unsigned char *, int, unsigned char *, int), benchmark_res_t *res)
+{
+    double times[opts->num_runs];
+    double total_pre_time = 0;
+
+    res->total_occ = 0;
+    for (int k = 0; k < opts->num_runs; k++)
+    {
+        print_percentage((100 * (k + 1)) / opts->num_runs);
+
+        unsigned char P[m + 1];
+        memcpy(P, pattern_list[k], sizeof(unsigned char) * (m + 1));
+        res->search_time = res->pre_time = 0.0;
+
+        int occur = search_func(P, m, T, n);
+        res->total_occ += occur;
+
+        if (occur <= 0)
+            return -1;
+
+        if (search_time > opts->time_limit_millis)
+            return -2;
+
+        times[k] = search_time;
+        total_pre_time += pre_time;
+    }
+
+    res->search_time = compute_average(times, opts->num_runs);
+    res->pre_time = total_pre_time / opts->num_runs;
+    res->std = compute_std(res->search_time, times, opts->num_runs);
+}
 
 int run_setting(unsigned char *T, int n, const run_command_opts_t *opts,
                 char *code, char *time_format)
@@ -251,72 +295,46 @@ int run_setting(unsigned char *T, int n, const run_command_opts_t *opts,
                 printf(".");
 
             double TIME[opts->num_runs];
+            int total_pre_time = 0;
+            benchmark_res_t res;
+            run_algo(pattern_list, m, T, n, opts, algo_functions[algo], &res);
 
-            // TODO: extract this loop into a function
-            int total_occur = 0;
-            for (int k = 1; k <= opts->num_runs; k++)
+            // TODO: extract function: output results
+            if (res.total_occ > 0)
             {
-                print_percentage((100 * k) / opts->num_runs);
-
-                unsigned char P[m + 1];
-                memcpy(P, pattern_list[k - 1], sizeof(unsigned char) * (m + 1));
-                search_time = pre_time = 0.0;
-
-                int occur = algo_functions[algo](P, m, T, n);
-                total_occur += occur;
-
-                if (occur <= 0)
-                {
-                    SEARCH_TIME[algo][pattern_idx] = 0;
-                    PRE_TIME[algo][pattern_idx] = 0;
-                    total_occur = occur;
-                    break;
-                }
-
-                TIME[k] = search_time;
-                PRE_TIME[algo][pattern_idx] += pre_time;
-
-                if (search_time > opts->time_limit_millis) // TODO: fix this check by computing total_time
-                {
-                    SEARCH_TIME[algo][pattern_idx] = 0;
-                    PRE_TIME[algo][pattern_idx] = 0;
-                    total_occur = -2;
-                    break;
-                }
-            }
-
-            SEARCH_TIME[algo][pattern_idx] = compute_average(TIME, opts->num_runs);
-            PRE_TIME[algo][pattern_idx] /= (double)opts->num_runs;
-
-            if (total_occur > 0)
-            {
-                double std = compute_std(SEARCH_TIME[algo][pattern_idx], TIME, opts->num_runs);
 
                 printf("\b\b\b\b\b\b\b.[OK]  ");
                 if (opts->pre)
-                    sprintf(output_line, "\t%.2f + [%.2f ± %.2f] ms", PRE_TIME[algo][pattern_idx], SEARCH_TIME[algo][pattern_idx], std);
+                    sprintf(output_line, "\t%.2f + [%.2f ± %.2f] ms", res.pre_time, res.search_time, res.std);
                 else
-                    sprintf(output_line, "\t[%.2f ± %.2f] ms", SEARCH_TIME[algo][pattern_idx], std);
+                    sprintf(output_line, "\t[%.2f ± %.2f] ms", res.search_time, res.std);
 
                 printf("%s", output_line);
                 if (opts->occ)
                 {
                     if (opts->pre)
-                        printf("\t\tocc \%d", total_occur / opts->num_runs);
+                        printf("\t\tocc \%d", res.total_occ / opts->num_runs);
                     else
-                        printf("\tocc \%d", total_occur / opts->num_runs);
+                        printf("\tocc \%d", res.total_occ / opts->num_runs);
                 }
                 printf("\n");
             }
-            else if (total_occur == 0)
+            else if (res.total_occ == 0)
                 printf("\b\b\b\b\b\b\b\b.[ERROR] \n");
-            else if (total_occur == -1)
+            else if (res.total_occ == -1)
                 printf("\b\b\b\b\b.[--]  \n");
-            else if (total_occur == -2)
+            else if (res.total_occ == -2)
                 printf("\b\b\b\b\b\b.[OUT]  \n");
-        }
 
-        // TODO: extract method: output_running_times();
+            // save times for outputting if necessary
+            SEARCH_TIME[algo][pattern_idx] = 0;
+            PRE_TIME[algo][pattern_idx] = 0;
+            if (res.total_occ > 0)
+            {
+                SEARCH_TIME[algo][pattern_idx] = res.search_time;
+                PRE_TIME[algo][pattern_idx] = res.pre_time;
+            }
+        }
     }
     printf("\n");
 
@@ -388,7 +406,9 @@ int get_text(run_command_opts_t *opts, const char *filename, unsigned char *T)
     {
         printf("\n\tTry to process random text with alphabet size of %d\n", opts->alphabet_size);
         size = gen_random_text(T, opts->alphabet_size, opts->text_size);
-    } else {
+    }
+    else
+    {
         char fullpath[100];
         const char *data_path = get_smart_data_dir();
         sprintf(fullpath, "%s/%s", data_path, filename);
@@ -437,7 +457,8 @@ void run_benchmarks(run_command_opts_t *opts, unsigned char *T)
  * Sets the scheduler affinity to pin this process to one CPU core.
  * This can avoid benchmarking variation caused by processes moving from one core to another, causing cache misses.
  */
-void pin_to_one_CPU_core() {
+void pin_to_one_CPU_core()
+{
     cpu_set_t cpus;
     int lastCPU = sysconf(_SC_NPROCESSORS_ONLN) - 1;
     int processId = getpid();
