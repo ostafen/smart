@@ -22,10 +22,8 @@
 #define PATTERN_SIZE_MAX 4200 // maximal length of the pattern
 
 #define SIGMA 256 // constant alphabet size
-#define NumAlgo 500
-#define NumPatt 17    // maximal number of pattern lengths
+#define NUM_PATTERNS_MAX 100
 #define NumSetting 15 // number of text buffers
-#define MAXTIME 999.00
 
 #define TEXT_SIZE_DEFAULT 1048576
 
@@ -206,7 +204,6 @@ typedef struct bechmark_res
 {
     int total_occ;
     double search_time, pre_time, std;
-
 } benchmark_res_t;
 
 void run_algo(const unsigned char **pattern_list, int m,
@@ -264,10 +261,9 @@ int run_setting(unsigned char *T, int n, const run_command_opts_t *opts,
 
     // initializes the vector which will contain running times
     // performs experiments on a text
-    double SEARCH_TIME[num_running][NumPatt], PRE_TIME[num_running][NumPatt];
-
+    double SEARCH_TIME[num_running][NUM_PATTERNS_MAX], PRE_TIME[num_running][NUM_PATTERNS_MAX];
     for (int i = 0; i < num_running; i++)
-        for (int j = 0; j < NumPatt; j++)
+        for (int j = 0; j < NUM_PATTERNS_MAX; j++)
             SEARCH_TIME[i][j] = PRE_TIME[i][j] = 0;
 
     for (int m = opts->pattern_min_len, pattern_idx = 0; m <= opts->pattern_max_len; m *= 2, pattern_idx++)
@@ -302,7 +298,6 @@ int run_setting(unsigned char *T, int n, const run_command_opts_t *opts,
             // TODO: extract function: output results
             if (res.total_occ > 0)
             {
-
                 printf("\b\b\b\b\b\b\b.[OK]  ");
                 if (opts->pre)
                     sprintf(output_line, "\t%.2f + [%.2f ± %.2f] ms", res.pre_time, res.search_time, res.std);
