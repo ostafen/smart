@@ -244,7 +244,7 @@ typedef struct bechmark_res
 /*
  * Benchmarks an algorithm against a list of patterns of size m on a text T of size n, using the options provided.
  */
-void run_algo(const unsigned char **pattern_list, int m,
+int run_algo(const unsigned char **pattern_list, int m,
               unsigned char *T, int n, const run_command_opts_t *opts,
               int (*search_func)(unsigned char *, int, unsigned char *, int), benchmark_res_t *res)
 {
@@ -314,11 +314,8 @@ void print_benchmark_res(const char *output_line, run_command_opts_t *opts, benc
  * The size n refers to the maximum size of the text to search; the buffer itself is slightly bigger to allow copying a
  * pattern into it past the actual text.
  */
-int run_setting(unsigned char *T, int n, const run_command_opts_t *opts,
-                char *code, char *time_format)
+int run_setting(unsigned char *T, int n, const run_command_opts_t *opts)
 {
-    printf("\tExperimental tests started on %s\n", time_format);
-
     unsigned char *pattern_list[opts->num_runs];
     for (int i = 0; i < opts->num_runs; i++) // TODO: allocate the correct size for each pattern
         pattern_list[i] = (unsigned char *)malloc(sizeof(unsigned char) * (PATTERN_SIZE_MAX + 1));
@@ -522,7 +519,8 @@ void run_benchmarks(run_command_opts_t *opts, unsigned char *T)
         tm_info = localtime(&date_timer);
         strftime(time_format, 26, "%Y:%m:%d %H:%M:%S", tm_info);
 
-        run_setting(T, n, opts, expcode, time_format);
+        printf("\tExperimental tests started on %s\n", time_format);
+        run_setting(T, n, opts);
     }
 
     // outputINDEX(filename_list, num_buffers, expcode);
