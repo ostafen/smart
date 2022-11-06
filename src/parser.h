@@ -118,12 +118,10 @@ void print_run_usage_and_exit(const char *command)
 void opts_init_default(run_command_opts_t *opts)
 {
     opts->filename = NULL;
-    opts->text_size = -1;
     opts->alphabet_size = ALPHABET_SIZE_DEFAULT;
     opts->text_size = TEXT_SIZE_DEFAULT;
     opts->pattern_min_len = PATTERN_MIN_LEN_DEFAULT;
     opts->pattern_max_len = PATTERN_MAX_LEN_DEFAULT;
-    opts->num_runs = NUM_RUNS_DEFAULT;
     opts->num_runs = NUM_RUNS_DEFAULT;
     opts->time_limit_millis = TIME_LIMIT_MILLIS_DEFAULT;
     opts->random_seed = time(NULL);
