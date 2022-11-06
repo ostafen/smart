@@ -227,6 +227,12 @@ int load_algos(const char algo_names[][STR_BUF], int num_algos, int (**functions
     return 0;
 }
 
+void allocate_matrix(unsigned char **M, int n, int elementSize)
+{
+    for (int i = 0; i < n; i++)
+        M[i] = (unsigned char *)malloc(elementSize);
+}
+
 void free_matrix(unsigned char **M, int n)
 {
     for (int i = 0; i < n; i++)
@@ -317,10 +323,7 @@ void print_benchmark_res(const char *output_line, run_command_opts_t *opts, benc
 int run_setting(unsigned char *T, int n, const run_command_opts_t *opts)
 {
     unsigned char *pattern_list[opts->num_runs];
-    for (int i = 0; i < opts->num_runs; i++) // TODO: allocate the correct size for each pattern
-        pattern_list[i] = (unsigned char *)malloc(sizeof(unsigned char) * (PATTERN_SIZE_MAX + 1));
-
-    unsigned char c;
+    allocate_matrix(pattern_list, opts->num_runs, sizeof(unsigned char) * (PATTERN_SIZE_MAX + 1));
 
     FILE *algo_file = fopen("selected_algos", "r");
     char algo_names[MAX_SELECT_ALGOS][STR_BUF];
