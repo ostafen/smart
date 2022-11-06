@@ -137,7 +137,7 @@ int read_all_lines(FILE *fp, char output[][STR_BUF])
 
 int list_dir(const char *path, char filenames[][STR_BUF], int f_type, int include_path)
 {
-	DIR *dir = dir = opendir(path);
+	DIR *dir = opendir(path);
 	if (dir == NULL)
 		return -1;
 
