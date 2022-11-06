@@ -240,6 +240,34 @@ void run_algo(const unsigned char **pattern_list, int m,
     res->std = compute_std(res->search_time, times, opts->num_runs);
 }
 
+void print_benchmark_res(const char *output_line, run_command_opts_t *opts, benchmark_res_t *res)
+{
+    if (res->total_occ > 0)
+    {
+        printf("\b\b\b\b\b\b\b.[OK]  ");
+        if (opts->pre)
+            sprintf(output_line, "\t%.2f + [%.2f ± %.2f] ms", res->pre_time, res->search_time, res->std);
+        else
+            sprintf(output_line, "\t[%.2f ± %.2f] ms", res->search_time, res->std);
+
+        printf("%s", output_line);
+        if (opts->occ)
+        {
+            if (opts->pre)
+                printf("\t\tocc \%d", res->total_occ / opts->num_runs);
+            else
+                printf("\tocc \%d", res->total_occ / opts->num_runs);
+        }
+        printf("\n");
+    }
+    else if (res->total_occ == 0)
+        printf("\b\b\b\b\b\b\b\b.[ERROR] \n");
+    else if (res->total_occ == -1)
+        printf("\b\b\b\b\b.[--]  \n");
+    else if (res->total_occ == -2)
+        printf("\b\b\b\b\b\b.[OUT]  \n");
+}
+
 int run_setting(unsigned char *T, int n, const run_command_opts_t *opts,
                 char *code, char *time_format)
 {
@@ -295,31 +323,7 @@ int run_setting(unsigned char *T, int n, const run_command_opts_t *opts,
             benchmark_res_t res;
             run_algo(pattern_list, m, T, n, opts, algo_functions[algo], &res);
 
-            // TODO: extract function: output results
-            if (res.total_occ > 0)
-            {
-                printf("\b\b\b\b\b\b\b.[OK]  ");
-                if (opts->pre)
-                    sprintf(output_line, "\t%.2f + [%.2f ± %.2f] ms", res.pre_time, res.search_time, res.std);
-                else
-                    sprintf(output_line, "\t[%.2f ± %.2f] ms", res.search_time, res.std);
-
-                printf("%s", output_line);
-                if (opts->occ)
-                {
-                    if (opts->pre)
-                        printf("\t\tocc \%d", res.total_occ / opts->num_runs);
-                    else
-                        printf("\tocc \%d", res.total_occ / opts->num_runs);
-                }
-                printf("\n");
-            }
-            else if (res.total_occ == 0)
-                printf("\b\b\b\b\b\b\b\b.[ERROR] \n");
-            else if (res.total_occ == -1)
-                printf("\b\b\b\b\b.[--]  \n");
-            else if (res.total_occ == -2)
-                printf("\b\b\b\b\b\b.[OUT]  \n");
+            print_benchmark_res(output_line, opts, &res);
 
             // save times for outputting if necessary
             SEARCH_TIME[algo][pattern_idx] = 0;
