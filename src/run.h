@@ -51,6 +51,9 @@ void print_percentage(int perc)
     fflush(stdout);
 }
 
+/*
+ * Loads an individual file given in filename into a buffer, up to a max size of n.
+ */
 int load_text_buffer(const char *filename, unsigned char *buffer, int n)
 {
     printf("\tLoading the file %s\n", filename);
@@ -69,6 +72,10 @@ int load_text_buffer(const char *filename, unsigned char *buffer, int n)
 }
 
 #define MAX_FILES 500
+
+/*
+ * Loads the files defined in the list of filenames into a text buffer T, up to a maximum size of text.
+ */
 int merge_text_buffers(const char filenames[][STR_BUF], int n_files, unsigned char *T, int max_text_size)
 {
     int curr_size = 0;
@@ -86,6 +93,9 @@ int merge_text_buffers(const char filenames[][STR_BUF], int n_files, unsigned ch
     return curr_size;
 }
 
+/*
+ * Returns the size of the file given in path.
+ */
 size_t fsize(const char *path)
 {
     struct stat st;
@@ -94,6 +104,9 @@ size_t fsize(const char *path)
     return st.st_size;
 }
 
+/*
+ * Replicates existing data in a buffer to fill up any remaining space in the buffer.
+ */
 int replicate_buffer(unsigned char *buffer, int size, int target_size)
 {
     int i = 0;
@@ -106,6 +119,10 @@ int replicate_buffer(unsigned char *buffer, int size, int target_size)
     buffer[size - 1] = '\0';
 }
 
+/*
+ * Loads a list of text files into a buffer of size bufsize from the path provided, up to the size of the buffer.
+ * Returns the total size loaded.
+ */
 int gen_search_text(const char *path, unsigned char *buffer, int bufsize)
 {
     char filenames[MAX_FILES][STR_BUF];
@@ -115,14 +132,20 @@ int gen_search_text(const char *path, unsigned char *buffer, int bufsize)
         return -1;
 
     int n = merge_text_buffers(filenames, n_files, buffer, bufsize);
+    //TODO: should n ever be bigger than bufsize?
     if (n >= bufsize)
         return n;
 
+    //TODO: should we replicate buffers?  Benchmarking paper says that doing this doesn't necessarily give better results as algorithm performs the same on the replicated data.
     replicate_buffer(buffer, n, bufsize);
 
     return bufsize;
 }
 
+/*
+ * Generates a random text and stores it in the buffer of size bufsize, with an alphabet of sigma.
+ * Returns the total size generated.
+ */
 int gen_random_text(unsigned char *buffer, int sigma, int bufsize)
 {
     // An alphabet of one means all symbols are the same - so just set zero.
@@ -140,6 +163,9 @@ int gen_random_text(unsigned char *buffer, int sigma, int bufsize)
     return bufsize;
 }
 
+/*
+ * Generates a list of random patterns of size m by randomly extracting them from a text T of size n.
+ */
 void gen_random_patterns(unsigned char **patterns, int m, unsigned char *T, int n, int num_patterns)
 {
     for (int i = 0; i < num_patterns; i++)
@@ -152,6 +178,9 @@ void gen_random_patterns(unsigned char **patterns, int m, unsigned char *T, int 
     }
 }
 
+/*
+ * Computes the mean average of a list of search times of size n.
+ */
 double compute_average(double *T, int n)
 {
     double avg = 0.0;
@@ -161,6 +190,9 @@ double compute_average(double *T, int n)
     return avg / n;
 }
 
+/*
+ * Computes the standard deviation given a mean average, and a list of search times of size n.
+ */
 double compute_std(double avg, double *T, int n)
 {
     double std = 0.0;
@@ -172,6 +204,9 @@ double compute_std(double avg, double *T, int n)
 
 #define SEARCH_FUNC_NAME "search"
 
+/*
+ * Dynamically loads the algorithms defined in algo_names as shared objects into the benchmarking process.
+ */
 // TODO: dlclose() all lib_handle pointers
 int load_algos(const char algo_names[][STR_BUF], int num_algos, int (**functions)(unsigned char *, int, unsigned char *, int))
 {
@@ -206,6 +241,9 @@ typedef struct bechmark_res
     double search_time, pre_time, std;
 } benchmark_res_t;
 
+/*
+ * Benchmarks an algorithm against a list of patterns of size m on a text T of size n, using the options provided.
+ */
 void run_algo(const unsigned char **pattern_list, int m,
               unsigned char *T, int n, const run_command_opts_t *opts,
               int (*search_func)(unsigned char *, int, unsigned char *, int), benchmark_res_t *res)
@@ -240,6 +278,9 @@ void run_algo(const unsigned char **pattern_list, int m,
     res->std = compute_std(res->search_time, times, opts->num_runs);
 }
 
+/*
+ * Prints benchmark results for an algorithm run.
+ */
 void print_benchmark_res(const char *output_line, run_command_opts_t *opts, benchmark_res_t *res)
 {
     if (res->total_occ > 0)
@@ -268,6 +309,11 @@ void print_benchmark_res(const char *output_line, run_command_opts_t *opts, benc
         printf("\b\b\b\b\b\b.[OUT]  \n");
 }
 
+/*
+ * Runs all the benchmarks for the selected algorithms given the run options, and a text buffer T of size n.
+ * The size n refers to the maximum size of the text to search; the buffer itself is slightly bigger to allow copying a
+ * pattern into it past the actual text.
+ */
 int run_setting(unsigned char *T, int n, const run_command_opts_t *opts,
                 char *code, char *time_format)
 {
@@ -343,11 +389,19 @@ int run_setting(unsigned char *T, int n, const run_command_opts_t *opts,
     return 0;
 }
 
+/*
+ * Generates a code to identify each local benchmark experiment that is run.
+ * The code is not guaranteed to be globally unique - it is simply based on the local time a benchmark was run.
+ */
 void gen_experiment_code(char *code)
 {
     sprintf(code, "EXP%d", (int)time(NULL));
 }
 
+/*
+ * Computes information about the size of the alphabet contained in character frequency table freq, and gives
+ * both the number of unique characters, and the maximum character code it contains.
+ */
 void compute_alphabet_info(int *freq, int *alphabet_size, int *max_code)
 {
     *alphabet_size = 0;
@@ -364,6 +418,9 @@ void compute_alphabet_info(int *freq, int *alphabet_size, int *max_code)
     }
 }
 
+/*
+ * Computes the frequency of characters contained in text buffer T of size n, and places them in the freq table.
+ */
 void compute_frequency(const unsigned char *T, int n, int *freq)
 {
     int nalpha = 0;
@@ -375,6 +432,9 @@ void compute_frequency(const unsigned char *T, int n, int *freq)
         freq[T[j]]++;
 }
 
+/*
+ * Prints statistics about the text contained in T of length n.
+ */
 void print_text_info(const unsigned char *T, int n)
 {
     printf("\tText buffer of dimension %d byte\n", n);
@@ -392,12 +452,22 @@ void print_text_info(const unsigned char *T, int n)
 #define SMART_DATA_PATH_DEFAULT "data"
 #define SMART_DATA_DIR_ENV "SMART_DATA_DIR"
 
+/*
+ * Returns the location where the smart search data is located.
+ */
 const char *get_smart_data_dir()
 {
     const char *path = getenv(SMART_DATA_DIR_ENV);
     return path != NULL ? path : SMART_DATA_PATH_DEFAULT;
 }
 
+/*
+ * Fills the text buffer T with opts->text_size of data.
+ * The filename either specifies the string defined in SMART_RANDOM_TEXT, in which case randomised text
+ * will be generated using the alphabet size in opts->alphabet_size.
+ * Otherwise, the filename should be a path to a directory that contains the text files to load (up to the buffer
+ * size limit).
+ */
 int get_text(run_command_opts_t *opts, const char *filename, unsigned char *T)
 {
     int size;
@@ -423,6 +493,12 @@ int get_text(run_command_opts_t *opts, const char *filename, unsigned char *T)
     return size;
 }
 
+/*
+ * Executes the benchmarks with the given benchmark options with a text buffer T.
+ * Size of the T buffer is opts->text_size + PATTERN_SIZE_MAX to allow algorithms to place a copy of the pattern
+ * at the end of the text if they wish.  This is a special optimisation that allows a search algorithm to omit a length check,
+ * as the algorithm is guaranteed to stop when it detects the sentinel pattern past the end of the actual text.
+ */
 void run_benchmarks(run_command_opts_t *opts, unsigned char *T)
 {
 
@@ -473,6 +549,9 @@ void pin_to_one_CPU_core()
     }
 }
 
+/*
+ * Main method to set things up before executing benchmarks with the benchmarking options provided.
+ */
 int exec_run(run_command_opts_t *opts)
 {
     print_logo();
