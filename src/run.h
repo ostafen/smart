@@ -455,17 +455,17 @@ void run_benchmarks(run_command_opts_t *opts, unsigned char *T)
 void pin_to_one_CPU_core()
 {
     cpu_set_t cpus;
-    int lastCPU = sysconf(_SC_NPROCESSORS_ONLN) - 1;
-    int processId = getpid();
+    int last_cpu = sysconf(_SC_NPROCESSORS_ONLN) - 1;
+    int pid = getpid();
     CPU_ZERO(&cpus);
-    CPU_SET(lastCPU, &cpus);
-    if (sched_setaffinity(processId, sizeof(cpu_set_t), &cpus) == -1)
+    CPU_SET(last_cpu, &cpus);
+    if (sched_setaffinity(pid, sizeof(cpu_set_t), &cpus) == -1)
     {
         printf("\n\tCould not pin the benchmark to a core - variation in benchmarking may be higher.\n\n");
     }
     else
     {
-        printf("\n\tPinned benchmark process %d to core %d of %d processors.\n\n", processId, lastCPU, lastCPU + 1);
+        printf("\n\tPinned benchmark process %d to core %d of %d processors.\n\n", pid, last_cpu, last_cpu + 1);
     }
 }
 
