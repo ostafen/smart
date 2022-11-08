@@ -10,15 +10,82 @@
 
 #define RUN_COMMAND "run"
 #define SELECT_COMMAND "select"
-#define SMART_RANDOM_TEXT "SMART_random_text"
+#define MAX_DATA_SOURCES 20
+#define NUM_RUNS_DEFAULT 500
+#define ALPHABET_SIZE_DEFAULT 256
+#define TIME_LIMIT_MILLIS_DEFAULT 300
+
+#define PATTERN_MIN_LEN_DEFAULT 2
+#define PATTERN_MAX_LEN_DEFAULT 4096
+#define TEXT_SIZE_DEFAULT 1048576
+#define SMART_DATA_PATH_DEFAULT "data"
+#define SMART_DATA_DIR_ENV "SMART_DATA_DIR"
+#define MEGA_BYTE (1024 * 1024) // constant for 1 MB size
+#define MAX_SELECT_ALGOS 100
+
+static char *const COMMAND_RUN = "run";
+static char *const COMMAND_TEST = "test";
+static char *const COMMAND_SELECT = "select";
+
+static char *const OPTION_NUM_RUNS_SHORT = "-ps";
+static char *const OPTION_NUM_RUNS_LONG = "--pset";
+static char *const OPTION_TEXT_SIZE_SHORT = "-ts";
+static char *const OPTION_TEXT_SIZE_LONG = "--tsize";
+static char *const OPTION_MAX_TIME_SHORT = "-tb";
+static char *const OPTION_MAX_TIME_LONG = "--time-bound";
+static char *const OPTION_TEXT_SOURCE_SHORT = "-t";
+static char *const OPTION_TEXT_SOURCE_LONG = "--text";
+static char *const OPTION_RANDOM_TEXT_SHORT = "-rt";
+static char *const OPTION_RANDOM_TEXT_LONG = "--rand-text";
+static char *const OPTION_PATTERN_LEN_SHORT = "-pl";
+static char *const OPTION_PATTERN_LEN_LONG = "--plen";
+static char *const OPTION_SEED_SHORT= "-rs";
+static char *const OPTION_SEED_LONG = "--rand-seed";
+static char *const OPTION_SIMPLE_SHORT = "-s";
+static char *const OPTION_SIMPLE_LONG = "--simple";
+static char *const OPTION_CPU_PIN_SHORT = "-pin";
+static char *const OPTION_CPU_PIN_LONG = "--pin-cpu";
+
+static char *const ERROR_PARAMS_NOT_PROVIDED = "required parameters were not provided for option %s.";
+static char *const ERROR_PARAM_NOT_INTEGER  = "parameter for option %s is not an integer: %s";
+static char *const ERROR_MUTUALLY_EXCLUSIVE = "mutually exclusive options you cannot have both %s and %s.";
+static char *const ERROR_INTEGER_NOT_IN_RANGE = "parameter for option % must be between %d and %d";
+static char *const ERROR_MAX_LESS_THAN_MIN = "max parameter %d for option %s must not be less than minimum %d";
+static char *const ERROR_PARAM_TOO_BIG = "parameter for option %s is bigger than maximum length %d";
+static char *const ERROR_UNKNOWN_PARAMETER = "unknown parameter %s provided for command %s";
+
+static char *const FLAG_OCCURRENCE = "-occ";
+static char *const FLAG_PREPROCESSING_TIME_SHORT = "-pre";
+static char *const FLAG_PREPROCESSING_TIME_LONG = "--pre-time";
+static char *const FLAG_TEXT_OUTPUT = "-txt";
+static char *const FLAG_LATEX_OUTPUT = "-tex";
+static char *const FLAG_PHP_OUTPUT = "-php";
+static char *const FLAG_FILL_BUFFER_SHORT = "-fb";
+static char *const FLAG_FILL_BUFFER_LONG = "--fill-buffer";
+static char *const FLAG_SHORT_PATTERN_LENGTHS_SHORT = "-sh";
+static char *const FLAG_SHORT_PATTERN_LENGTHS_LONG = "--short";
+static char *const FLAG_VERY_SHORT_PATTERN_LENGTHS_SHORT = "-vs";
+static char *const FLAG_VERY_SHORT_PATTERN_LENGTHS_LONG = "--vshort";
+
+static char *const OPTION_SHORT_ADD = "-a";
+static char *const OPTION_LONG_ADD = "--add";
+static char *const OPTION_SHORT_REMOVE = "-r";
+static char *const OPTION_LONG_REMOVE = "--remove";
+static char *const OPTION_SHORT_SHOW_ALL = "-sa";
+static char *const OPTION_LONG_SHOW_ALL = "--show-all";
+static char *const OPTION_SHORT_SHOW_SELECTED = "-ss";
+static char *const OPTION_LONG_SHOW_SELECTED = "--show-selected";
+static char *const OPTION_SHORT_NO_ALGOS = "-n";
+static char *const OPTION_LONG_NO_ALGOS = "--none";
+
+static char *const OPTION_SHORT_HELP = "-h";
+static char *const OPTION_LONG_HELP = "--help";
 
 typedef struct smart_opts
 {
     const char *subcommand;
     void *opts;
 } smart_subcommand_t;
-
-#define MAX_SELECT_ALGOS 100
 
 typedef struct select_command_opts
 {
@@ -30,17 +97,24 @@ typedef struct select_command_opts
     int n_algos;
 } select_command_opts_t;
 
+enum data_source_type{NOT_DEFINED, FILES, RANDOM};
+
 typedef struct run_command_opts
 {
-    const char *filename;
-    int text_size, alphabet_size;
+    enum data_source_type data_source;           // What type of data is to be scanned - files or random.
+    const char *data_sources[MAX_DATA_SOURCES];  // A list of files/data_sources to load data from.
+    const char *search_path;                     // The search path to locate the data_sources, defaults to data folder of SMART.
+    int text_size;                               // Size of the text buffer to fill for benchmarking.
+    int alphabet_size;                           // Size of the alphabet to use when creating random texts.
     int pattern_min_len, pattern_max_len;
-    int num_runs;
+    int num_runs;                                // Number of patterns of a given length to benchmark.
     int time_limit_millis;
-    int random_seed;
+    long random_seed;                            // Random seed used to generate text or patterns.
+    const char *cpu_pinning;                     // Either auto, off or a number indicating the core to pin to.
     // flags
 
     int simple,
+        fill_buffer,                             // whether to replicate data to fill up a buffer.
         occ,
         txt,
         pre,
@@ -69,55 +143,106 @@ void print_logo()
 
 void print_subcommand_usage_and_exit(const char *command)
 {
-    printf("usage: %s [run | test | select | textgen]\n\n", command);
+    printf("usage: %s [run | test | select]\n\n", command);
     printf("\t- run: executes benchmarks on one or more algorithms\n\n");
     printf("\t- test: test the correctness of an algorithm\n\n");
     printf("\t- select: select one or more algorithms to run\n\n");
-    printf("\t- textgen: random text buffers generation utility\n");
     printf("\n\n");
 
     exit(0);
+}
+
+void print_help_line(const char *description, const char *short_option, const char *long_option, const char *params)
+{
+    printf("\t%-4s %-14s %-6s %s\n",short_option, long_option, params, description);
 }
 
 void print_run_usage_and_exit(const char *command)
 {
     print_logo();
 
-    printf("\tThis is a basic help guide for using the tool\n\n");
-    printf("\t-pset N       computes running times as the mean of N runs (default 500)\n");
-    printf("\t-tsize S      set the upper bound dimension (in Mb) of the text used for experimental results (default 1Mb)\n");
-    printf("\t-plen L U     test only patterns with a length between L and U (included).\n");
-    printf("\t-text F       performs experimental results using text buffer F (mandatory unless you use the -simple parameter)\n");
-    printf("\t              Use option \"all\" to performe experimental results using all text buffers.\n");
-    printf("\t              Use the style A-B-C to performe experimental results using multiple text buffers.\n");
-    printf("\t              Separate the list of text buffers using the symbol \"-\"\n");
-    printf("\t-random A     performs experimental results using random text with an alphabet A between 1 and 256 inclusive\n");
-    printf("\t-seed S       Sets the random seed to integer S, ensuring tests and benchmarks can be precisely repeated.\n");
-    printf("\t-short        computes experimental results using short length patterns (from 2 to 32)\n");
-    printf("\t-vshort       computes experimental results using very short length patterns (from 1 to 16)\n");
-    printf("\t-occ          prints the average number of occurrences\n");
-    printf("\t-pre          computes separately preprocessing times and searching times\n");
-    printf("\t-tb L         set to L the upper bound for any wort case running time (in ms). The default value is 300 ms\n");
-    printf("\t-txt          output results in txt tabular format\n");
-    printf("\t-tex          output results in latex tabular format\n");
-    printf("\t-simple P T   executes a single run searching T (max 1000 chars) for occurrences of P (max 100 chars)\n");
-    printf("\t-h            gives this help list\n");
+    printf("\n\tThis is a basic help guide for using the tool:\n\n");
+    print_help_line("performs experimental results loading all files F specified into a single buffer for benchmarking.", OPTION_TEXT_SOURCE_SHORT, OPTION_TEXT_SOURCE_LONG, "F ...");
+    print_help_line("You can specify several individual files, or directories.  If a directory, all files in it will be loaded,", "", "", "");
+    print_help_line("up to the maximum buffer size.  SMART will look for files locally, and then in its search", "", "", "");
+    print_help_line("path, which defaults to the /data directory in the smart distribution.", "", "", "");
+    print_help_line("performs experimental results using random text with an alphabet A between 1 and 256 inclusive", OPTION_RANDOM_TEXT_SHORT, OPTION_RANDOM_TEXT_LONG, "A");
+    print_help_line("You can only specify a text or a random text - not both.", "", "", "");
+    print_help_line("computes running times as the mean of N runs (default 500)", OPTION_NUM_RUNS_SHORT, OPTION_NUM_RUNS_LONG, "N");
+    print_help_line("set the upper bound dimension (in Mb) of the text used for experimental results (default 1Mb)", OPTION_TEXT_SIZE_SHORT, OPTION_TEXT_SIZE_LONG, "S");
+    print_help_line("fills the text buffer up to its maximum size by copying earlier data until full.", FLAG_FILL_BUFFER_SHORT, FLAG_FILL_BUFFER_LONG, "");
+    print_help_line("test only patterns with a length between L and U (included).", OPTION_PATTERN_LEN_SHORT, OPTION_PATTERN_LEN_LONG, "L U");
+    print_help_line("computes experimental results using short length patterns (from 2 to 32)", FLAG_SHORT_PATTERN_LENGTHS_SHORT, FLAG_SHORT_PATTERN_LENGTHS_LONG, "");
+    print_help_line("computes experimental results using very short length patterns (from 1 to 16)", FLAG_VERY_SHORT_PATTERN_LENGTHS_SHORT, FLAG_VERY_SHORT_PATTERN_LENGTHS_LONG, "");
+    print_help_line("sets the random seed to integer S, ensuring tests and benchmarks can be precisely repeated.", OPTION_SEED_SHORT, OPTION_SEED_LONG, "S");
+    print_help_line("computes separately preprocessing times and searching times", FLAG_PREPROCESSING_TIME_SHORT, FLAG_PREPROCESSING_TIME_LONG, "");
+    print_help_line("set to L the upper bound for any worst case running time (in ms). The default value is 300 ms", OPTION_MAX_TIME_SHORT, OPTION_MAX_TIME_LONG, "L");
+    print_help_line("sets whether cpu pinning is off, set to the last cpu core, or a specific core via parameter C:  off | last | {digit}", OPTION_CPU_PIN_SHORT, OPTION_CPU_PIN_LONG, "C");
+    print_help_line("prints the average number of occurrences", FLAG_OCCURRENCE, "", "");
+    print_help_line("output results in txt tabular format", FLAG_TEXT_OUTPUT, "", "");
+    print_help_line("output results in latex tabular format", FLAG_LATEX_OUTPUT, "", "");
+    print_help_line("executes a single run searching T (max 1000 chars) for occurrences of P (max 100 chars)", OPTION_SIMPLE_SHORT, OPTION_SIMPLE_LONG, "P T");
+    print_help_line("gives this help list", OPTION_SHORT_HELP, OPTION_LONG_HELP, "");
     printf("\n\n");
 
     exit(0);
 }
 
-#define NUM_RUNS_DEFAULT 500
-#define ALPHABET_SIZE_DEFAULT 256
-#define TIME_LIMIT_MILLIS_DEFAULT 300
+void print_select_usage_and_exit(const char *command)
+{
+    printf("usage: %s select algo1, algo2, ... [-a | -r | -sa | -ss | -n | -h]\n\n", command);
+    print_help_line("add the list of specified algorithms to the set\n", OPTION_SHORT_ADD, OPTION_LONG_ADD, "algo...");
+    print_help_line("remove the list of specified algorithms to the set\n", OPTION_SHORT_REMOVE, OPTION_LONG_REMOVE, "algo...");
+    print_help_line("shows the list of all algorithms\n", OPTION_SHORT_SHOW_ALL, OPTION_LONG_SHOW_ALL, "");
+    print_help_line("shows the list of all selected algorithms\n", OPTION_SHORT_SHOW_SELECTED, OPTION_LONG_SHOW_SELECTED, "");
+    print_help_line("gives this help list\n", OPTION_SHORT_HELP, OPTION_LONG_HELP, "");
+    printf("\n\n");
 
-#define PATTERN_MIN_LEN_DEFAULT 2
-#define PATTERN_MAX_LEN_DEFAULT 4096
-#define TEXT_SIZE_DEFAULT 1048576
+    exit(0);
+}
+
+void print_test_usage_and_exit()
+{
+    printf("\n\tSMART UTILITY FOR TESTING STRING MATCHING ALGORITHMS\n\n");
+    printf("\tusage: ./test ALGONAME\n");
+    printf("\tTest the program named \"algoname\" for correctness.\n");
+    printf("\tThe program \"algoname\" must be located in source/bin/\n");
+    printf("\tOnly programs in smart format can be tested.\n");
+    printf("\n\n");
+}
+
+void print_error_message_and_exit(const char * message) {
+    printf("Error in input parameters: %s\nUse -h for help.\n\n", message);
+    exit(1);
+}
+
+void print_format_error_message_and_exit(const char * format, ...)
+{
+    printf("Error in input parameters: ");
+    va_list args;
+    va_start(args, format);
+    vprintf(format, args);
+    va_end(args);
+    printf("\nUse -h for help.\n\n");
+    exit(1);
+}
+
+/*
+ * Returns the location where the smart search data is located.
+ */
+const char *get_smart_data_dir()
+{
+    const char *path = getenv(SMART_DATA_DIR_ENV);
+    return path != NULL ? path : SMART_DATA_PATH_DEFAULT;
+}
 
 void opts_init_default(run_command_opts_t *opts)
 {
-    opts->filename = NULL;
+    opts->data_source = NOT_DEFINED;
+    for (int i = 0; i < MAX_DATA_SOURCES; i++)
+        opts->data_sources[i] = NULL;
+    opts->search_path = get_smart_data_dir();
+    opts->cpu_pinning = "last";
     opts->alphabet_size = ALPHABET_SIZE_DEFAULT;
     opts->text_size = TEXT_SIZE_DEFAULT;
     opts->pattern_min_len = PATTERN_MIN_LEN_DEFAULT;
@@ -126,137 +251,156 @@ void opts_init_default(run_command_opts_t *opts)
     opts->time_limit_millis = TIME_LIMIT_MILLIS_DEFAULT;
     opts->random_seed = time(NULL);
     opts->simple = 0;
+    opts->fill_buffer = 0;
     opts->occ = 0;
     opts->txt = 0;
     opts->tex = 0;
     opts->php = 0;
 }
 
-void print_error_and_exit()
+void check_has_params(int curr_arg, int argc, const char *option)
 {
-    printf("Error in input parameters. Use -h for help.\n\n");
-    exit(1);
+    if (curr_arg >= argc)
+        print_format_error_message_and_exit(ERROR_PARAMS_NOT_PROVIDED, option);
 }
 
-void print_error_message_and_exit(const char * message) {
-    printf("Error in input parameters: %s\nUse -h for help.\n\n", message);
-    exit(1);
+void check_is_int(const char *param, const char *option)
+{
+    if (!is_int(param))
+        print_format_error_message_and_exit(ERROR_PARAM_NOT_INTEGER, option, param);
+}
+
+void check_string_length(const char *param, int maxlen, const char *option)
+{
+    if (strlen(param) > maxlen)
+        print_format_error_message_and_exit(ERROR_PARAM_TOO_BIG, option, maxlen);
 }
 
 int parse_num_runs(run_command_opts_t *line, int curr_arg, int argc, const char **argv)
 {
-    if (curr_arg + 1 >= argc)
-        print_error_and_exit();
+    check_has_params(curr_arg + 1, argc, OPTION_NUM_RUNS_LONG);
+    check_is_int(argv[curr_arg + 1], OPTION_NUM_RUNS_LONG);
 
-    const char *num_runs_str = argv[curr_arg + 1];
-    if (!is_int(num_runs_str))
-        print_error_and_exit();
-
-    line->num_runs = atoi(num_runs_str);
+    line->num_runs = atoi(argv[curr_arg + 1]);
     return 1;
 }
 
-#define MEGA_BYTE (1024 * 1024) // costant for 1 MB size
 
 int parse_text_size(run_command_opts_t *line, int curr_arg, int argc, const char **argv)
 {
-    if (curr_arg + 1 >= argc)
-        print_error_and_exit();
+    check_has_params(curr_arg + 1, argc, OPTION_TEXT_SIZE_LONG);
+    check_is_int(argv[curr_arg + 1], OPTION_TEXT_SIZE_LONG);
 
-    const char *text_size_str = argv[curr_arg + 1];
-    if (!is_int(text_size_str))
-        print_error_and_exit();
-
-    line->text_size = atoi(text_size_str) * MEGA_BYTE;
+    line->text_size = atoi(argv[curr_arg + 1]) * MEGA_BYTE;
     return 1;
 }
 
 int parse_time_limit(run_command_opts_t *line, int curr_arg, int argc, const char **argv)
 {
-    if (curr_arg + 1 >= argc)
-    {
-        print_error_and_exit();
-    }
+    check_has_params(curr_arg + 1, argc, OPTION_MAX_TIME_LONG);
+    check_is_int(argv[curr_arg + 1], OPTION_MAX_TIME_LONG);
 
-    const char *time_limit_str = argv[curr_arg + 1];
-    if (!is_int(time_limit_str))
-    {
-        print_error_and_exit();
-    }
-    line->time_limit_millis = atoi(time_limit_str);
+    line->time_limit_millis = atoi(argv[curr_arg + 1]);
     return 1;
 }
 
 int parse_text(run_command_opts_t *line, int curr_arg, int argc, const char **argv)
 {
-    if (curr_arg + 1 >= argc)
-        print_error_and_exit();
+    check_has_params(curr_arg + 1, argc, OPTION_TEXT_SOURCE_LONG);
 
-    if (line->filename != NULL && !(strcmp(line->filename, SMART_RANDOM_TEXT)))
-       print_error_message_and_exit("Random text is already set - you cannot have both -random and -text.");
+    if (line->data_source == RANDOM)
+       print_format_error_message_and_exit(ERROR_MUTUALLY_EXCLUSIVE, OPTION_TEXT_SOURCE_LONG, OPTION_RANDOM_TEXT_LONG);
 
-    const char *filename = argv[curr_arg + 1];
-    line->filename = filename;
-    return 1;
+    int name_arg = 0;
+    while (name_arg < MAX_DATA_SOURCES && curr_arg + name_arg + 1 < argc && argv[curr_arg + name_arg + 1][0] != '-')
+    {
+        line->data_sources[name_arg] = argv[curr_arg + name_arg + 1];
+        name_arg++;
+    }
+
+    //TODO: test that there are not more parameters after MAX_DATA_SOURCES?
+
+    if (name_arg > 0)
+    {
+        line->data_source = FILES;
+    } else {
+        print_format_error_message_and_exit(ERROR_PARAMS_NOT_PROVIDED, OPTION_TEXT_SOURCE_LONG);
+    }
+
+    return name_arg;
 }
 
 int parse_random_text(run_command_opts_t *line, int curr_arg, int argc, const char **argv)
 {
-    if (curr_arg + 1 >= argc)
-        print_error_and_exit();
+    check_has_params(curr_arg + 1, argc, OPTION_RANDOM_TEXT_LONG);
+    check_is_int(argv[curr_arg + 1], OPTION_RANDOM_TEXT_LONG);
 
-    if (line->filename != NULL)
-        print_error_message_and_exit("Text files are already set - you cannot have both -random and -text.");
+    if (line->data_source == FILES)
+        print_format_error_message_and_exit(ERROR_MUTUALLY_EXCLUSIVE, OPTION_RANDOM_TEXT_LONG, OPTION_TEXT_SOURCE_LONG);
 
-    line->filename = SMART_RANDOM_TEXT;
     line->alphabet_size = atoi(argv[curr_arg + 1]);
+    line->data_source = RANDOM;
 
     if (line->alphabet_size < 1 || line->alphabet_size > 256)
-        print_error_message_and_exit("Random alphabet must be between 1 and 256 inclusive.");
+        print_format_error_message_and_exit(ERROR_INTEGER_NOT_IN_RANGE, OPTION_RANDOM_TEXT_LONG, 1, 256);
 
     return 1;
 }
 
 int parse_pattern_len(run_command_opts_t *line, int curr_arg, int argc, const char **argv)
 {
-    if (curr_arg + 1 >= argc)
-        print_error_and_exit();
+    check_has_params(curr_arg + 1, argc, OPTION_PATTERN_LEN_LONG);
+    check_is_int(argv[curr_arg + 1], OPTION_PATTERN_LEN_LONG);
 
     line->pattern_min_len = atoi(argv[curr_arg + 1]);
 
-    if (curr_arg + 2 >= argc)
-        print_error_and_exit();
+    check_has_params(curr_arg + 2, argc, OPTION_PATTERN_LEN_LONG);
+    check_is_int(argv[curr_arg + 2], OPTION_PATTERN_LEN_LONG);
 
     line->pattern_max_len = atoi(argv[curr_arg + 2]);
+
     if (line->pattern_max_len < line->pattern_min_len)
-        print_error_and_exit();
+        print_format_error_message_and_exit(ERROR_MAX_LESS_THAN_MIN, line->pattern_max_len, OPTION_PATTERN_LEN_LONG, line->pattern_min_len);
 
     return 2;
 }
 
 int parse_seed(run_command_opts_t *line, int curr_arg, int argc, const char **argv)
 {
-    if (curr_arg + 1 >= argc)
-        print_error_and_exit();
+    check_has_params(curr_arg + 1, argc, OPTION_SEED_LONG);
+    check_is_int(argv[curr_arg + 1], OPTION_SEED_LONG);
 
-    line->random_seed = atoi(argv[curr_arg + 1]);
+    line->random_seed = atol(argv[curr_arg + 1]);
+
+    return 1;
+}
+
+int parse_cpu_pinning(run_command_opts_t *line, int curr_arg, int argc, const char **argv) {
+    check_has_params(curr_arg + 1, argc, OPTION_CPU_PIN_LONG);
+
+    char param[STR_BUF];
+    strcpy(param, argv[curr_arg + 1]);
+    str2lower(param);
+    if (!strcmp(param, "off") || !strcmp(param, "last") || is_int(param))
+    {
+        line->cpu_pinning = param;
+    }
+    else {
+        print_format_error_message_and_exit("Incorrect parameter %s for option %s.  Must be off | last | {digit}", argv[curr_arg + 1], OPTION_CPU_PIN_LONG);
+    }
 
     return 1;
 }
 
 int parse_simple(run_command_opts_t *line, int curr_arg, int argc, const char **argv)
 {
-    if (curr_arg + 1 >= argc)
-        print_error_and_exit();
+    check_has_params(curr_arg + 1, argc, OPTION_SIMPLE_LONG);
+    check_string_length(argv[curr_arg + 1], 100, OPTION_SIMPLE_LONG);
 
-    const char *simple_pattern = argv[curr_arg + 1];
-    if (strlen(simple_pattern) > 100)
-        print_error_and_exit();
+    check_has_params(curr_arg + 2, argc, OPTION_SIMPLE_LONG);
+    check_string_length(argv[curr_arg + 2], 1000, OPTION_SIMPLE_LONG);
 
-    const char *simple_text = argv[curr_arg + 2];
-
-    if (strlen(simple_text) > 1000)
-        print_error_and_exit();
+    //TODO: set simple search params somewhere! This only checks they are correct - doesn't record them.
 
     line->simple = 1;
     return 2;
@@ -264,39 +408,44 @@ int parse_simple(run_command_opts_t *line, int curr_arg, int argc, const char **
 
 int parse_flag(run_command_opts_t *line, int curr_arg, int argc, const char **argv)
 {
-    if (!strcmp("-occ", argv[curr_arg]))
+    if (!strcmp(FLAG_OCCURRENCE, argv[curr_arg]))
     {
         line->occ = 1;
         return 1;
     }
-    else if (!strcmp("-pre", argv[curr_arg]))
+    else if (!strcmpany(argv[curr_arg], 2, FLAG_PREPROCESSING_TIME_SHORT, FLAG_PREPROCESSING_TIME_LONG))
     {
         line->pre = 1;
         return 1;
     }
-    if (!strcmp("-txt", argv[curr_arg]))
+    if (!strcmp(FLAG_TEXT_OUTPUT, argv[curr_arg]))
     {
         line->txt = 1;
         return 1;
     }
-    if (!strcmp("-tex", argv[curr_arg]))
+    if (!strcmp(FLAG_LATEX_OUTPUT, argv[curr_arg]))
     {
         line->tex = 1;
         return 1;
     }
-    if (!strcmp("-php", argv[curr_arg]))
+    if (!strcmp(FLAG_PHP_OUTPUT, argv[curr_arg]))
     {
         line->php = 1;
         return 1;
     }
-    if (!strcmp("-short", argv[curr_arg]))
+    if (!strcmpany(argv[curr_arg], 2, FLAG_SHORT_PATTERN_LENGTHS_SHORT, FLAG_SHORT_PATTERN_LENGTHS_LONG))
     {
-        // PATT_SIZE = PATT_SHORT_SIZE;
+        //TODO: PATT_SIZE = PATT_SHORT_SIZE;
         return 1;
     }
-    if (!strcmp("-vshort", argv[curr_arg]))
+    if (!strcmpany(argv[curr_arg], 2, FLAG_VERY_SHORT_PATTERN_LENGTHS_SHORT, FLAG_VERY_SHORT_PATTERN_LENGTHS_LONG))
     {
-        // PATT_SIZE = PATT_VERY_SHORT;
+        //TODO: PATT_SIZE = PATT_VERY_SHORT;
+        return 1;
+    }
+    if (!strcmpany(argv[curr_arg], 2, FLAG_FILL_BUFFER_SHORT, FLAG_FILL_BUFFER_LONG))
+    {
+        line->fill_buffer = 1;
         return 1;
     }
     return 0;
@@ -314,104 +463,62 @@ void parse_run_args(int argc, const char **argv, smart_subcommand_t *subcommand)
 
     for (int curr_arg = 2; curr_arg < argc; curr_arg++)
     {
-        if (!strcmp("-pset", argv[curr_arg]))
+        if (!strcmpany(argv[curr_arg], 2, OPTION_NUM_RUNS_SHORT, OPTION_NUM_RUNS_LONG))
         {
             curr_arg += parse_num_runs(opts, curr_arg, argc, argv);
         }
-        else if (!strcmp("-tsize", argv[curr_arg]))
+        else if (!strcmpany(argv[curr_arg], 2, OPTION_TEXT_SIZE_SHORT, OPTION_TEXT_SIZE_LONG))
         {
             curr_arg += parse_text_size(opts, curr_arg, argc, argv);
         }
-        else if (!strcmp("-tb", argv[curr_arg]))
+        else if (!strcmpany(argv[curr_arg], 2, OPTION_MAX_TIME_SHORT, OPTION_MAX_TIME_LONG))
         {
             curr_arg += parse_time_limit(opts, curr_arg, argc, argv);
         }
-        else if (!strcmp("-text", argv[curr_arg]))
+        else if (!strcmpany(argv[curr_arg], 2, OPTION_TEXT_SOURCE_SHORT, OPTION_TEXT_SOURCE_LONG))
         {
             curr_arg += parse_text(opts, curr_arg, argc, argv);
         }
-        else if (!strcmp("-random", argv[curr_arg]))
+        else if (!strcmpany(argv[curr_arg], 2, OPTION_RANDOM_TEXT_SHORT, OPTION_RANDOM_TEXT_LONG))
         {
             curr_arg += parse_random_text(opts, curr_arg, argc, argv);
         }
-        else if (!strcmp("-plen", argv[curr_arg]))
+        else if (!strcmpany(argv[curr_arg], 2, OPTION_PATTERN_LEN_SHORT, OPTION_PATTERN_LEN_LONG))
         {
             curr_arg += parse_pattern_len(opts, curr_arg, argc, argv);
         }
-        else if (!strcmp("-seed", argv[curr_arg]))
+        else if (!strcmpany(argv[curr_arg], 2, OPTION_SEED_SHORT, OPTION_SEED_LONG))
         {
             curr_arg += parse_seed(opts, curr_arg, argc, argv);
         }
-        else if (!strcmp("-simple", argv[curr_arg]))
+        else if (!strcmpany(argv[curr_arg], 2, OPTION_SIMPLE_SHORT, OPTION_SIMPLE_LONG))
         {
             curr_arg += parse_simple(opts, curr_arg, argc, argv);
         }
+        else if (!strcmpany(argv[curr_arg], 2, OPTION_CPU_PIN_SHORT, OPTION_CPU_PIN_LONG))
+        {
+            curr_arg += parse_cpu_pinning(opts, curr_arg, argc, argv);
+        }
         else if (!parse_flag(opts, curr_arg, argc, argv))
         {
-            print_error_and_exit();
+            print_format_error_message_and_exit(ERROR_UNKNOWN_PARAMETER, argv[curr_arg], COMMAND_RUN);
         }
     }
 
-    if (!strcmp(opts->filename, ""))
-        print_error_and_exit();
-}
-
-void print_test_usage_and_exit()
-{
-    printf("\n\tSMART UTILITY FOR TESTING STRING MATCHING ALGORITHMS\n\n");
-    printf("\tusage: ./test ALGONAME\n");
-    printf("\tTest the program named \"algoname\" for correctness.\n");
-    printf("\tThe program \"algoname\" must be located in source/bin/\n");
-    printf("\tOnly programs in smart format can be tested.\n");
-    printf("\n\n");
+    if (opts->data_source == NOT_DEFINED)
+        print_error_message_and_exit("No data source is defined with -text or -random.");
 }
 
 void parse_test_args(int argc, const char **argv, smart_subcommand_t *subcommand)
 {
     print_test_usage_and_exit();
-}
-
-void print_select_usage_and_exit(const char *command)
-{
-    printf("usage: %s select algo1, algo2, ... [-a | -r | -sa | -ss | -n | -h]\n\n", command);
-    printf("\t-a, --add:            \tadd the list of specified algorithms to the set\n");
-    printf("\t-r, --remove:         \tremove the list of specified algorithms to the set\n");
-    printf("\t-sa, --show-all:      \tshows the list of all algorithms\n");
-    printf("\t-ss, --show-selected: \tshows the list of all selected algorithms\n");
-    printf("\t-h:                   \tgives this help list\n");
-    printf("\n\n");
-
-    exit(0);
-}
-
-void unrecognized_param_error(const char *command, const char *option)
-{
-    printf("%s: unrecognized option \"%s\"\n", command, option);
-    exit(1);
-}
-
-int strcmpany(const char *s, int n, ...)
-{
-    va_list ptr;
-
-    va_start(ptr, n);
-    for (int i = 0; i < n; i++)
-    {
-        const char *curr_str = va_arg(ptr, const char *);
-        if (!strcmp(curr_str, s))
-            return 0;
-    }
-    va_end(ptr);
-
-    return -1;
+    //TODO: parse test.
 }
 
 int is_flag_argument(const char *arg)
 {
-    return strncmp("-", arg, 1) == 0 || strncmp("--", arg, 2) == 0;
+    return strncmp("-", arg, 1) == 0;
 }
-
-#define STR_BUFSIZE 50
 
 void parse_select_args(int argc, const char **argv, smart_subcommand_t *subcommand)
 {
@@ -427,33 +534,33 @@ void parse_select_args(int argc, const char **argv, smart_subcommand_t *subcomma
     int k = 0;
     for (int i = 2; i < argc; i++)
     {
-        if (!strcmpany(argv[i], 2, "-a", "--add"))
+        if (!strcmpany(argv[i], 2, OPTION_SHORT_ADD, OPTION_LONG_ADD))
         {
             opts->add = 1;
         }
-        else if (!strcmpany(argv[i], 3, "-r", "-remove", "--remove"))
+        else if (!strcmpany(argv[i], 2, OPTION_SHORT_REMOVE, OPTION_LONG_REMOVE))
         {
             opts->add = 0;
         }
-        else if (!strcmpany(argv[i], 3, "-sa", "-show-all", "--show-all"))
+        else if (!strcmpany(argv[i], 2, OPTION_SHORT_SHOW_ALL, OPTION_LONG_SHOW_ALL))
         {
             opts->show_all = 1;
         }
-        else if (!strcmpany(argv[i], 3, "-ss", "-show-selected", "--show-selected"))
+        else if (!strcmpany(argv[i], 2, OPTION_SHORT_SHOW_SELECTED, OPTION_LONG_SHOW_SELECTED))
         {
             opts->show_selected = 1;
         }
-        else if (!strcmpany(argv[i], 2, "-n", "--none"))
+        else if (!strcmpany(argv[i], 2, OPTION_SHORT_NO_ALGOS, OPTION_LONG_NO_ALGOS))
         {
             opts->deselect_all = 1;
         }
-        else if (!strcmp(argv[i], "-h"))
+        else if (!strcmpany(argv[i], 2, OPTION_SHORT_HELP, OPTION_LONG_HELP))
         {
             print_select_usage_and_exit(argv[0]);
         }
         else if (is_flag_argument(argv[i]))
         {
-            unrecognized_param_error(argv[1], argv[i]);
+            print_format_error_message_and_exit("%s: unrecognized option \"%s\"\n", argv[1], argv[i]);
         }
         else
         {
@@ -472,33 +579,24 @@ void parse_select_args(int argc, const char **argv, smart_subcommand_t *subcomma
     subcommand->opts = (void *)opts;
 }
 
-void parse_textgen_args(int argc, const char **argv, smart_subcommand_t *subcommand)
-{
-    printf("textgen args\n");
-}
-
 void parse_args(int argc, const char **argv, smart_subcommand_t *subcommand)
 {
-    if (argc <= 1 || !strcmp(argv[1], "-h"))
+    if (argc <= 1 || !strcmpany(argv[1], 2, OPTION_SHORT_HELP, OPTION_LONG_HELP))
         print_subcommand_usage_and_exit(argv[0]);
 
     subcommand->subcommand = argv[1];
 
-    if (!strcmp(argv[1], "run"))
+    if (!strcmp(argv[1], COMMAND_RUN))
     {
         parse_run_args(argc, argv, subcommand);
     }
-    else if (!strcmp(argv[1], "test"))
+    else if (!strcmp(argv[1], COMMAND_TEST))
     {
         parse_test_args(argc, argv, subcommand);
     }
-    else if (!strcmp(argv[1], "select"))
+    else if (!strcmp(argv[1], COMMAND_SELECT))
     {
         parse_select_args(argc, argv, subcommand);
-    }
-    else if (!strcmp(argv[1], "textgen"))
-    {
-        parse_textgen_args(argc, argv, subcommand);
     }
     else
     {
