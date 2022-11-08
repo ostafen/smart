@@ -16,7 +16,6 @@
 #include "timer.h"
 #include "parser.h"
 
-#define __USE_GNU // required to use CPU_ macros in sched.h.
 #include <sched.h>
 
 #define PATTERN_SIZE_MAX 4200 // maximal length of the pattern
@@ -28,6 +27,9 @@
 #define TEXT_SIZE_DEFAULT 1048576
 
 #define TOP_EDGE_WIDTH 60
+
+#define MAX_FILES 500
+#define MAX_SEARCH_PATHS 50
 
 unsigned int MINLEN = 1, MAXLEN = 4200; // min length and max length of pattern size
 
@@ -62,8 +64,7 @@ int load_text_buffer(const char *filename, unsigned char *buffer, int n)
     if (input == NULL)
         return -1;
 
-    int i = 0;
-    char c;
+    int i = 0, c;
     while (i < n && (c = getc(input)) != EOF)
         buffer[i++] = c;
 
@@ -71,10 +72,9 @@ int load_text_buffer(const char *filename, unsigned char *buffer, int n)
     return i;
 }
 
-#define MAX_FILES 500
-
 /*
  * Loads the files defined in the list of filenames into a text buffer T, up to a maximum size of text.
+ * Returns the current size of data loaded.
  */
 int merge_text_buffers(const char filenames[][STR_BUF], int n_files, unsigned char *T, int max_text_size)
 {
@@ -82,26 +82,18 @@ int merge_text_buffers(const char filenames[][STR_BUF], int n_files, unsigned ch
     for (int i = 0; i < n_files && curr_size < max_text_size; i++)
     {
         int size = load_text_buffer(filenames[i], T + curr_size, max_text_size - curr_size);
+
+        //TODO: check this logic - when can size be less than zero?
         if (size < 0)
             return 0;
 
         curr_size += size;
     }
 
+    //TODO: why set a text end in the "text" buffer?  It can contain binary data that has zeros in it anyway.  it's not really text (or it doesn't have to be).
     T[curr_size < max_text_size ? curr_size : max_text_size - 1] = '\0';
 
     return curr_size;
-}
-
-/*
- * Returns the size of the file given in path.
- */
-size_t fsize(const char *path)
-{
-    struct stat st;
-    if (stat(path, &st) < 0)
-        return -1;
-    return st.st_size;
 }
 
 /*
@@ -109,7 +101,6 @@ size_t fsize(const char *path)
  */
 int replicate_buffer(unsigned char *buffer, int size, int target_size)
 {
-    int i = 0;
     while (size < target_size)
     {
         int cpy_size = (target_size - size) < size ? (target_size - size) : size;
@@ -120,34 +111,100 @@ int replicate_buffer(unsigned char *buffer, int size, int target_size)
 }
 
 /*
- * Loads a list of text files into a buffer of size bufsize from the path provided, up to the size of the buffer.
- * Returns the total size loaded.
+ * Adds a file or the files in a directory defined in the data source to a list of filenames,
+ * searching for them in the search paths defined.
+ * If the data source points to a directory, all the files in that directory are added.
+ * If the data source points to a file, just that file is added.
+ * Returns the number of files in the filenames array.
  */
-int gen_search_text(const char *path, unsigned char *buffer, int bufsize)
+int add_files(char search_paths[][STR_BUF], int num_search_paths, const char *data_source,
+              char filenames[][STR_BUF], int num_files, int max_files)
+{
+    char valid_path[STR_BUF];
+    locate_file_path(valid_path, data_source, search_paths, num_search_paths);
+
+    if (valid_path[0] != '\0')
+    {
+        __mode_t file_mode = get_file_mode(valid_path);
+        if (S_ISDIR(file_mode)) {
+            num_files = add_filenames_in_dir(valid_path, filenames, num_files, max_files);
+        }
+        else if (S_ISREG(file_mode) && num_files < max_files)
+        {
+            strcpy(filenames[num_files++], valid_path);
+        }
+    }
+
+    return num_files;
+}
+
+/*
+ * Builds a list of filenames from the data sources and places them in filenames, searching the search path.
+ * Returns the number of files in the filenames array.
+ */
+int build_list_of_files_to_load(const char *search_path, const char *data_sources[MAX_DATA_SOURCES], char filenames[][STR_BUF])
+{
+    char search_paths[MAX_SEARCH_PATHS][STR_BUF];
+    int num_search_paths = split_search_paths(search_path, search_paths, MAX_SEARCH_PATHS);
+
+    int source_index = 0, num_files = 0;
+    while (source_index < MAX_DATA_SOURCES && num_files < MAX_FILES && data_sources[source_index] != NULL)
+    {
+        num_files = add_files(search_paths, num_search_paths, data_sources[source_index++],
+                              filenames, num_files, MAX_FILES);
+    }
+
+    return num_files;
+}
+
+/*
+ * Prints an error if no data could be found and exits.
+ */
+void print_no_data_found_and_exit(const char *search_path)
+{
+    char working_dir[STR_BUF];
+    if (getcwd(working_dir, STR_BUF) != 0)
+    {
+       strcpy(working_dir, "(unknown)");
+    }
+
+    print_format_error_message_and_exit("\nERROR: No files could be found to generate the search text.\nSearch path: %s\nWorking dir: %s\n",
+                                        search_path, working_dir);
+}
+
+/*
+ * Loads all the files located in an array of data_sources into a buffer up to the bufsize.
+ * Uses the search path to locate files or directories if they do not exist locally.
+ * Returns the size of data loaded into the buffer.
+ */
+int gen_search_text(const char *search_path, const char *data_sources[MAX_DATA_SOURCES], unsigned char *buffer, int bufsize, int fill_buffer)
 {
     char filenames[MAX_FILES][STR_BUF];
+    int n_files = build_list_of_files_to_load(search_path, data_sources, filenames);
+    if (n_files > 0) {
+        int n = merge_text_buffers(filenames, n_files, buffer, bufsize);
 
-    int n_files = list_dir(path, filenames, DT_REG, 1);
-    if (n_files < 0)
-        return -1;
+        if (n >= bufsize || !fill_buffer)
+            return n;
 
-    int n = merge_text_buffers(filenames, n_files, buffer, bufsize);
-    //TODO: should n ever be bigger than bufsize?
-    if (n >= bufsize)
-        return n;
+        replicate_buffer(buffer, n, bufsize);
 
-    //TODO: should we replicate buffers?  Benchmarking paper says that doing this doesn't necessarily give better results as algorithm performs the same on the replicated data.
-    replicate_buffer(buffer, n, bufsize);
+        if (n > 0)
+            return bufsize;
+    }
 
-    return bufsize;
+    print_no_data_found_and_exit(search_path);
 }
 
 /*
  * Generates a random text and stores it in the buffer of size bufsize, with an alphabet of sigma.
  * Returns the total size generated.
+ * Returns the size of the random data (which will be bufsize).
  */
-int gen_random_text(unsigned char *buffer, int sigma, int bufsize)
+int gen_random_text(const int sigma, unsigned char *buffer, const int bufsize)
 {
+    printf("\n\tGenerating random text with alphabet size of %d\n", sigma);
+
     // An alphabet of one means all symbols are the same - so just set zero.
     if (sigma == 1)
     {
@@ -213,6 +270,7 @@ int load_algos(const char algo_names[][STR_BUF], int num_algos, int (**functions
     for (int i = 0; i < num_algos; i++)
     {
         char algo_lib_filename[STR_BUF];
+        //TODO: configure location of algo shared objects - environment variable?
         sprintf(algo_lib_filename, "bin/algos/%s.so", str2lower((char *)algo_names[i]));
 
         void *lib_handle = dlopen(algo_lib_filename, RTLD_NOW);
@@ -250,7 +308,7 @@ typedef struct bechmark_res
 /*
  * Benchmarks an algorithm against a list of patterns of size m on a text T of size n, using the options provided.
  */
-int run_algo(const unsigned char **pattern_list, int m,
+int run_algo(unsigned char **pattern_list, int m,
               unsigned char *T, int n, const run_command_opts_t *opts,
               int (*search_func)(unsigned char *, int, unsigned char *, int), benchmark_res_t *res)
 {
@@ -287,7 +345,7 @@ int run_algo(const unsigned char **pattern_list, int m,
 /*
  * Prints benchmark results for an algorithm run.
  */
-void print_benchmark_res(const char *output_line, run_command_opts_t *opts, benchmark_res_t *res)
+void print_benchmark_res(char *output_line, const run_command_opts_t *opts, benchmark_res_t *res)
 {
     if (res->total_occ > 0)
     {
@@ -449,18 +507,6 @@ void print_text_info(const unsigned char *T, int n)
     printf("\tGreater chararacter has code %d.\n", max_code);
 }
 
-#define SMART_DATA_PATH_DEFAULT "data"
-#define SMART_DATA_DIR_ENV "SMART_DATA_DIR"
-
-/*
- * Returns the location where the smart search data is located.
- */
-const char *get_smart_data_dir()
-{
-    const char *path = getenv(SMART_DATA_DIR_ENV);
-    return path != NULL ? path : SMART_DATA_PATH_DEFAULT;
-}
-
 /*
  * Fills the text buffer T with opts->text_size of data.
  * The filename either specifies the string defined in SMART_RANDOM_TEXT, in which case randomised text
@@ -468,63 +514,48 @@ const char *get_smart_data_dir()
  * Otherwise, the filename should be a path to a directory that contains the text files to load (up to the buffer
  * size limit).
  */
-int get_text(run_command_opts_t *opts, const char *filename, unsigned char *T)
+int get_text(run_command_opts_t *opts, unsigned char *T)
 {
-    int size;
-    if (!strcmp(filename, SMART_RANDOM_TEXT))
+    int size = 0;
+    if (opts->data_source == RANDOM)
     {
-        printf("\n\tTry to process random text with alphabet size of %d\n", opts->alphabet_size);
-        size = gen_random_text(T, opts->alphabet_size, opts->text_size);
+        size = gen_random_text(opts->alphabet_size, T, opts->text_size);
+    }
+    else if (opts->data_source == FILES)
+    {
+        size = gen_search_text(opts->search_path, opts->data_sources, T, opts->text_size, opts->fill_buffer);
     }
     else
     {
-        char fullpath[100];
-        const char *data_path = get_smart_data_dir();
-        sprintf(fullpath, "%s/%s", data_path, filename);
-        printf("\n\tTry to process archive %s\n", fullpath);
-
-        size = gen_search_text(fullpath, T, opts->text_size);
-        if (size <= 0)
-        {
-            printf("\tunable to generate search text\n");
-            exit(1);
-        }
+        print_error_message_and_exit("Undefined source for data.");
     }
     return size;
 }
 
 /*
- * Executes the benchmarks with the given benchmark options with a text buffer T.
+ * Executes the benchmark with the given benchmark options with a text buffer T.
  * Size of the T buffer is opts->text_size + PATTERN_SIZE_MAX to allow algorithms to place a copy of the pattern
  * at the end of the text if they wish.  This is a special optimisation that allows a search algorithm to omit a length check,
  * as the algorithm is guaranteed to stop when it detects the sentinel pattern past the end of the actual text.
  */
-void run_benchmarks(run_command_opts_t *opts, unsigned char *T)
+void run_benchmark(run_command_opts_t *opts, unsigned char *T)
 {
-
-    char filename_list[NumSetting][50];
-    int num_buffers = split_filename(opts->filename, filename_list);
-
     char expcode[STR_BUF];
     gen_experiment_code(expcode);
-
     printf("\tStarting experimental tests with code %s\n", expcode);
 
-    for (int k = 0; k < num_buffers; k++)
-    {
-        int n = get_text(opts, filename_list[k], T);
-        print_text_info(T, n);
+    int n = get_text(opts, T);
+    print_text_info(T, n);
 
-        time_t date_timer;
-        char time_format[26];
-        struct tm *tm_info;
-        time(&date_timer);
-        tm_info = localtime(&date_timer);
-        strftime(time_format, 26, "%Y:%m:%d %H:%M:%S", tm_info);
+    time_t date_timer;
+    char time_format[26];
+    struct tm *tm_info;
+    time(&date_timer);
+    tm_info = localtime(&date_timer);
+    strftime(time_format, 26, "%Y:%m:%d %H:%M:%S", tm_info);
+    printf("\tExperimental tests started on %s\n", time_format);
 
-        printf("\tExperimental tests started on %s\n", time_format);
-        run_setting(T, n, opts);
-    }
+    run_setting(T, n, opts);
 
     // outputINDEX(filename_list, num_buffers, expcode);
 }
@@ -533,21 +564,46 @@ void run_benchmarks(run_command_opts_t *opts, unsigned char *T)
  * Sets the scheduler affinity to pin this process to one CPU core.
  * This can avoid benchmarking variation caused by processes moving from one core to another, causing cache misses.
  */
-void pin_to_one_CPU_core()
+void pin_to_one_CPU_core(run_command_opts_t *opts)
 {
-    cpu_set_t cpus;
-    int last_cpu = sysconf(_SC_NPROCESSORS_ONLN) - 1;
-    int pid = getpid();
-    CPU_ZERO(&cpus);
-    CPU_SET(last_cpu, &cpus);
-    if (sched_setaffinity(pid, sizeof(cpu_set_t), &cpus) == -1)
-    {
-        printf("\n\tCould not pin the benchmark to a core - variation in benchmarking may be higher.\n\n");
+    if (!strcmp(opts->cpu_pinning, "off")) {
+        printf("\tCPU pinning not enabled: variation in benchmarking may be higher.\n\n");
+    } else {
+        int num_processors = sysconf(_SC_NPROCESSORS_ONLN);
+        int cpu_to_pin;
+        if (!strcmp(opts->cpu_pinning, "last"))
+        {
+            cpu_to_pin = num_processors - 1;
+        } else {
+            cpu_to_pin = atoi(opts->cpu_pinning);
+        }
+
+        if (cpu_to_pin < num_processors) {
+            int pid = getpid();
+            cpu_set_t cpus;
+            CPU_ZERO(&cpus);
+            CPU_SET(cpu_to_pin, &cpus);
+
+            if (sched_setaffinity(pid, sizeof(cpu_set_t), &cpus) == -1) {
+                printf("\tCould not pin the benchmark to a core: variation in benchmarking may be higher.\n\n");
+            } else {
+                printf("\tPinned benchmark process %d to core %d of 0 - %d processors.\n\n", pid, cpu_to_pin, num_processors - 1);
+            }
+        }
+        else {
+            printf("\tCould not pin cpu %d to available cores 0 - %d: variation in benchmarking may be higher.\n\n", cpu_to_pin, num_processors - 1);
+        }
     }
-    else
-    {
-        printf("\n\tPinned benchmark process %d to core %d of %d processors.\n\n", pid, last_cpu, last_cpu + 1);
-    }
+}
+
+/*
+ * Sets the random seed for this run from the seed defined in opts.
+ */
+void set_random_seed(run_command_opts_t *opts)
+{
+    srand(opts->random_seed);
+    printf("\n\tSetting random seed for this benchmarking run to %ld.  Use -seed %ld if you need to rerun identically.\n",
+           opts->random_seed, opts->random_seed);
 }
 
 /*
@@ -557,14 +613,13 @@ int exec_run(run_command_opts_t *opts)
 {
     print_logo();
 
-    srand(opts->random_seed);
-    printf("\n\tSetting random seed for this benchmarking run to %d\n", opts->random_seed);
+    set_random_seed(opts);
 
-    pin_to_one_CPU_core();
+    pin_to_one_CPU_core(opts);
 
     unsigned char *T = (unsigned char *)malloc(sizeof(unsigned char) * (opts->text_size + PATTERN_SIZE_MAX));
 
-    run_benchmarks(opts, T);
+    run_benchmark(opts, T);
 
     free(T);
 
