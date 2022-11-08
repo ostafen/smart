@@ -16,6 +16,7 @@
  * contact the authors at: faro@dmi.unict.it and thierry.lecroq@univ-rouen.fr
  * download the tool at: http://www.dmi.unict.it/~faro/smart/
  */
+#define _GNU_SOURCE // Must be defined as the first include of the program to enable use of CPU pinning macros.
 
 #include "parser.h"
 #include "select.h"
