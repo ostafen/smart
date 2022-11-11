@@ -229,7 +229,7 @@ void gen_random_patterns(unsigned char **patterns, int m, const unsigned char *T
 /*
  * Computes and returns the mean average of a list of search times of size n.
  */
-double compute_average(double *T, int n)
+double compute_average(const double *T, int n)
 {
     double avg = 0.0;
     for (int i = 0; i < n; i++)
@@ -488,8 +488,6 @@ void compute_alphabet_info(const int *freq, int *alphabet_size, int *max_code)
  */
 void compute_frequency(const unsigned char *T, int n, int *freq)
 {
-    int nalpha = 0;
-    int maxcode = 0;
     for (int j = 0; j < SIGMA; j++)
         freq[j] = 0;
 
@@ -573,7 +571,7 @@ void pin_to_one_CPU_core(run_command_opts_t *opts)
     if (!strcmp(opts->cpu_pinning, "off")) {
         printf("\tCPU pinning not enabled: variation in benchmarking may be higher.\n\n");
     } else {
-        int num_processors = sysconf(_SC_NPROCESSORS_ONLN);
+        int num_processors = (int) sysconf(_SC_NPROCESSORS_ONLN);
         int cpu_to_pin;
         if (!strcmp(opts->cpu_pinning, "last"))
         {
