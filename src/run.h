@@ -5,6 +5,7 @@
 #include <sys/shm.h>
 #include <dirent.h>
 #include <dlfcn.h>
+#include <sched.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -15,8 +16,6 @@
 
 #include "timer.h"
 #include "parser.h"
-
-#include <sched.h>
 
 #define PATTERN_SIZE_MAX 4200 // maximal length of the pattern
 
@@ -44,17 +43,16 @@ void print_edge(int len)
 
 void print_percentage(int perc)
 {
-    if (perc < 10)
+    if (perc < 10 || perc > 100)
         printf("\b\b\b\b[%d%%]", perc);
     else if (perc < 100)
         printf("\b\b\b\b\b[%d%%]", perc);
-    else
-        printf("\b\b\b\b[%d%%]", perc);
     fflush(stdout);
 }
 
 /*
  * Loads an individual file given in filename into a buffer, up to a max size of n.
+ * Returns the number of characters read from the file.
  */
 int load_text_buffer(const char *filename, unsigned char *buffer, int n)
 {
@@ -99,7 +97,7 @@ int merge_text_buffers(const char filenames[][STR_BUF], int n_files, unsigned ch
 /*
  * Replicates existing data in a buffer to fill up any remaining space in the buffer.
  */
-int replicate_buffer(unsigned char *buffer, int size, int target_size)
+void replicate_buffer(unsigned char *buffer, int size, int target_size)
 {
     while (size < target_size)
     {
@@ -198,7 +196,6 @@ int gen_search_text(const char *search_path, const char *data_sources[MAX_DATA_S
 
 /*
  * Generates a random text and stores it in the buffer of size bufsize, with an alphabet of sigma.
- * Returns the total size generated.
  * Returns the size of the random data (which will be bufsize).
  */
 int gen_random_text(const int sigma, unsigned char *buffer, const int bufsize)
@@ -223,7 +220,7 @@ int gen_random_text(const int sigma, unsigned char *buffer, const int bufsize)
 /*
  * Generates a list of random patterns of size m by randomly extracting them from a text T of size n.
  */
-void gen_random_patterns(unsigned char **patterns, int m, unsigned char *T, int n, int num_patterns)
+void gen_random_patterns(unsigned char **patterns, int m, const unsigned char *T, int n, int num_patterns)
 {
     for (int i = 0; i < num_patterns; i++)
     {
@@ -231,12 +228,11 @@ void gen_random_patterns(unsigned char **patterns, int m, unsigned char *T, int 
         for (int j = 0; j < m; j++)
             patterns[i][j] = T[k + j];
 
-        patterns[i][m] = '\0';
     }
 }
 
 /*
- * Computes the mean average of a list of search times of size n.
+ * Computes and returns the mean average of a list of search times of size n.
  */
 double compute_average(double *T, int n)
 {
@@ -248,7 +244,7 @@ double compute_average(double *T, int n)
 }
 
 /*
- * Computes the standard deviation given a mean average, and a list of search times of size n.
+ * Computes and returns the standard deviation given a mean average, and a list of search times of size n.
  */
 double compute_std(double avg, double *T, int n)
 {
@@ -263,6 +259,7 @@ double compute_std(double avg, double *T, int n)
 
 /*
  * Dynamically loads the algorithms defined in algo_names as shared objects into the benchmarking process.
+ * Returns 0 if successful.  Will exit with status 1 if it is unable to load an algorithm.
  */
 // TODO: dlclose() all lib_handle pointers
 int load_algos(const char algo_names[][STR_BUF], int num_algos, int (**functions)(unsigned char *, int, unsigned char *, int))
@@ -277,8 +274,7 @@ int load_algos(const char algo_names[][STR_BUF], int num_algos, int (**functions
         int (*search)(unsigned char *, int, unsigned char *, int) = dlsym(lib_handle, SEARCH_FUNC_NAME);
         if (lib_handle == NULL || search == NULL)
         {
-            printf("unable to load algorithm %s\n", algo_names[i]);
-            exit(1);
+            print_format_error_message_and_exit("unable to load algorithm %s\n", algo_names[i]);
         }
         functions[i] = search;
     }
@@ -307,6 +303,7 @@ typedef struct bechmark_res
 
 /*
  * Benchmarks an algorithm against a list of patterns of size m on a text T of size n, using the options provided.
+ * Returns a status code: 0 if successful, -1 if the algorithm will not run and -2 if the algorithm timed out.
  */
 int run_algo(unsigned char **pattern_list, int m,
               unsigned char *T, int n, const run_command_opts_t *opts,
@@ -340,6 +337,8 @@ int run_algo(unsigned char **pattern_list, int m,
     res->search_time = compute_average(times, opts->num_runs);
     res->pre_time = total_pre_time / opts->num_runs;
     res->std = compute_std(res->search_time, times, opts->num_runs);
+
+    return 0;
 }
 
 /*
@@ -374,9 +373,10 @@ void print_benchmark_res(char *output_line, const run_command_opts_t *opts, benc
 }
 
 /*
- * Runs all the benchmarks for the selected algorithms given the run options, and a text buffer T of size n.
+ * Runs the benchmark for the selected algorithms given the run options, and a text buffer T of size n.
  * The size n refers to the maximum size of the text to search; the buffer itself is slightly bigger to allow copying a
  * pattern into it past the actual text.
+ * Returns an error code of 0 if successful.
  */
 int run_setting(unsigned char *T, int n, const run_command_opts_t *opts)
 {
@@ -460,7 +460,7 @@ void gen_experiment_code(char *code)
  * Computes information about the size of the alphabet contained in character frequency table freq, and gives
  * both the number of unique characters, and the maximum character code it contains.
  */
-void compute_alphabet_info(int *freq, int *alphabet_size, int *max_code)
+void compute_alphabet_info(const int *freq, int *alphabet_size, int *max_code)
 {
     *alphabet_size = 0;
     *max_code = 0;
@@ -509,10 +509,7 @@ void print_text_info(const unsigned char *T, int n)
 
 /*
  * Fills the text buffer T with opts->text_size of data.
- * The filename either specifies the string defined in SMART_RANDOM_TEXT, in which case randomised text
- * will be generated using the alphabet size in opts->alphabet_size.
- * Otherwise, the filename should be a path to a directory that contains the text files to load (up to the buffer
- * size limit).
+ * Returns the size of the text loaded.
  */
 int get_text(run_command_opts_t *opts, unsigned char *T)
 {
@@ -608,6 +605,7 @@ void set_random_seed(run_command_opts_t *opts)
 
 /*
  * Main method to set things up before executing benchmarks with the benchmarking options provided.
+ * Returns 0 if successful.
  */
 int exec_run(run_command_opts_t *opts)
 {
