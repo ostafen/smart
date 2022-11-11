@@ -256,7 +256,6 @@ double compute_std(double avg, double *T, int n)
  * Dynamically loads the algorithms defined in algo_names as shared objects into the benchmarking process.
  * Returns 0 if successful.  Will exit with status 1 if it is unable to load an algorithm.
  */
-// TODO: dlclose() all lib_handle pointers
 int load_algos(const char algo_names[][STR_BUF], int num_algos, int (**functions)(unsigned char *, int, unsigned char *, int))
 {
     for (int i = 0; i < num_algos; i++)
@@ -274,6 +273,17 @@ int load_algos(const char algo_names[][STR_BUF], int num_algos, int (**functions
         functions[i] = search;
     }
     return 0;
+}
+
+/*
+ * Closes all the dynamically loaded algorithm shared object handles.
+ */
+void unload_algos(int num_algos, int (**functions)(unsigned char *, int, unsigned char *, int))
+{
+    for (int i = 0; i < num_algos; i++)
+    {
+        dlclose(functions[i]);
+    }
 }
 
 void allocate_matrix(unsigned char **M, int n, int elementSize)
@@ -435,6 +445,8 @@ int run_setting(unsigned char *T, int n, const run_command_opts_t *opts)
         }
     }
     printf("\n");
+
+    unload_algos(num_running, algo_functions);
 
     // free memory allocated for patterns
     free_matrix(pattern_list, opts->num_runs);
