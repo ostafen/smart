@@ -224,7 +224,7 @@ void gen_random_patterns(unsigned char **patterns, int m, const unsigned char *T
 {
     for (int i = 0; i < num_patterns; i++)
     {
-        int k = random() % (n - m);
+        int k = rand() % (n - m);
         for (int j = 0; j < m; j++)
             patterns[i][j] = T[k + j];
 
