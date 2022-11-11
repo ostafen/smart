@@ -81,15 +81,11 @@ int merge_text_buffers(const char filenames[][STR_BUF], int n_files, unsigned ch
     {
         int size = load_text_buffer(filenames[i], T + curr_size, max_text_size - curr_size);
 
-        //TODO: check this logic - when can size be less than zero?
         if (size < 0)
             return 0;
 
         curr_size += size;
     }
-
-    //TODO: why set a text end in the "text" buffer?  It can contain binary data that has zeros in it anyway.  it's not really text (or it doesn't have to be).
-    T[curr_size < max_text_size ? curr_size : max_text_size - 1] = '\0';
 
     return curr_size;
 }
@@ -105,7 +101,6 @@ void replicate_buffer(unsigned char *buffer, int size, int target_size)
         memcpy(buffer + size, buffer, cpy_size);
         size += cpy_size;
     }
-    buffer[size - 1] = '\0';
 }
 
 /*
