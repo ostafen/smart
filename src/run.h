@@ -256,7 +256,8 @@ double compute_std(double avg, double *T, int n)
  * Dynamically loads the algorithms defined in algo_names as shared objects into the benchmarking process.
  * Returns 0 if successful.  Will exit with status 1 if it is unable to load an algorithm.
  */
-int load_algos(const char algo_names[][STR_BUF], int num_algos, int (**functions)(unsigned char *, int, unsigned char *, int))
+int load_algos(const char algo_names[][STR_BUF], int num_algos, int (**functions)(unsigned char *, int, unsigned char *, int),
+               long shared_object_handles[MAX_SELECT_ALGOS])
 {
     for (int i = 0; i < num_algos; i++)
     {
@@ -270,6 +271,7 @@ int load_algos(const char algo_names[][STR_BUF], int num_algos, int (**functions
         {
             print_format_error_message_and_exit("unable to load algorithm %s\n", algo_names[i]);
         }
+        shared_object_handles[i] = (long) lib_handle;
         functions[i] = search;
     }
     return 0;
@@ -278,11 +280,11 @@ int load_algos(const char algo_names[][STR_BUF], int num_algos, int (**functions
 /*
  * Closes all the dynamically loaded algorithm shared object handles.
  */
-void unload_algos(int num_algos, int (**functions)(unsigned char *, int, unsigned char *, int))
+void unload_algos(int num_algos, long shared_object_handles[MAX_SELECT_ALGOS])
 {
     for (int i = 0; i < num_algos; i++)
     {
-        dlclose(functions[i]);
+        dlclose((void *) shared_object_handles[i]);
     }
 }
 
@@ -394,7 +396,8 @@ int run_setting(unsigned char *T, int n, const run_command_opts_t *opts)
     qsort(algo_names, num_running, sizeof(char) * STR_BUF, str_compare);
 
     int (*algo_functions[MAX_SELECT_ALGOS])(unsigned char *, int, unsigned char *, int);
-    load_algos(algo_names, num_running, algo_functions);
+    long shared_object_handles[MAX_SELECT_ALGOS];
+    load_algos(algo_names, num_running, algo_functions, shared_object_handles);
 
     // initializes the vector which will contain running times
     // performs experiments on a text
@@ -446,7 +449,7 @@ int run_setting(unsigned char *T, int n, const run_command_opts_t *opts)
     }
     printf("\n");
 
-    unload_algos(num_running, algo_functions);
+    unload_algos(num_running, shared_object_handles);
 
     // free memory allocated for patterns
     free_matrix(pattern_list, opts->num_runs);
