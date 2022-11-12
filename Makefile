@@ -3,7 +3,7 @@ SRC_DIR=src
 
 ALGO_DIR=algos
 
-CFLAGS=-O3 -lm -msse4 -ldl
+CFLAGS=-lm -msse4 -ldl
 
 BIN_DIR=bin
 
@@ -37,7 +37,7 @@ $(BIN_DIR)/$(ALGO_DIR)/%.so: $(OBJ_DIR)/$(ALGO_DIR)/%.o
  
 $(BIN_DIR)/smart: $(OBJ_DIR)/smart.o $(OBJ_DIR)/string_set.o
 	$(dir_guard)
-	$(CC) -g -rdynamic -o $@ $^ $(CFLAGS)
+	$(CC) -g -o $@ $^ $(CFLAGS)
 
 
 .PHONY: clean

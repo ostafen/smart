@@ -119,7 +119,8 @@ int add_files(char search_paths[][STR_BUF], int num_search_paths, const char *da
     if (valid_path[0] != '\0')
     {
         __mode_t file_mode = get_file_mode(valid_path);
-        if (S_ISDIR(file_mode)) {
+        if (S_ISDIR(file_mode))
+        {
             num_files = add_filenames_in_dir(valid_path, filenames, num_files, max_files);
         }
         else if (S_ISREG(file_mode) && num_files < max_files)
@@ -158,7 +159,7 @@ void print_no_data_found_and_exit(const char *search_path)
     char working_dir[STR_BUF];
     if (getcwd(working_dir, STR_BUF) != 0)
     {
-       strcpy(working_dir, "(unknown)");
+        strcpy(working_dir, "(unknown)");
     }
 
     print_format_error_message_and_exit("\nERROR: No files could be found to generate the search text.\nSearch path: %s\nWorking dir: %s\n",
@@ -174,7 +175,8 @@ int gen_search_text(const char *search_path, const char *data_sources[MAX_DATA_S
 {
     char filenames[MAX_FILES][STR_BUF];
     int n_files = build_list_of_files_to_load(search_path, data_sources, filenames);
-    if (n_files > 0) {
+    if (n_files > 0)
+    {
         int n = merge_text_buffers(filenames, n_files, buffer, bufsize);
 
         if (n >= bufsize || !fill_buffer)
@@ -222,7 +224,6 @@ void gen_random_patterns(unsigned char **patterns, int m, const unsigned char *T
         int k = rand() % (n - m);
         for (int j = 0; j < m; j++)
             patterns[i][j] = T[k + j];
-
     }
 }
 
@@ -250,28 +251,28 @@ double compute_std(double avg, double *T, int n)
     return sqrt(std / n);
 }
 
-#define SEARCH_FUNC_NAME "search"
+#define SEARCH_FUNC_NAME "internal_search"
 
 /*
  * Dynamically loads the algorithms defined in algo_names as shared objects into the benchmarking process.
  * Returns 0 if successful.  Will exit with status 1 if it is unable to load an algorithm.
  */
-int load_algos(const char algo_names[][STR_BUF], int num_algos, int (**functions)(unsigned char *, int, unsigned char *, int),
+int load_algos(const char algo_names[][STR_BUF], int num_algos, int (**functions)(unsigned char *, int, unsigned char *, int, double *, double *),
                long shared_object_handles[MAX_SELECT_ALGOS])
 {
     for (int i = 0; i < num_algos; i++)
     {
         char algo_lib_filename[STR_BUF];
-        //TODO: configure location of algo shared objects - environment variable?
+        // TODO: configure location of algo shared objects - environment variable?
         sprintf(algo_lib_filename, "bin/algos/%s.so", str2lower((char *)algo_names[i]));
 
         void *lib_handle = dlopen(algo_lib_filename, RTLD_NOW);
-        int (*search)(unsigned char *, int, unsigned char *, int) = dlsym(lib_handle, SEARCH_FUNC_NAME);
+        int (*search)(unsigned char *, int, unsigned char *, int, double *, double *) = dlsym(lib_handle, SEARCH_FUNC_NAME);
         if (lib_handle == NULL || search == NULL)
         {
             print_format_error_message_and_exit("unable to load algorithm %s\n", algo_names[i]);
         }
-        shared_object_handles[i] = (long) lib_handle;
+        shared_object_handles[i] = (long)lib_handle;
         functions[i] = search;
     }
     return 0;
@@ -284,7 +285,7 @@ void unload_algos(int num_algos, long shared_object_handles[MAX_SELECT_ALGOS])
 {
     for (int i = 0; i < num_algos; i++)
     {
-        dlclose((void *) shared_object_handles[i]);
+        dlclose((void *)shared_object_handles[i]);
     }
 }
 
@@ -300,8 +301,6 @@ void free_matrix(unsigned char **M, int n)
         free(M[i]);
 }
 
-double search_time, pre_time;
-
 typedef struct bechmark_res
 {
     int total_occ;
@@ -313,8 +312,8 @@ typedef struct bechmark_res
  * Returns a status code: 0 if successful, -1 if the algorithm will not run and -2 if the algorithm timed out.
  */
 int run_algo(unsigned char **pattern_list, int m,
-              unsigned char *T, int n, const run_command_opts_t *opts,
-              int (*search_func)(unsigned char *, int, unsigned char *, int), benchmark_res_t *res)
+             unsigned char *T, int n, const run_command_opts_t *opts,
+             int (*search_func)(unsigned char *, int, unsigned char *, int, double *, double *), benchmark_res_t *res)
 {
     double times[opts->num_runs];
     double total_pre_time = 0;
@@ -328,17 +327,17 @@ int run_algo(unsigned char **pattern_list, int m,
         memcpy(P, pattern_list[k], sizeof(unsigned char) * (m + 1));
         res->search_time = res->pre_time = 0.0;
 
-        int occur = search_func(P, m, T, n);
+        int occur = search_func(P, m, T, n, &res->search_time, &res->pre_time);
         res->total_occ += occur;
 
         if (occur <= 0)
             return -1;
 
-        if (search_time > opts->time_limit_millis)
+        if (res->search_time > opts->time_limit_millis)
             return -2;
 
-        times[k] = search_time;
-        total_pre_time += pre_time;
+        times[k] = res->search_time;
+        total_pre_time += res->pre_time;
     }
 
     res->search_time = compute_average(times, opts->num_runs);
@@ -395,7 +394,7 @@ int run_setting(unsigned char *T, int n, const run_command_opts_t *opts)
     int num_running = read_all_lines(algo_file, algo_names);
     qsort(algo_names, num_running, sizeof(char) * STR_BUF, str_compare);
 
-    int (*algo_functions[MAX_SELECT_ALGOS])(unsigned char *, int, unsigned char *, int);
+    int (*algo_functions[MAX_SELECT_ALGOS])(unsigned char *, int, unsigned char *, int, double *, double *);
     long shared_object_handles[MAX_SELECT_ALGOS];
     load_algos(algo_names, num_running, algo_functions, shared_object_handles);
 
@@ -571,31 +570,41 @@ void run_benchmark(run_command_opts_t *opts, unsigned char *T)
  */
 void pin_to_one_CPU_core(run_command_opts_t *opts)
 {
-    if (!strcmp(opts->cpu_pinning, "off")) {
+    if (!strcmp(opts->cpu_pinning, "off"))
+    {
         printf("\tCPU pinning not enabled: variation in benchmarking may be higher.\n\n");
-    } else {
-        int num_processors = (int) sysconf(_SC_NPROCESSORS_ONLN);
+    }
+    else
+    {
+        int num_processors = (int)sysconf(_SC_NPROCESSORS_ONLN);
         int cpu_to_pin;
         if (!strcmp(opts->cpu_pinning, "last"))
         {
             cpu_to_pin = num_processors - 1;
-        } else {
+        }
+        else
+        {
             cpu_to_pin = atoi(opts->cpu_pinning);
         }
 
-        if (cpu_to_pin < num_processors) {
+        if (cpu_to_pin < num_processors)
+        {
             int pid = getpid();
             cpu_set_t cpus;
             CPU_ZERO(&cpus);
             CPU_SET(cpu_to_pin, &cpus);
 
-            if (sched_setaffinity(pid, sizeof(cpu_set_t), &cpus) == -1) {
+            if (sched_setaffinity(pid, sizeof(cpu_set_t), &cpus) == -1)
+            {
                 printf("\tCould not pin the benchmark to a core: variation in benchmarking may be higher.\n\n");
-            } else {
+            }
+            else
+            {
                 printf("\tPinned benchmark process %d to core %d of 0 - %d processors.\n\n", pid, cpu_to_pin, num_processors - 1);
             }
         }
-        else {
+        else
+        {
             printf("\tCould not pin cpu %d to available cores 0 - %d: variation in benchmarking may be higher.\n\n", cpu_to_pin, num_processors - 1);
         }
     }
