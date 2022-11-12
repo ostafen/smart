@@ -14,6 +14,7 @@
 #include <sys/time.h>
 #include <sys/stat.h>
 
+#include "cpu_stats.h"
 #include "timer.h"
 #include "parser.h"
 
@@ -305,6 +306,7 @@ typedef struct bechmark_res
 {
     int total_occ;
     double search_time, pre_time, std;
+    cpu_stats_t cpu_stats;
 } benchmark_res_t;
 
 /*
@@ -405,6 +407,13 @@ int run_setting(unsigned char *T, int n, const run_command_opts_t *opts)
         for (int j = 0; j < NUM_PATTERNS_MAX; j++)
             SEARCH_TIME[i][j] = PRE_TIME[i][j] = 0;
 
+    benchmark_res_t res;
+    if (cpu_stats_open(&res.cpu_stats) < 0)
+    {
+        printf("unable to open cpu stats\n");
+        return -1;
+    }
+
     for (int m = opts->pattern_min_len, pattern_idx = 0; m <= opts->pattern_max_len; m *= 2, pattern_idx++)
     {
         gen_random_patterns(pattern_list, m, T, n, opts->num_runs);
@@ -431,7 +440,7 @@ int run_setting(unsigned char *T, int n, const run_command_opts_t *opts)
 
             double TIME[opts->num_runs];
             int total_pre_time = 0;
-            benchmark_res_t res;
+
             run_algo(pattern_list, m, T, n, opts, algo_functions[algo], &res);
 
             print_benchmark_res(output_line, opts, &res);
@@ -447,6 +456,8 @@ int run_setting(unsigned char *T, int n, const run_command_opts_t *opts)
         }
     }
     printf("\n");
+
+    cpu_stats_close(&res.cpu_stats);
 
     unload_algos(num_running, shared_object_handles);
 
