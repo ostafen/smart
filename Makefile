@@ -35,7 +35,7 @@ $(BIN_DIR)/$(ALGO_DIR)/%.so: $(OBJ_DIR)/$(ALGO_DIR)/%.o
 	$(dir_guard)
 	$(CC) -shared -o $@ $< $(CFLAGS)
  
-$(BIN_DIR)/smart: $(OBJ_DIR)/smart.o $(OBJ_DIR)/string_set.o $(OBJ_DIR)/cpu_stats.o
+$(BIN_DIR)/smart: $(OBJ_DIR)/smart.o $(OBJ_DIR)/string_set.o
 	$(dir_guard)
 	$(CC) -g -o $@ $^ $(CFLAGS)
 
