@@ -5,6 +5,7 @@
 #include <sys/shm.h>
 #include <dirent.h>
 #include <dlfcn.h>
+#include <sched.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -19,8 +20,7 @@
 #define PATTERN_SIZE_MAX 4200 // maximal length of the pattern
 
 #define SIGMA 256 // constant alphabet size
-#define NUM_PATTERNS_MAX 100
-#define NumSetting 15 // number of text buffers
+#define NUM_PATTERNS_MAX 100 // maximum number of different pattern lengths to benchmark at one time.
 
 #define TEXT_SIZE_DEFAULT 1048576
 
@@ -29,8 +29,6 @@
 #define MAX_FILES 500
 #define MAX_SEARCH_PATHS 50
 #define MAX_LINE_LEN 128
-
-unsigned int MINLEN = 1, MAXLEN = 4200; // min length and max length of pattern size
 
 void print_edge(int len)
 {
@@ -409,10 +407,7 @@ enum measurement_status run_algo(unsigned char **pattern_list, int m,
 
         results->measurements.pre_times[k] = results->measurements.search_times[k] = 0.0;
 
-        int occur = search_func(P, m, T, n, results->measurements.search_times[k], results->measurements.pre_times[k]);
-
-        results->measurements.pre_times[k] = pre_time;
-        results->measurements.search_times[k] = search_time;
+        int occur = search_func(P, m, T, n, &(results->measurements.search_times[k]), &(results->measurements.pre_times[k]));
 
         if (occur == 0)
             return ERROR; // there must be at least one match for each text and pattern (patterns are extracted from text).
@@ -422,7 +417,7 @@ enum measurement_status run_algo(unsigned char **pattern_list, int m,
 
         results->occurrence_count += occur;
 
-        if (search_time > opts->time_limit_millis)
+        if (results->measurements.search_times[k] > opts->time_limit_millis)
             return TIMED_OUT;
     }
 
@@ -440,7 +435,7 @@ void print_benchmark_res(char *output_line, const run_command_opts_t *opts, algo
         {
             printf("\b\b\b\b\b\b\b.[OK]  ");
             if (opts->pre)
-                snprintf(output_line, MAX_LINE_LEN,"\tmean: %.2f + [%.2f ± %.2f] ms\tmedian: %.2nf + [%.2f] ms",
+                snprintf(output_line, MAX_LINE_LEN,"\tmean: %.2f + [%.2f ± %.2f] ms\tmedian: %.2f + [%.2f] ms",
                         results->statistics.mean_pre_time,
                         results->statistics.mean_search_time,
                         results->statistics.std_search_time,
@@ -511,7 +506,7 @@ void calculate_algo_statistics(algo_results_t *results, int num_measurements)
 
 
 int benchmark_algos_using_random_patterns(algo_results_t *results, const run_command_opts_t *opts, unsigned char *T, int n, unsigned char **pattern_list, int m,
-                                          int num_running, char algo_names[][STR_BUF], int (**algo_functions)(unsigned char *, int, unsigned char *, int))
+                                          int num_running, char algo_names[][STR_BUF], int (**algo_functions)(unsigned char *, int, unsigned char *, int, double *, double *))
 {
     printf("\n");
     print_edge(TOP_EDGE_WIDTH);
@@ -556,10 +551,9 @@ int get_num_pattern_lengths(const run_command_opts_t *opts)
 }
 
 int benchmark_algos(const char *expcode, const run_command_opts_t *opts, unsigned char *T, int n,
-                    int num_algos, char algo_names[][STR_BUF], int (**algo_functions)(unsigned char *, int, unsigned char *, int))
+                    int num_algos, char algo_names[][STR_BUF], int (**algo_functions)(unsigned char *, int, unsigned char *, int, double *, double *))
 {
     int num_pattern_lengths = get_num_pattern_lengths(opts);
-    printf("num pattern lengths = %d", num_pattern_lengths);
     benchmark_results_t results[num_pattern_lengths];
     unsigned char *pattern_list[opts->num_runs];
 
@@ -679,7 +673,7 @@ void run_benchmark(run_command_opts_t *opts, unsigned char *T)
 
     // Load the algorithms to search with:
     char algo_names[MAX_SELECT_ALGOS][STR_BUF];
-    int (*algo_functions[MAX_SELECT_ALGOS])(unsigned char *, int, unsigned char *, int);
+    int (*algo_functions[MAX_SELECT_ALGOS])(unsigned char *, int, unsigned char *, int, double *, double *);
     long shared_object_handles[MAX_SELECT_ALGOS];
     int num_running = load_algo_names_from_file(algo_names, "selected_algos");
     load_algos(algo_names, num_running, algo_functions, shared_object_handles);
