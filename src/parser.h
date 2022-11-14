@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <time.h>
 #include "utils.h"
+#include "regex.h"
 
 #define RUN_COMMAND "run"
 #define SELECT_COMMAND "select"
@@ -21,7 +22,7 @@
 #define SMART_DATA_PATH_DEFAULT "data"
 #define SMART_DATA_DIR_ENV "SMART_DATA_DIR"
 #define MEGA_BYTE (1024 * 1024) // constant for 1 MB size
-#define MAX_SELECT_ALGOS 100
+#define MAX_SELECT_ALGOS 2048
 
 static char *const COMMAND_RUN = "run";
 static char *const COMMAND_TEST = "test";
@@ -143,10 +144,13 @@ void print_logo()
 
 void print_subcommand_usage_and_exit(const char *command)
 {
-    printf("usage: %s [run | test | select]\n\n", command);
-    printf("\t- run: executes benchmarks on one or more algorithms\n\n");
-    printf("\t- test: test the correctness of an algorithm\n\n");
-    printf("\t- select: select one or more algorithms to run\n\n");
+    print_logo();
+
+    printf("\n usage: %s [run | test | select]\n\n", command);
+
+    printf("\t- run: executes benchmarks on one or more algorithms\n");
+    printf("\t- test: test the correctness of an algorithm\n");
+    printf("\t- select: select one or more algorithms to run\n");
     printf("\n\n");
 
     exit(0);
@@ -190,7 +194,10 @@ void print_run_usage_and_exit(const char *command)
 
 void print_select_usage_and_exit(const char *command)
 {
-    printf("usage: %s select algo1, algo2, ... [-a | -r | -sa | -ss | -n | -h]\n\n", command);
+    print_logo();
+
+    printf("\n usage: %s select [algo1, algo2, ...] [-a | -r | -sa | -ss | -n | -h]\n\n", command);
+
     print_help_line("add the list of specified algorithms to the set", OPTION_SHORT_ADD, OPTION_LONG_ADD, "algo...");
     print_help_line("remove the list of specified algorithms to the set", OPTION_SHORT_REMOVE, OPTION_LONG_REMOVE, "algo...");
     print_help_line("clears all selected algorithms", OPTION_SHORT_NO_ALGOS, OPTION_LONG_NO_ALGOS, "");
@@ -204,6 +211,8 @@ void print_select_usage_and_exit(const char *command)
 
 void print_test_usage_and_exit()
 {
+    print_logo();
+
     printf("\n\tSMART UTILITY FOR TESTING STRING MATCHING ALGORITHMS\n\n");
     printf("\tusage: ./test ALGONAME\n");
     printf("\tTest the program named \"algoname\" for correctness.\n");
@@ -285,7 +294,6 @@ int parse_num_runs(run_command_opts_t *line, int curr_arg, int argc, const char 
     line->num_runs = atoi(argv[curr_arg + 1]);
     return 1;
 }
-
 
 int parse_text_size(run_command_opts_t *line, int curr_arg, int argc, const char **argv)
 {
