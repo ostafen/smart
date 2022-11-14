@@ -178,7 +178,7 @@ void print_run_usage_and_exit(const char *command)
     print_help_line("computes separately preprocessing times and searching times", FLAG_PREPROCESSING_TIME_SHORT, FLAG_PREPROCESSING_TIME_LONG, "");
     print_help_line("set to L the upper bound for any worst case running time (in ms). The default value is 300 ms", OPTION_MAX_TIME_SHORT, OPTION_MAX_TIME_LONG, "L");
     print_help_line("sets whether cpu pinning is off, set to the last cpu core, or a specific core via parameter C:  off | last | {digit}", OPTION_CPU_PIN_SHORT, OPTION_CPU_PIN_LONG, "C");
-    print_help_line("prints the average number of occurrences", FLAG_OCCURRENCE, "", "");
+    print_help_line("prints the total number of occurrences", FLAG_OCCURRENCE, "", "");
     print_help_line("output results in txt tabular format", FLAG_TEXT_OUTPUT, "", "");
     print_help_line("output results in latex tabular format", FLAG_LATEX_OUTPUT, "", "");
     print_help_line("executes a single run searching T (max 1000 chars) for occurrences of P (max 100 chars)", OPTION_SIMPLE_SHORT, OPTION_SIMPLE_LONG, "P T");
