@@ -29,6 +29,7 @@
 
 #define MAX_FILES 500
 #define MAX_SEARCH_PATHS 50
+#define MAX_LINE_LEN 128
 
 unsigned int MINLEN = 1, MAXLEN = 4200; // min length and max length of pattern size
 
@@ -239,6 +240,21 @@ double compute_average(const double *T, int n)
 }
 
 /*
+ * Computes the median of a sorted array T of doubles of size n.
+ */
+double compute_median_of_sorted_array(const double *T, int n)
+{
+    // if the list of doubles  has an even number of elements:
+    if (n % 2 == 0)
+    {
+        return (T[n/2] + T[n/2 + 1]) / 2; // return mean of n/2 and n/2+1 elements.
+    }
+    else {
+        return T[(n+1)/2]; // return the element in the middle of the sorted array.
+    }
+}
+
+/*
  * Computes and returns the standard deviation given a mean average, and a list of search times of size n.
  */
 double compute_std(double avg, double *T, int n)
@@ -252,6 +268,16 @@ double compute_std(double avg, double *T, int n)
 
 #define SEARCH_FUNC_NAME "search"
 
+
+int load_algo_names_from_file(char algo_names[][STR_BUF], const char *filename)
+{
+    FILE *algo_file = fopen(filename, "r");
+    int num_running = read_all_lines(algo_file, algo_names);
+    fclose(algo_file);
+    qsort(algo_names, num_running, sizeof(char) * STR_BUF, str_compare);
+    return num_running;
+}
+
 /*
  * Dynamically loads the algorithms defined in algo_names as shared objects into the benchmarking process.
  * Returns 0 if successful.  Will exit with status 1 if it is unable to load an algorithm.
@@ -263,7 +289,7 @@ int load_algos(const char algo_names[][STR_BUF], int num_algos, int (**functions
     {
         char algo_lib_filename[STR_BUF];
         //TODO: configure location of algo shared objects - environment variable?
-        sprintf(algo_lib_filename, "bin/algos/%s.so", str2lower((char *)algo_names[i]));
+        snprintf(algo_lib_filename, STR_BUF, "bin/algos/%s.so", str2lower((char *)algo_names[i]));
 
         void *lib_handle = dlopen(algo_lib_filename, RTLD_NOW);
         int (*search)(unsigned char *, int, unsigned char *, int) = dlsym(lib_handle, SEARCH_FUNC_NAME);
@@ -274,6 +300,7 @@ int load_algos(const char algo_names[][STR_BUF], int num_algos, int (**functions
         shared_object_handles[i] = (long) lib_handle;
         functions[i] = search;
     }
+
     return 0;
 }
 
@@ -288,13 +315,13 @@ void unload_algos(int num_algos, long shared_object_handles[MAX_SELECT_ALGOS])
     }
 }
 
-void allocate_matrix(unsigned char **M, int n, int elementSize)
+void allocate_pattern_matrix(unsigned char **M, int n, int elementSize)
 {
     for (int i = 0; i < n; i++)
         M[i] = (unsigned char *)malloc(elementSize);
 }
 
-void free_matrix(unsigned char **M, int n)
+void free_pattern_matrix(unsigned char **M, int n)
 {
     for (int i = 0; i < n; i++)
         free(M[i]);
@@ -302,158 +329,256 @@ void free_matrix(unsigned char **M, int n)
 
 double search_time, pre_time;
 
-typedef struct bechmark_res
+enum measurement_status {SUCCESS, TIMED_OUT, CANNOT_SEARCH, ERROR};
+
+typedef struct algo_measurements
 {
-    int total_occ;
-    double search_time, pre_time, std;
-} benchmark_res_t;
+    double *search_times;
+    double *pre_times;
+} algo_measurements_t;
+
+typedef struct algo_statistics
+{
+    double mean_search_time;
+    double median_search_time;
+    double std_search_time;
+    double mean_pre_time;
+    double median_pre_time;
+} algo_statistics_t;
+
+typedef struct algo_results
+{
+    int algo_id;
+    enum measurement_status success_state;
+    algo_statistics_t statistics;
+    int occurrence_count;
+    algo_measurements_t measurements;
+} algo_results_t;
+
+typedef struct benchmark_results
+{
+    int pattern_length;
+    algo_results_t *algo_results;
+} benchmark_results_t;
+
+void allocate_benchmark_results(benchmark_results_t *bench_result, int num_pattern_lengths, int num_algos, int num_runs)
+{
+    // For each pattern length we process, allocate space for bench_result for all the algorithms:
+    for (int i = 0; i < num_pattern_lengths; i++)
+    {
+        bench_result[i].algo_results = malloc(sizeof(algo_results_t) * num_algos);
+
+        //For each algorithm we process for a pattern length, allocate space for all the measurements it will make:
+        for (int j = 0; j < num_algos; j++)
+        {
+            bench_result[i].algo_results[j].measurements.search_times = malloc(sizeof(double) * num_runs);
+            bench_result[i].algo_results[j].measurements.pre_times = malloc(sizeof(double) * num_runs);
+        }
+    }
+}
+
+void free_benchmark_results(benchmark_results_t *bench_result, int num_pattern_lengths, int num_algos)
+{
+    // For each pattern length we process, allocate space for bench_result for all the algorithms:
+    for (int i = 0; i < num_pattern_lengths; i++)
+    {
+        // For each algorithm we process for a pattern length, allocate space for all the measurements it will make:
+        for (int j = 0; j < num_algos; j++)
+        {
+            free(bench_result[i].algo_results[j].measurements.search_times);
+            free(bench_result[i].algo_results[j].measurements.pre_times);
+        }
+        free(bench_result[i].algo_results);
+    }
+}
 
 /*
  * Benchmarks an algorithm against a list of patterns of size m on a text T of size n, using the options provided.
  * Returns a status code: 0 if successful, -1 if the algorithm will not run and -2 if the algorithm timed out.
  */
-int run_algo(unsigned char **pattern_list, int m,
-              unsigned char *T, int n, const run_command_opts_t *opts,
-              int (*search_func)(unsigned char *, int, unsigned char *, int), benchmark_res_t *res)
+enum measurement_status run_algo(unsigned char **pattern_list, int m,
+                                 unsigned char *T, int n, const run_command_opts_t *opts,
+                                 int (*search_func)(unsigned char *, int, unsigned char *, int), algo_results_t *results)
 {
-    double times[opts->num_runs];
-    double total_pre_time = 0;
+    unsigned char P[m + 1];
+    results->occurrence_count = 0;
 
-    res->total_occ = 0;
     for (int k = 0; k < opts->num_runs; k++)
     {
         print_percentage((100 * (k + 1)) / opts->num_runs);
 
-        unsigned char P[m + 1];
         memcpy(P, pattern_list[k], sizeof(unsigned char) * (m + 1));
-        res->search_time = res->pre_time = 0.0;
+
+        results->measurements.pre_times[k] = results->measurements.search_times[k] = 0.0;
 
         int occur = search_func(P, m, T, n);
-        res->total_occ += occur;
 
-        if (occur <= 0)
-            return -1;
+        results->measurements.pre_times[k] = pre_time;
+        results->measurements.search_times[k] = search_time;
+
+        if (occur == 0)
+            return ERROR; // there must be at least one match for each text and pattern (patterns are extracted from text).
+
+        if (occur < 0)
+            return CANNOT_SEARCH; // negative value returned from search means it cannot search this pattern.
+
+        results->occurrence_count += occur;
 
         if (search_time > opts->time_limit_millis)
-            return -2;
-
-        times[k] = search_time;
-        total_pre_time += pre_time;
+            return TIMED_OUT;
     }
-
-    res->search_time = compute_average(times, opts->num_runs);
-    res->pre_time = total_pre_time / opts->num_runs;
-    res->std = compute_std(res->search_time, times, opts->num_runs);
-
-    return 0;
+    
+    return SUCCESS;
 }
 
 /*
  * Prints benchmark results for an algorithm run.
  */
-void print_benchmark_res(char *output_line, const run_command_opts_t *opts, benchmark_res_t *res)
+void print_benchmark_res(char *output_line, const run_command_opts_t *opts, algo_results_t *results)
 {
-    if (res->total_occ > 0)
+    switch (results->success_state)
     {
-        printf("\b\b\b\b\b\b\b.[OK]  ");
-        if (opts->pre)
-            sprintf(output_line, "\t%.2f + [%.2f ± %.2f] ms", res->pre_time, res->search_time, res->std);
-        else
-            sprintf(output_line, "\t[%.2f ± %.2f] ms", res->search_time, res->std);
-
-        printf("%s", output_line);
-        if (opts->occ)
+        case SUCCESS:
         {
+            printf("\b\b\b\b\b\b\b.[OK]  ");
             if (opts->pre)
-                printf("\t\tocc \%d", res->total_occ / opts->num_runs);
-            else
-                printf("\tocc \%d", res->total_occ / opts->num_runs);
+                snprintf(output_line, MAX_LINE_LEN,"\tmean: %.2f + [%.2f ± %.2f] ms\tmedian: %.2nf + [%.2f] ms",
+                        results->statistics.mean_pre_time,
+                        results->statistics.mean_search_time,
+                        results->statistics.std_search_time,
+                        results->statistics.median_pre_time,
+                        results->statistics.median_search_time);
+            else //TODO: we are not adding pre-time to search time.  should we get rid of -pre option entirely and always report pre-time?
+                snprintf(output_line, MAX_LINE_LEN,"\tmean: [%.2f ± %.2f] ms\tmedian: %.2f ms",
+                        results->statistics.mean_search_time,
+                        results->statistics.std_search_time,
+                        results->statistics.median_search_time);
+
+            printf("%s", output_line);
+
+            if (opts->occ)
+            {
+                if (opts->pre)
+                    printf("\t\tocc \%d", results->occurrence_count);
+                else
+                    printf("\tocc \%d", results->occurrence_count);
+            }
+            printf("\n");
+            break;
         }
-        printf("\n");
+        case CANNOT_SEARCH:
+        {
+            printf("\b\b\b\b\b.[--]  \n");
+            break;
+        }
+        case TIMED_OUT:
+        {
+            printf("\b\b\b\b\b\b.[OUT]  \n");
+            break;
+        }
+        case ERROR:
+        {
+            printf("\b\b\b\b\b\b\b\b.[ERROR] \n");
+            break;
+        }
     }
-    else if (res->total_occ == 0)
-        printf("\b\b\b\b\b\b\b\b.[ERROR] \n");
-    else if (res->total_occ == -1)
-        printf("\b\b\b\b\b.[--]  \n");
-    else if (res->total_occ == -2)
-        printf("\b\b\b\b\b\b.[OUT]  \n");
 }
 
-/*
- * Runs the benchmark for the selected algorithms given the run options, and a text buffer T of size n.
- * The size n refers to the maximum size of the text to search; the buffer itself is slightly bigger to allow copying a
- * pattern into it past the actual text.
- * Returns an error code of 0 if successful.
- */
-int run_setting(unsigned char *T, int n, const run_command_opts_t *opts)
+int double_compare(const void *a, const void *b)
 {
+    return (*(double*)a > *(double*)b) ? 1 : (*(double*)a < *(double*)b) ? -1 : 0;
+}
+
+void calculate_algo_statistics(algo_results_t *results, int num_measurements)
+{
+    // Compute mean pre and search times:
+    results->statistics.mean_pre_time    = compute_average(results->measurements.pre_times, num_measurements);
+    results->statistics.mean_search_time = compute_average(results->measurements.search_times, num_measurements);
+    results->statistics.std_search_time  = compute_std(results->statistics.mean_search_time,
+                                                       results->measurements.search_times, num_measurements);
+
+    // Compute median pre and search times:
+    // To calculate medians, we need to sort the arrays.   Copy them into a temp array before sorting,
+    // otherwise we destroy the relationship between pre-time and search_time for each measurement.
+    double temp[num_measurements];
+    memcpy(temp, results->measurements.pre_times, sizeof(double) * num_measurements);
+    qsort(temp, num_measurements, sizeof(double), double_compare);
+    results->statistics.median_pre_time = compute_median_of_sorted_array(temp, num_measurements);
+
+    memcpy(temp, results->measurements.search_times, sizeof(double) * num_measurements);
+    qsort(temp, num_measurements, sizeof(double), double_compare);
+    results->statistics.median_search_time = compute_median_of_sorted_array(temp, num_measurements);
+}
+
+
+
+int benchmark_algos_using_random_patterns(algo_results_t *results, const run_command_opts_t *opts, unsigned char *T, int n, unsigned char **pattern_list, int m,
+                                          int num_running, char algo_names[][STR_BUF], int (**algo_functions)(unsigned char *, int, unsigned char *, int))
+{
+    printf("\n");
+    print_edge(TOP_EDGE_WIDTH);
+
+    printf("\tSearching for a set of %d patterns with length %d\n", opts->num_runs, m);
+    printf("\tTesting %d algorithms\n", num_running);
+    printf("\n");
+
+    int current_running = 0;
+    for (int algo = 0; algo < num_running; algo++)
+    {
+        current_running++;
+
+        char output_line[MAX_LINE_LEN];
+        snprintf(output_line, MAX_LINE_LEN, "\t - [%d/%d] %s ", current_running, num_running, str2upper(algo_names[algo]));
+        printf("%s", output_line);
+        fflush(stdout);
+
+        for (int i = 0; i < 35 - strlen(output_line); i++)
+            printf(".");
+
+        results->algo_id = algo;
+        results->success_state = run_algo(pattern_list, m, T, n, opts, algo_functions[algo], results);
+
+        if (results->success_state == SUCCESS)
+            calculate_algo_statistics(results, opts->num_runs);
+
+        print_benchmark_res(output_line, opts, results);
+    }
+}
+
+int get_num_pattern_lengths(const run_command_opts_t *opts)
+{
+    int num_patterns = 0;
+    int value = opts->pattern_min_len;
+    while (value <= opts->pattern_max_len && num_patterns <= NUM_PATTERNS_MAX)
+    {
+        value *= 2; // we can change this calculation to support arithmetic progressions as well as geometric.
+        num_patterns++;
+    }
+    return num_patterns;
+}
+
+int benchmark_algos(const char *expcode, const run_command_opts_t *opts, unsigned char *T, int n,
+                    int num_algos, char algo_names[][STR_BUF], int (**algo_functions)(unsigned char *, int, unsigned char *, int))
+{
+    int num_pattern_lengths = get_num_pattern_lengths(opts);
+    printf("num pattern lengths = %d", num_pattern_lengths);
+    benchmark_results_t results[num_pattern_lengths];
     unsigned char *pattern_list[opts->num_runs];
-    allocate_matrix(pattern_list, opts->num_runs, sizeof(unsigned char) * (PATTERN_SIZE_MAX + 1));
 
-    FILE *algo_file = fopen("selected_algos", "r");
-    char algo_names[MAX_SELECT_ALGOS][STR_BUF];
-    int num_running = read_all_lines(algo_file, algo_names);
-    qsort(algo_names, num_running, sizeof(char) * STR_BUF, str_compare);
+    allocate_benchmark_results(results, num_pattern_lengths, num_algos, opts->num_runs);
+    allocate_pattern_matrix(pattern_list, opts->num_runs, sizeof(unsigned char) * (PATTERN_SIZE_MAX + 1));
 
-    int (*algo_functions[MAX_SELECT_ALGOS])(unsigned char *, int, unsigned char *, int);
-    long shared_object_handles[MAX_SELECT_ALGOS];
-    load_algos(algo_names, num_running, algo_functions, shared_object_handles);
-
-    // initializes the vector which will contain running times
-    // performs experiments on a text
-    double SEARCH_TIME[num_running][NUM_PATTERNS_MAX], PRE_TIME[num_running][NUM_PATTERNS_MAX];
-    for (int i = 0; i < num_running; i++)
-        for (int j = 0; j < NUM_PATTERNS_MAX; j++)
-            SEARCH_TIME[i][j] = PRE_TIME[i][j] = 0;
-
+    //TODO: can replace this hard-coded power of two thing with configurable arithmetic or geometric progressions.
+    //      e.g. set lower bound, upper bound, operator and ratio/step - e.g. (1-16 + 1) or (2-156 * 1.5).
     for (int m = opts->pattern_min_len, pattern_idx = 0; m <= opts->pattern_max_len; m *= 2, pattern_idx++)
     {
         gen_random_patterns(pattern_list, m, T, n, opts->num_runs);
-
-        printf("\n");
-        print_edge(TOP_EDGE_WIDTH);
-
-        printf("\tSearching for a set of %d patterns with length %d\n", opts->num_runs, m);
-        printf("\tTesting %d algorithms\n", num_running);
-        printf("\n");
-
-        int current_running = 0;
-        for (int algo = 0; algo < num_running; algo++)
-        {
-            current_running++;
-
-            char output_line[30];
-            sprintf(output_line, "\t - [%d/%d] %s ", current_running, num_running, str2upper(algo_names[algo]));
-            printf("%s", output_line);
-            fflush(stdout);
-
-            for (int i = 0; i < 35 - strlen(output_line); i++)
-                printf(".");
-
-            double TIME[opts->num_runs];
-            int total_pre_time = 0;
-            benchmark_res_t res;
-            run_algo(pattern_list, m, T, n, opts, algo_functions[algo], &res);
-
-            print_benchmark_res(output_line, opts, &res);
-
-            // save times for outputting if necessary
-            SEARCH_TIME[algo][pattern_idx] = 0;
-            PRE_TIME[algo][pattern_idx] = 0;
-            if (res.total_occ > 0)
-            {
-                SEARCH_TIME[algo][pattern_idx] = res.search_time;
-                PRE_TIME[algo][pattern_idx] = res.pre_time;
-            }
-        }
+        results[pattern_idx].pattern_length = m;
+        benchmark_algos_using_random_patterns(results[pattern_idx].algo_results, opts, T, n, pattern_list, m, num_algos, algo_names, algo_functions);
     }
-    printf("\n");
 
-    unload_algos(num_running, shared_object_handles);
-
-    // free memory allocated for patterns
-    free_matrix(pattern_list, opts->num_runs);
-
+    free_pattern_matrix(pattern_list, opts->num_runs);
+    free_benchmark_results(results, num_pattern_lengths, num_algos);
     return 0;
 }
 
@@ -461,9 +586,9 @@ int run_setting(unsigned char *T, int n, const run_command_opts_t *opts)
  * Generates a code to identify each local benchmark experiment that is run.
  * The code is not guaranteed to be globally unique - it is simply based on the local time a benchmark was run.
  */
-void gen_experiment_code(char *code)
+void gen_experiment_code(char *code, int max_len)
 {
-    sprintf(code, "EXP%d", (int)time(NULL));
+    snprintf(code, max_len, "EXP%d", (int)time(NULL));
 }
 
 /*
@@ -545,22 +670,31 @@ int get_text(run_command_opts_t *opts, unsigned char *T)
  */
 void run_benchmark(run_command_opts_t *opts, unsigned char *T)
 {
+    // Generate experiment code
     char expcode[STR_BUF];
-    gen_experiment_code(expcode);
+    gen_experiment_code(expcode, STR_BUF);
     printf("\tStarting experimental tests with code %s\n", expcode);
 
+    // Get the text to search in:
     int n = get_text(opts, T);
     print_text_info(T, n);
 
-    time_t date_timer;
-    char time_format[26];
-    struct tm *tm_info;
-    time(&date_timer);
-    tm_info = localtime(&date_timer);
-    strftime(time_format, 26, "%Y:%m:%d %H:%M:%S", tm_info);
-    printf("\tExperimental tests started on %s\n", time_format);
+    // Load the algorithms to search with:
+    char algo_names[MAX_SELECT_ALGOS][STR_BUF];
+    int (*algo_functions[MAX_SELECT_ALGOS])(unsigned char *, int, unsigned char *, int);
+    long shared_object_handles[MAX_SELECT_ALGOS];
+    int num_running = load_algo_names_from_file(algo_names, "selected_algos");
+    load_algos(algo_names, num_running, algo_functions, shared_object_handles);
 
-    run_setting(T, n, opts);
+    // Benchmark the algorithms:
+    char time_format[26];
+    set_time_string(time_format, 26, "%Y:%m:%d %H:%M:%S");
+    printf("\tExperimental tests started on %s\n", time_format);
+    benchmark_algos(expcode, opts, T, n, num_running, algo_names, algo_functions);
+    printf("\n");
+
+    // Unload search algorithms.
+    unload_algos(num_running, shared_object_handles);
 
     // outputINDEX(filename_list, num_buffers, expcode);
 }
