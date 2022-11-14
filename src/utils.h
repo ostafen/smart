@@ -159,7 +159,7 @@ int read_all_lines(FILE *fp, char output[][STR_BUF])
 	return k;
 }
 
-#define MAX_FILE_LINES 1000
+#define MAX_FILE_LINES 2048
 
 __mode_t get_file_mode(const char *path)
 {
