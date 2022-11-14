@@ -154,7 +154,7 @@ void print_subcommand_usage_and_exit(const char *command)
 
 void print_help_line(const char *description, const char *short_option, const char *long_option, const char *params)
 {
-    printf("\t%-4s %-14s %-6s %s\n",short_option, long_option, params, description);
+    printf("\t%-4s %-16s %-8s %s\n",short_option, long_option, params, description);
 }
 
 void print_run_usage_and_exit(const char *command)
@@ -193,6 +193,7 @@ void print_select_usage_and_exit(const char *command)
     printf("usage: %s select algo1, algo2, ... [-a | -r | -sa | -ss | -n | -h]\n\n", command);
     print_help_line("add the list of specified algorithms to the set", OPTION_SHORT_ADD, OPTION_LONG_ADD, "algo...");
     print_help_line("remove the list of specified algorithms to the set", OPTION_SHORT_REMOVE, OPTION_LONG_REMOVE, "algo...");
+    print_help_line("clears all selected algorithms", OPTION_SHORT_NO_ALGOS, OPTION_LONG_NO_ALGOS, "");
     print_help_line("shows the list of all algorithms", OPTION_SHORT_SHOW_ALL, OPTION_LONG_SHOW_ALL, "");
     print_help_line("shows the list of all selected algorithms", OPTION_SHORT_SHOW_SELECTED, OPTION_LONG_SHOW_SELECTED, "");
     print_help_line("gives this help list", OPTION_SHORT_HELP, OPTION_LONG_HELP, "");
