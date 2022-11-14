@@ -108,7 +108,14 @@ char *str2upper(char *s)
 	return s;
 }
 
-
+void set_time_string(char *time_string, int size, const char * time_format)
+{
+    time_t date_timer;
+    struct tm *tm_info;
+    time(&date_timer);
+    tm_info = localtime(&date_timer);
+    strftime(time_string, size, time_format, tm_info);
+}
 
 int split_filename(const char *filename, char list_of_filenames[500][50])
 {
@@ -204,9 +211,9 @@ void locate_file_path(char valid_path[STR_BUF], const char *filename, const char
             if (len + strlen(filename) < STR_BUF - 1) {
 
                 if (search_paths[path][len - 1] == '/') { // check to see if search path already terminates with /
-                    sprintf(search_path, "%s%s", search_paths[path], filename);
+                    snprintf(search_path, STR_BUF,"%s%s", search_paths[path], filename);
                 } else {
-                    sprintf(search_path, "%s/%s", search_paths[path], filename);
+                    snprintf(search_path, STR_BUF, "%s/%s", search_paths[path], filename);
                 }
 
                 if (access(search_path, F_OK) == 0) {
