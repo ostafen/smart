@@ -26,7 +26,7 @@
 #include <string.h>
 
 /* global variables used for computing preprocessing and searching times */
-extern double search_time, pre_time; // searching time and preprocessing time
+double _search_time, _pre_time; // searching time and preprocessing time
 
 clock_t start, end;
 TIMER timer;
@@ -43,16 +43,24 @@ int search(unsigned char *x, int m, unsigned char *y, int n);
 		timer_start(&timer); \
 		start = clock();     \
 	}
-#define END_PREPROCESSING                        \
-	{                                            \
-		timer_stop(&timer);                      \
-		end = clock();                           \
-		pre_time = timer_elapsed(&timer) * 1000; \
+#define END_PREPROCESSING                         \
+	{                                             \
+		timer_stop(&timer);                       \
+		end = clock();                            \
+		_pre_time = timer_elapsed(&timer) * 1000; \
 	}
 
-#define END_SEARCHING                               \
-	{                                               \
-		timer_stop(&timer);                         \
-		end = clock();                              \
-		search_time = timer_elapsed(&timer) * 1000; \
+#define END_SEARCHING                                \
+	{                                                \
+		timer_stop(&timer);                          \
+		end = clock();                               \
+		_search_time = timer_elapsed(&timer) * 1000; \
 	}
+
+int internal_search(unsigned char *x, int m, unsigned char *y, int n, double *search_time, double *pre_time)
+{
+	int occ = search(x, m, y, n);
+	*search_time = _search_time;
+	*pre_time = _pre_time;
+	return occ;
+}

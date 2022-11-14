@@ -5,7 +5,6 @@
 #include <sys/shm.h>
 #include <dirent.h>
 #include <dlfcn.h>
-#include <sched.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -120,7 +119,8 @@ int add_files(char search_paths[][STR_BUF], int num_search_paths, const char *da
     if (valid_path[0] != '\0')
     {
         __mode_t file_mode = get_file_mode(valid_path);
-        if (S_ISDIR(file_mode)) {
+        if (S_ISDIR(file_mode))
+        {
             num_files = add_filenames_in_dir(valid_path, filenames, num_files, max_files);
         }
         else if (S_ISREG(file_mode) && num_files < max_files)
@@ -175,7 +175,8 @@ int gen_search_text(const char *search_path, const char *data_sources[MAX_DATA_S
 {
     char filenames[MAX_FILES][STR_BUF];
     int n_files = build_list_of_files_to_load(search_path, data_sources, filenames);
-    if (n_files > 0) {
+    if (n_files > 0)
+    {
         int n = merge_text_buffers(filenames, n_files, buffer, bufsize);
 
         if (n >= bufsize || !fill_buffer)
@@ -223,7 +224,6 @@ void gen_random_patterns(unsigned char **patterns, int m, const unsigned char *T
         int k = rand() % (n - m);
         for (int j = 0; j < m; j++)
             patterns[i][j] = T[k + j];
-
     }
 }
 
@@ -240,7 +240,7 @@ double compute_average(const double *T, int n)
 }
 
 /*
- * Computes the median of a sorted array T of doubles of size n.
+ * Computes and returns the median of a sorted array T of doubles of size n.
  */
 double compute_median_of_sorted_array(const double *T, int n)
 {
@@ -266,7 +266,7 @@ double compute_std(double avg, double *T, int n)
     return sqrt(std / n);
 }
 
-#define SEARCH_FUNC_NAME "search"
+#define SEARCH_FUNC_NAME "internal_search"
 
 
 int load_algo_names_from_file(char algo_names[][STR_BUF], const char *filename)
@@ -282,7 +282,7 @@ int load_algo_names_from_file(char algo_names[][STR_BUF], const char *filename)
  * Dynamically loads the algorithms defined in algo_names as shared objects into the benchmarking process.
  * Returns 0 if successful.  Will exit with status 1 if it is unable to load an algorithm.
  */
-int load_algos(const char algo_names[][STR_BUF], int num_algos, int (**functions)(unsigned char *, int, unsigned char *, int),
+int load_algos(const char algo_names[][STR_BUF], int num_algos, int (**functions)(unsigned char *, int, unsigned char *, int, double *, double *),
                long shared_object_handles[MAX_SELECT_ALGOS])
 {
     for (int i = 0; i < num_algos; i++)
@@ -292,7 +292,7 @@ int load_algos(const char algo_names[][STR_BUF], int num_algos, int (**functions
         snprintf(algo_lib_filename, STR_BUF, "bin/algos/%s.so", str2lower((char *)algo_names[i]));
 
         void *lib_handle = dlopen(algo_lib_filename, RTLD_NOW);
-        int (*search)(unsigned char *, int, unsigned char *, int) = dlsym(lib_handle, SEARCH_FUNC_NAME);
+        int (*search)(unsigned char *, int, unsigned char *, int, double *, double *) = dlsym(lib_handle, SEARCH_FUNC_NAME);
         if (lib_handle == NULL || search == NULL)
         {
             print_format_error_message_and_exit("unable to load algorithm %s\n", algo_names[i]);
@@ -326,8 +326,6 @@ void free_pattern_matrix(unsigned char **M, int n)
     for (int i = 0; i < n; i++)
         free(M[i]);
 }
-
-double search_time, pre_time;
 
 enum measurement_status {SUCCESS, TIMED_OUT, CANNOT_SEARCH, ERROR};
 
@@ -398,7 +396,7 @@ void free_benchmark_results(benchmark_results_t *bench_result, int num_pattern_l
  */
 enum measurement_status run_algo(unsigned char **pattern_list, int m,
                                  unsigned char *T, int n, const run_command_opts_t *opts,
-                                 int (*search_func)(unsigned char *, int, unsigned char *, int), algo_results_t *results)
+                                 int (*search_func)(unsigned char *, int, unsigned char *, int, double *, double *), algo_results_t *results)
 {
     unsigned char P[m + 1];
     results->occurrence_count = 0;
@@ -411,7 +409,7 @@ enum measurement_status run_algo(unsigned char **pattern_list, int m,
 
         results->measurements.pre_times[k] = results->measurements.search_times[k] = 0.0;
 
-        int occur = search_func(P, m, T, n);
+        int occur = search_func(P, m, T, n, results->measurements.search_times[k], results->measurements.pre_times[k]);
 
         results->measurements.pre_times[k] = pre_time;
         results->measurements.search_times[k] = search_time;
@@ -427,7 +425,7 @@ enum measurement_status run_algo(unsigned char **pattern_list, int m,
         if (search_time > opts->time_limit_millis)
             return TIMED_OUT;
     }
-    
+
     return SUCCESS;
 }
 
@@ -705,31 +703,41 @@ void run_benchmark(run_command_opts_t *opts, unsigned char *T)
  */
 void pin_to_one_CPU_core(run_command_opts_t *opts)
 {
-    if (!strcmp(opts->cpu_pinning, "off")) {
+    if (!strcmp(opts->cpu_pinning, "off"))
+    {
         printf("\tCPU pinning not enabled: variation in benchmarking may be higher.\n\n");
-    } else {
-        int num_processors = (int) sysconf(_SC_NPROCESSORS_ONLN);
+    }
+    else
+    {
+        int num_processors = (int)sysconf(_SC_NPROCESSORS_ONLN);
         int cpu_to_pin;
         if (!strcmp(opts->cpu_pinning, "last"))
         {
             cpu_to_pin = num_processors - 1;
-        } else {
+        }
+        else
+        {
             cpu_to_pin = atoi(opts->cpu_pinning);
         }
 
-        if (cpu_to_pin < num_processors) {
+        if (cpu_to_pin < num_processors)
+        {
             int pid = getpid();
             cpu_set_t cpus;
             CPU_ZERO(&cpus);
             CPU_SET(cpu_to_pin, &cpus);
 
-            if (sched_setaffinity(pid, sizeof(cpu_set_t), &cpus) == -1) {
+            if (sched_setaffinity(pid, sizeof(cpu_set_t), &cpus) == -1)
+            {
                 printf("\tCould not pin the benchmark to a core: variation in benchmarking may be higher.\n\n");
-            } else {
+            }
+            else
+            {
                 printf("\tPinned benchmark process %d to core %d of 0 - %d processors.\n\n", pid, cpu_to_pin, num_processors - 1);
             }
         }
-        else {
+        else
+        {
             printf("\tCould not pin cpu %d to available cores 0 - %d: variation in benchmarking may be higher.\n\n", cpu_to_pin, num_processors - 1);
         }
     }
