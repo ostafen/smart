@@ -27,7 +27,6 @@ int str_set_contains_hash(str_set_t *set, const char *s, uint16_t hash)
     {
         if (strcmp(curr->s, s) == 0)
             return 1;
-        curr = curr->next;
     }
     return 0;
 }
