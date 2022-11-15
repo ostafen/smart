@@ -37,7 +37,7 @@ int str_set_add(str_set_t *set, const char *s)
     if (str_set_contains_hash(set, s, hash))
         return 0;
 
-    node_t *node = malloc(sizeof(node));
+    node_t *node = malloc(sizeof(node_t));
     node->next = set->buckets[hash];
     node->s = s;
     set->buckets[hash] = node;

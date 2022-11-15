@@ -17,8 +17,6 @@
 #include "timer.h"
 #include "parser.h"
 
-#define PATTERN_SIZE_MAX 4200 // maximal length of the pattern
-
 #define SIGMA 256 // constant alphabet size
 #define NUM_PATTERNS_MAX 100 // maximum number of different pattern lengths to benchmark at one time.
 
@@ -558,7 +556,7 @@ int benchmark_algos(const char *expcode, const run_command_opts_t *opts, unsigne
     unsigned char *pattern_list[opts->num_runs];
 
     allocate_benchmark_results(results, num_pattern_lengths, num_algos, opts->num_runs);
-    allocate_pattern_matrix(pattern_list, opts->num_runs, sizeof(unsigned char) * (PATTERN_SIZE_MAX + 1));
+    allocate_pattern_matrix(pattern_list, opts->num_runs, sizeof(unsigned char) * (opts->pattern_max_len + 1));
 
     //TODO: can replace this hard-coded power of two thing with configurable arithmetic or geometric progressions.
     //      e.g. set lower bound, upper bound, operator and ratio/step - e.g. (1-16 + 1) or (2-156 * 1.5).
@@ -759,7 +757,7 @@ int exec_run(run_command_opts_t *opts)
 
     pin_to_one_CPU_core(opts);
 
-    unsigned char *T = (unsigned char *)malloc(sizeof(unsigned char) * (opts->text_size + PATTERN_SIZE_MAX));
+    unsigned char *T = (unsigned char *)malloc(sizeof(unsigned char) * (opts->text_size + opts->pattern_max_len));
 
     run_benchmark(opts, T);
 
