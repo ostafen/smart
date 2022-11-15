@@ -26,40 +26,7 @@
 #include "parser.h"
 #include "utils.h"
 
-FILE *open_algo_file(const char *filename)
-{
-	return fopen(filename, "ab+");
-}
-
-#define MAX_SELECT_ALGOS 100
-
-void add_algos(FILE *fp, const char **algos, int n_algos)
-{
-	char selected_algos[MAX_SELECT_ALGOS][STR_BUF];
-	int n_selected_algos = read_all_lines(fp, selected_algos);
-
-	str_set_t set;
-	str_set_init(&set);
-
-	for (int i = 0; i < n_selected_algos; i++)
-		str_set_add(&set, selected_algos[i]);
-
-	for (int i = 0; i < n_algos; i++)
-	{
-		if (!str_set_contains(&set, algos[i]))
-		{
-			printf("adding %s algo to the set.\n", algos[i]);
-			fprintf(fp, "%s\n", algos[i]);
-			str_set_add(&set, algos[i]);
-		}
-		else
-		{
-			printf("%s algo already in the set.\n", algos[i]);
-		}
-	}
-
-	str_set_free(&set);
-}
+#define SMART_BIN_FOLDER "./bin/algos"
 
 void copy_lines(FILE *dst_fp, FILE *src_fp, str_set_t *exclude_set)
 {
@@ -74,23 +41,101 @@ void copy_lines(FILE *dst_fp, FILE *src_fp, str_set_t *exclude_set)
 	}
 }
 
-void rewrite_file_without_strings(FILE *fp, const char **algos, int n)
+void write_file(const char *lines[MAX_SELECT_ALGOS], int num_lines)
 {
-	FILE *tmp_fp = fopen("selected_algos.tmp", "ab+");
+    FILE *tmp_fp = fopen("selected_algos.tmp", "ab+");
 
-	str_set_t algos_set;
-	str_set_init(&algos_set);
+    for (int i = 0; i < num_lines; i++)
+    {
+        fprintf(tmp_fp, "%s\n", lines[i]);
+    }
 
-	for (int i = 0; i < n; i++)
-		str_set_add(&algos_set, algos[i]);
+    rename("selected_algos.tmp", "selected_algos");
+    remove("selected_algos.tmp");
 
-	copy_lines(tmp_fp, fp, &algos_set);
+    fclose(tmp_fp);
+}
 
-	rename("selected_algos.tmp", "selected_algos");
-	remove("selected_algos.tmp");
+int compile_regexes(regex_t *expressions, const char **algos, int n_algos)
+{
+    for (int i = 0; i < n_algos; i++)
+    {
+        int length = strlen(algos[i]);
+        char anchored_expression[length + 3];
+        anchored_expression[0] = '^'; // anchor to start of string.
+        memcpy(anchored_expression + 1, algos[i], length);
+        anchored_expression[length + 1] = '$'; //anchor to end of string.
+        anchored_expression[length + 2] = '\0';
 
-	fclose(tmp_fp);
-	str_set_free(&algos_set);
+        if (regcomp(&(expressions[i]), anchored_expression, REG_ICASE | REG_EXTENDED) != 0)
+        {
+            print_format_error_message_and_exit("Could not compile regular expression %s", algos[i]);
+        }
+    }
+
+    return 0;
+}
+
+int regexes_match(regex_t *expressions, int n_expressions, const char *string)
+{
+    for (int i = 0; i < n_expressions; i++)
+    {
+        if (regexec(&(expressions[i]), string, 0, NULL, 0) == 0)
+        {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+void add_algos(FILE *fp, const char **algos, int n_algos)
+{
+    // Compile regular expressions:
+    regex_t regexes[n_algos];
+    compile_regexes(regexes, algos, n_algos);
+
+    // Build set of currently selected algorithms:
+    char selected_algos[MAX_SELECT_ALGOS][STR_BUF];
+    int n_selected_algos = read_all_lines(fp, selected_algos);
+    str_set_t set;
+    str_set_init(&set);
+
+    for (int i = 0; i < n_selected_algos; i++) {
+        str2lower(selected_algos[i]);
+        str_set_add(&set, selected_algos[i]);
+    }
+
+    // Build list of compiled algo shared objects
+    char filenames[MAX_FILE_LINES][STR_BUF];
+    int n_compiled_algos = list_dir(SMART_BIN_FOLDER, filenames, DT_REG, 0);
+
+    // Check each compiled algorithm name against our regexes.  If they match, and we don't already have it, add it.
+    int matched = 0;
+    for (int i = 0; i < n_compiled_algos; i++)
+    {
+        trim_suffix(filenames[i], ".so");
+        if (regexes_match(regexes, n_algos, filenames[i]))
+        {
+            if (str_set_contains(&set, filenames[i]))
+            {
+                printf("Algorithm %s already in the set.\n", filenames[i]);
+            }
+            else {
+                printf("Adding algorithm %s to set.\n", filenames[i]);
+                fprintf(fp, "%s\n", filenames[i]);
+                matched = 1;
+            }
+        }
+    }
+
+    if (!matched)
+        printf("Did not find any matching algorithms not already in the selected set.\n");
+
+    // Free memory.
+    str_set_free(&set);
+    for (int i = 0; i < n_algos; i++)
+        regfree(&(regexes[i]));
 }
 
 void remove_algos(FILE *fp, const char **algos, int n_algos)
@@ -98,31 +143,36 @@ void remove_algos(FILE *fp, const char **algos, int n_algos)
 	char selected_algos[MAX_SELECT_ALGOS][STR_BUF];
 	int n_selected_algos = read_all_lines(fp, selected_algos);
 
-	str_set_t selected_algos_set;
-	str_set_init(&selected_algos_set);
+    // Compile regular expressions:
+    regex_t regexes[n_algos];
+    compile_regexes(regexes, algos, n_algos);
 
-	for (int i = 0; i < n_selected_algos; i++)
-		str_set_add(&selected_algos_set, selected_algos[i]);
+    // Find lines that don't match any of the regexes.
+    const char * remaining_selected_algos[MAX_SELECT_ALGOS];
+    int remain_count = 0;
+    for (int i = 0; i < n_selected_algos; i++)
+    {
+        if (!regexes_match(regexes, n_algos, selected_algos[i]))
+        {
+            remaining_selected_algos[remain_count++] = selected_algos[i];
+        } else {
+            printf("Removing %s from selected algorithms.\n", selected_algos[i]);
+        }
+    }
 
-	// check that we need to remove at leastone algorithm
-	int rewrite_file = 0;
-	for (int i = 0; i < n_algos; i++)
-	{
-		if (str_set_contains(&selected_algos_set, algos[i]))
-		{
-			rewrite_file = 1;
-			break;
-		}
-	}
+    // If we have fewer lines that we started with, rewrite the file.
+    if (remain_count < n_selected_algos)
+    {
+        write_file(remaining_selected_algos, remain_count);
+    }
+    else
+    {
+        printf("Did not find any algorithms to remove in the selected set.\n");
+    }
 
-	FILE *tmp_fp = fopen("selected_algos.tmp", "ab+");
-	if (rewrite_file)
-	{
-		rewind(fp);
-		rewrite_file_without_strings(fp, algos, n_algos);
-	}
-
-	str_set_free(&selected_algos_set);
+    // Free regex memory.
+    for (int i = 0; i < n_algos; i++)
+        regfree(&(regexes[i]));
 }
 
 void list_algo_file(FILE *fp)
@@ -133,8 +183,6 @@ void list_algo_file(FILE *fp)
 	for (int i = 0; i < n; i++)
 		printf("%s\n", algos[i]);
 }
-
-#define SMART_BIN_FOLDER "./bin/algos"
 
 void list_selectable_algos()
 {
@@ -182,9 +230,14 @@ int exec_select(select_command_opts_t *opts)
 		{
 			printf("error while truncating the file\n");
 			return 1;
-		}
+		} else
+        {
+            printf("Cleared selected algorithms.\n");
+        }
 	}
 
 	if (fp)
 		fclose(fp);
+
+    return 0;
 }

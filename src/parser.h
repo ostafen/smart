@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <time.h>
 #include "utils.h"
+#include "regex.h"
 
 #define RUN_COMMAND "run"
 #define SELECT_COMMAND "select"
@@ -21,7 +22,7 @@
 #define SMART_DATA_PATH_DEFAULT "data"
 #define SMART_DATA_DIR_ENV "SMART_DATA_DIR"
 #define MEGA_BYTE (1024 * 1024) // constant for 1 MB size
-#define MAX_SELECT_ALGOS 100
+#define MAX_SELECT_ALGOS 2048
 
 static char *const COMMAND_RUN = "run";
 static char *const COMMAND_TEST = "test";
@@ -143,10 +144,13 @@ void print_logo()
 
 void print_subcommand_usage_and_exit(const char *command)
 {
-    printf("usage: %s [run | test | select]\n\n", command);
-    printf("\t- run: executes benchmarks on one or more algorithms\n\n");
-    printf("\t- test: test the correctness of an algorithm\n\n");
-    printf("\t- select: select one or more algorithms to run\n\n");
+    print_logo();
+
+    printf("\n usage: %s [run | test | select]\n\n", command);
+
+    printf("\t- run: executes benchmarks on one or more algorithms\n");
+    printf("\t- test: test the correctness of an algorithm\n");
+    printf("\t- select: select one or more algorithms to run\n");
     printf("\n\n");
 
     exit(0);
@@ -154,7 +158,7 @@ void print_subcommand_usage_and_exit(const char *command)
 
 void print_help_line(const char *description, const char *short_option, const char *long_option, const char *params)
 {
-    printf("\t%-4s %-14s %-6s %s\n",short_option, long_option, params, description);
+    printf("\t%-4s %-16s %-8s %s\n",short_option, long_option, params, description);
 }
 
 void print_run_usage_and_exit(const char *command)
@@ -178,7 +182,7 @@ void print_run_usage_and_exit(const char *command)
     print_help_line("computes separately preprocessing times and searching times", FLAG_PREPROCESSING_TIME_SHORT, FLAG_PREPROCESSING_TIME_LONG, "");
     print_help_line("set to L the upper bound for any worst case running time (in ms). The default value is 300 ms", OPTION_MAX_TIME_SHORT, OPTION_MAX_TIME_LONG, "L");
     print_help_line("sets whether cpu pinning is off, set to the last cpu core, or a specific core via parameter C:  off | last | {digit}", OPTION_CPU_PIN_SHORT, OPTION_CPU_PIN_LONG, "C");
-    print_help_line("prints the average number of occurrences", FLAG_OCCURRENCE, "", "");
+    print_help_line("prints the total number of occurrences", FLAG_OCCURRENCE, "", "");
     print_help_line("output results in txt tabular format", FLAG_TEXT_OUTPUT, "", "");
     print_help_line("output results in latex tabular format", FLAG_LATEX_OUTPUT, "", "");
     print_help_line("executes a single run searching T (max 1000 chars) for occurrences of P (max 100 chars)", OPTION_SIMPLE_SHORT, OPTION_SIMPLE_LONG, "P T");
@@ -190,12 +194,16 @@ void print_run_usage_and_exit(const char *command)
 
 void print_select_usage_and_exit(const char *command)
 {
-    printf("usage: %s select algo1, algo2, ... [-a | -r | -sa | -ss | -n | -h]\n\n", command);
-    print_help_line("add the list of specified algorithms to the set\n", OPTION_SHORT_ADD, OPTION_LONG_ADD, "algo...");
-    print_help_line("remove the list of specified algorithms to the set\n", OPTION_SHORT_REMOVE, OPTION_LONG_REMOVE, "algo...");
-    print_help_line("shows the list of all algorithms\n", OPTION_SHORT_SHOW_ALL, OPTION_LONG_SHOW_ALL, "");
-    print_help_line("shows the list of all selected algorithms\n", OPTION_SHORT_SHOW_SELECTED, OPTION_LONG_SHOW_SELECTED, "");
-    print_help_line("gives this help list\n", OPTION_SHORT_HELP, OPTION_LONG_HELP, "");
+    print_logo();
+
+    printf("\n usage: %s select [algo1, algo2, ...] [-a | -r | -sa | -ss | -n | -h]\n\n", command);
+
+    print_help_line("add the list of specified algorithms to the set.  Algorithm names are specified as POSIX extended regular expressions.", OPTION_SHORT_ADD, OPTION_LONG_ADD, "algo...");
+    print_help_line("remove the list of specified algorithms to the set.  Algorithm names are specified as POSIX extended regular expressions.", OPTION_SHORT_REMOVE, OPTION_LONG_REMOVE, "algo...");
+    print_help_line("clears all selected algorithms", OPTION_SHORT_NO_ALGOS, OPTION_LONG_NO_ALGOS, "");
+    print_help_line("shows the list of all algorithms", OPTION_SHORT_SHOW_ALL, OPTION_LONG_SHOW_ALL, "");
+    print_help_line("shows the list of all selected algorithms", OPTION_SHORT_SHOW_SELECTED, OPTION_LONG_SHOW_SELECTED, "");
+    print_help_line("gives this help list", OPTION_SHORT_HELP, OPTION_LONG_HELP, "");
     printf("\n\n");
 
     exit(0);
@@ -203,6 +211,8 @@ void print_select_usage_and_exit(const char *command)
 
 void print_test_usage_and_exit()
 {
+    print_logo();
+
     printf("\n\tSMART UTILITY FOR TESTING STRING MATCHING ALGORITHMS\n\n");
     printf("\tusage: ./test ALGONAME\n");
     printf("\tTest the program named \"algoname\" for correctness.\n");
@@ -284,7 +294,6 @@ int parse_num_runs(run_command_opts_t *line, int curr_arg, int argc, const char 
     line->num_runs = atoi(argv[curr_arg + 1]);
     return 1;
 }
-
 
 int parse_text_size(run_command_opts_t *line, int curr_arg, int argc, const char **argv)
 {
