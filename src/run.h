@@ -261,7 +261,9 @@ double compute_std(double avg, double *T, int n)
 
 #define SEARCH_FUNC_NAME "internal_search"
 
-
+/*
+ * Loads the names of algos to run from a text file (e.g. selected_algos).
+ */
 int load_algo_names_from_file(char algo_names[][STR_BUF], const char *filename)
 {
     FILE *algo_file = fopen(filename, "r");
@@ -275,23 +277,34 @@ int load_algo_names_from_file(char algo_names[][STR_BUF], const char *filename)
  * Dynamically loads the algorithms defined in algo_names as shared objects into the benchmarking process.
  * Returns 0 if successful.  Will exit with status 1 if it is unable to load an algorithm.
  */
-int load_algos(const char algo_names[][STR_BUF], int num_algos, int (**functions)(unsigned char *, int, unsigned char *, int, double *, double *),
+int load_algos(smart_config_t *smart_config, const char algo_names[][STR_BUF], int num_algos,
+               int (**functions)(unsigned char *, int, unsigned char *, int, double *, double *),
                long shared_object_handles[MAX_SELECT_ALGOS])
 {
     for (int i = 0; i < num_algos; i++)
     {
+        // Build algo filename as lower case algo name with .so suffix.
         char algo_lib_filename[STR_BUF];
-        //TODO: configure location of algo shared objects - environment variable?
-        snprintf(algo_lib_filename, STR_BUF, "bin/algos/%s.so", str2lower((char *)algo_names[i]));
+        snprintf(algo_lib_filename, STR_BUF, "%s.so", str2lower((char *)algo_names[i]));
 
-        void *lib_handle = dlopen(algo_lib_filename, RTLD_NOW);
-        int (*search)(unsigned char *, int, unsigned char *, int, double *, double *) = dlsym(lib_handle, SEARCH_FUNC_NAME);
-        if (lib_handle == NULL || search == NULL)
-        {
-            print_format_error_message_and_exit("unable to load algorithm %s\n", algo_names[i]);
+        // Locate the algo filename in the algo search paths:
+        char valid_path[MAX_PATH_LENGTH];
+        locate_file_path(valid_path, algo_lib_filename, smart_config->smart_algo_search_paths, smart_config->num_algo_search_paths);
+
+        if (valid_path[0] != '\0') {
+            void *lib_handle = dlopen(algo_lib_filename, RTLD_NOW);
+            int (*search)(unsigned char *, int, unsigned char *, int, double *, double *) = dlsym(lib_handle,
+                                                                                                  SEARCH_FUNC_NAME);
+            if (lib_handle == NULL || search == NULL) {
+                print_format_error_message_and_exit("unable to load algorithm %s\n", algo_names[i]);
+            }
+            shared_object_handles[i] = (long) lib_handle;
+            functions[i] = search;
         }
-        shared_object_handles[i] = (long) lib_handle;
-        functions[i] = search;
+        else
+        {
+            printf("\tWarning: could not locate the algo %s in the defined algo search paths.\n", algo_names[i]);
+        }
     }
 
     return 0;
@@ -671,7 +684,7 @@ void run_benchmark(smart_config_t *smart_config, run_command_opts_t *opts, unsig
     int (*algo_functions[MAX_SELECT_ALGOS])(unsigned char *, int, unsigned char *, int, double *, double *);
     long shared_object_handles[MAX_SELECT_ALGOS];
     int num_running = load_algo_names_from_file(algo_names, "selected_algos");
-    load_algos(algo_names, num_running, algo_functions, shared_object_handles);
+    load_algos(smart_config, algo_names, num_running, algo_functions, shared_object_handles);
 
     // Benchmark the algorithms:
     char time_format[26];
