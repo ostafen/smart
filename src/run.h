@@ -19,7 +19,7 @@
 
 #define PATTERN_SIZE_MAX 4200 // maximal length of the pattern
 
-#define SIGMA 256 // constant alphabet size
+#define SIGMA 256            // constant alphabet size
 #define NUM_PATTERNS_MAX 100 // maximum number of different pattern lengths to benchmark at one time.
 
 #define TEXT_SIZE_DEFAULT 1048576
@@ -157,7 +157,7 @@ void print_no_data_found_and_exit(const char *search_path)
     char working_dir[STR_BUF];
     if (getcwd(working_dir, STR_BUF) != 0)
     {
-       strcpy(working_dir, "(unknown)");
+        strcpy(working_dir, "(unknown)");
     }
 
     print_format_error_message_and_exit("\nERROR: No files could be found to generate the search text.\nSearch path: %s\nWorking dir: %s\n",
@@ -245,10 +245,11 @@ double compute_median_of_sorted_array(const double *T, int n)
     // if the list of doubles  has an even number of elements:
     if (n % 2 == 0)
     {
-        return (T[n/2] + T[n/2 + 1]) / 2; // return mean of n/2 and n/2+1 elements.
+        return (T[n / 2] + T[n / 2 + 1]) / 2; // return mean of n/2 and n/2+1 elements.
     }
-    else {
-        return T[(n+1)/2]; // return the element in the middle of the sorted array.
+    else
+    {
+        return T[(n + 1) / 2]; // return the element in the middle of the sorted array.
     }
 }
 
@@ -265,7 +266,8 @@ double compute_std(double avg, double *T, int n)
 }
 
 #define SEARCH_FUNC_NAME "internal_search"
-
+#define SEARCH_OFFLINE_FUNC_NAME "search_offline"
+#define PREPROCESSING_FUNC_NAME "preprocessing"
 
 int load_algo_names_from_file(char algo_names[][STR_BUF], const char *filename)
 {
@@ -276,29 +278,47 @@ int load_algo_names_from_file(char algo_names[][STR_BUF], const char *filename)
     return num_running;
 }
 
+typedef struct algo_func
+{
+    int (*search)(unsigned char *, int, unsigned char *, int, double *, double *);
+    int (*search_offline)(unsigned char *, int, unsigned char *, int, void *data);
+    void *(*preprocessing)(unsigned char *, int);
+} algo_func_t;
+
 /*
  * Dynamically loads the algorithms defined in algo_names as shared objects into the benchmarking process.
  * Returns 0 if successful.  Will exit with status 1 if it is unable to load an algorithm.
  */
-int load_algos(const char algo_names[][STR_BUF], int num_algos, int (**functions)(unsigned char *, int, unsigned char *, int, double *, double *),
+int load_algos(const char algo_names[][STR_BUF], int num_algos, algo_func_t *functions,
                long shared_object_handles[MAX_SELECT_ALGOS])
 {
     for (int i = 0; i < num_algos; i++)
     {
         char algo_lib_filename[STR_BUF];
-        //TODO: configure location of algo shared objects - environment variable?
+        // TODO: configure location of algo shared objects - environment variable?
         snprintf(algo_lib_filename, STR_BUF, "bin/algos/%s.so", str2lower((char *)algo_names[i]));
+        memset(functions + i, 0, sizeof(algo_func_t));
 
         void *lib_handle = dlopen(algo_lib_filename, RTLD_NOW);
-        int (*search)(unsigned char *, int, unsigned char *, int, double *, double *) = dlsym(lib_handle, SEARCH_FUNC_NAME);
-        if (lib_handle == NULL || search == NULL)
+        if (lib_handle == NULL)
+            print_format_error_message_and_exit("unable to load %s\n", algo_lib_filename);
+
+        functions[i].search = (int (*)(unsigned char *, int, unsigned char *, int, double *, double *))dlsym(lib_handle, SEARCH_FUNC_NAME);
+        functions[i].search_offline = (int (*)(unsigned char *, int, unsigned char *, int, void *))dlsym(lib_handle, SEARCH_OFFLINE_FUNC_NAME);
+
+        if (lib_handle == NULL || (functions[i].search == NULL && functions[i].search_offline == NULL))
         {
             print_format_error_message_and_exit("unable to load algorithm %s\n", algo_names[i]);
         }
-        shared_object_handles[i] = (long) lib_handle;
-        functions[i] = search;
-    }
+        shared_object_handles[i] = (long)lib_handle;
 
+        if (functions[i].search_offline != NULL)
+        {
+            functions[i].preprocessing = (void *(*)(unsigned char *, int))dlsym(lib_handle, PREPROCESSING_FUNC_NAME);
+            if (functions[i].preprocessing == NULL)
+                print_format_error_message_and_exit("%s: unable to find preprocessing function\n", algo_names[i]);
+        }
+    }
     return 0;
 }
 
@@ -309,7 +329,7 @@ void unload_algos(int num_algos, long shared_object_handles[MAX_SELECT_ALGOS])
 {
     for (int i = 0; i < num_algos; i++)
     {
-        dlclose((void *) shared_object_handles[i]);
+        dlclose((void *)shared_object_handles[i]);
     }
 }
 
@@ -325,7 +345,13 @@ void free_pattern_matrix(unsigned char **M, int n)
         free(M[i]);
 }
 
-enum measurement_status {SUCCESS, TIMED_OUT, CANNOT_SEARCH, ERROR};
+enum measurement_status
+{
+    SUCCESS,
+    TIMED_OUT,
+    CANNOT_SEARCH,
+    ERROR
+};
 
 typedef struct algo_measurements
 {
@@ -362,13 +388,13 @@ void allocate_benchmark_results(benchmark_results_t *bench_result, int num_patte
     // For each pattern length we process, allocate space for bench_result for all the algorithms:
     for (int i = 0; i < num_pattern_lengths; i++)
     {
-        bench_result[i].algo_results = malloc(sizeof(algo_results_t) * num_algos);
+        bench_result[i].algo_results = (algo_results_t *)malloc(sizeof(algo_results_t) * num_algos);
 
-        //For each algorithm we process for a pattern length, allocate space for all the measurements it will make:
+        // For each algorithm we process for a pattern length, allocate space for all the measurements it will make:
         for (int j = 0; j < num_algos; j++)
         {
-            bench_result[i].algo_results[j].measurements.search_times = malloc(sizeof(double) * num_runs);
-            bench_result[i].algo_results[j].measurements.pre_times = malloc(sizeof(double) * num_runs);
+            bench_result[i].algo_results[j].measurements.search_times = (double *)malloc(sizeof(double) * num_runs);
+            bench_result[i].algo_results[j].measurements.pre_times = (double *)malloc(sizeof(double) * num_runs);
         }
     }
 }
@@ -394,10 +420,23 @@ void free_benchmark_results(benchmark_results_t *bench_result, int num_pattern_l
  */
 enum measurement_status run_algo(unsigned char **pattern_list, int m,
                                  unsigned char *T, int n, const run_command_opts_t *opts,
-                                 int (*search_func)(unsigned char *, int, unsigned char *, int, double *, double *), algo_results_t *results)
+                                 algo_func_t *algo_func, algo_results_t *results)
 {
     unsigned char P[m + 1];
     results->occurrence_count = 0;
+
+    void *data = NULL;
+    if (algo_func->preprocessing != NULL)
+    {
+        TIMER timer;
+        timer_start(&timer);
+        data = algo_func->preprocessing(T, n);
+        timer_stop(&timer);
+
+        double pre_time = timer_elapsed(&timer) * 1000;
+        for (int k = 0; k < opts->num_runs; k++)
+            results->measurements.pre_times[k] = pre_time;
+    }
 
     for (int k = 0; k < opts->num_runs; k++)
     {
@@ -407,10 +446,19 @@ enum measurement_status run_algo(unsigned char **pattern_list, int m,
 
         results->measurements.pre_times[k] = results->measurements.search_times[k] = 0.0;
 
-        int occur = search_func(P, m, T, n, &(results->measurements.search_times[k]), &(results->measurements.pre_times[k]));
-
-        if (occur == 0)
-            return ERROR; // there must be at least one match for each text and pattern (patterns are extracted from text).
+        int occur = 0;
+        if (algo_func->search != NULL)
+        {
+            occur = algo_func->search(P, m, T, n, &(results->measurements.search_times[k]), &(results->measurements.pre_times[k]));
+        }
+        else
+        {
+            TIMER timer;
+            timer_start(&timer);
+            occur = algo_func->search_offline(P, m, T, n, data);
+            timer_stop(&timer);
+            results->measurements.search_times[k] = timer_elapsed(&timer) * 1000;
+        }
 
         if (occur < 0)
             return CANNOT_SEARCH; // negative value returned from search means it cannot search this pattern.
@@ -420,6 +468,9 @@ enum measurement_status run_algo(unsigned char **pattern_list, int m,
         if (results->measurements.search_times[k] > opts->time_limit_millis)
             return TIMED_OUT;
     }
+
+    if (data)
+        free(data);
 
     return SUCCESS;
 }
@@ -431,64 +482,65 @@ void print_benchmark_res(char *output_line, const run_command_opts_t *opts, algo
 {
     switch (results->success_state)
     {
-        case SUCCESS:
+    case SUCCESS:
+    {
+        printf("\b\b\b\b\b\b\b.[OK]  ");
+        if (opts->pre)
+            snprintf(output_line, MAX_LINE_LEN, "\tmean: %.2f + [%.2f ± %.2f] ms\tmedian: %.2f + [%.2f] ms",
+                     results->statistics.mean_pre_time,
+                     results->statistics.mean_search_time,
+                     results->statistics.std_search_time,
+                     results->statistics.median_pre_time,
+                     results->statistics.median_search_time);
+        else // TODO: we are not adding pre-time to search time.  should we get rid of -pre option entirely and always report pre-time?
+            snprintf(output_line, MAX_LINE_LEN, "\tmean: [%.2f ± %.2f] ms\tmedian: %.2f ms",
+                     results->statistics.mean_search_time,
+                     results->statistics.std_search_time,
+                     results->statistics.median_search_time);
+
+        printf("%s", output_line);
+
+        if (opts->occ)
         {
-            printf("\b\b\b\b\b\b\b.[OK]  ");
             if (opts->pre)
-                snprintf(output_line, MAX_LINE_LEN,"\tmean: %.2f + [%.2f ± %.2f] ms\tmedian: %.2f + [%.2f] ms",
-                        results->statistics.mean_pre_time,
-                        results->statistics.mean_search_time,
-                        results->statistics.std_search_time,
-                        results->statistics.median_pre_time,
-                        results->statistics.median_search_time);
-            else //TODO: we are not adding pre-time to search time.  should we get rid of -pre option entirely and always report pre-time?
-                snprintf(output_line, MAX_LINE_LEN,"\tmean: [%.2f ± %.2f] ms\tmedian: %.2f ms",
-                        results->statistics.mean_search_time,
-                        results->statistics.std_search_time,
-                        results->statistics.median_search_time);
-
-            printf("%s", output_line);
-
-            if (opts->occ)
-            {
-                if (opts->pre)
-                    printf("\t\tocc \%d", results->occurrence_count);
-                else
-                    printf("\tocc \%d", results->occurrence_count);
-            }
-            printf("\n");
-            break;
+                printf("\t\tocc \%d", results->occurrence_count);
+            else
+                printf("\tocc \%d", results->occurrence_count);
         }
-        case CANNOT_SEARCH:
-        {
-            printf("\b\b\b\b\b.[--]  \n");
-            break;
-        }
-        case TIMED_OUT:
-        {
-            printf("\b\b\b\b\b\b.[OUT]  \n");
-            break;
-        }
-        case ERROR:
-        {
-            printf("\b\b\b\b\b\b\b\b.[ERROR] \n");
-            break;
-        }
+        printf("\n");
+        break;
+    }
+    case CANNOT_SEARCH:
+    {
+        printf("\b\b\b\b\b.[--]  \n");
+        break;
+    }
+    case TIMED_OUT:
+    {
+        printf("\b\b\b\b\b\b.[OUT]  \n");
+        break;
+    }
+    case ERROR:
+    {
+        printf("\b\b\b\b\b\b\b\b.[ERROR] \n");
+        break;
+    }
     }
 }
 
 int double_compare(const void *a, const void *b)
 {
-    return (*(double*)a > *(double*)b) ? 1 : (*(double*)a < *(double*)b) ? -1 : 0;
+    return (*(double *)a > *(double *)b) ? 1 : (*(double *)a < *(double *)b) ? -1
+                                                                             : 0;
 }
 
 void calculate_algo_statistics(algo_results_t *results, int num_measurements)
 {
     // Compute mean pre and search times:
-    results->statistics.mean_pre_time    = compute_average(results->measurements.pre_times, num_measurements);
+    results->statistics.mean_pre_time = compute_average(results->measurements.pre_times, num_measurements);
     results->statistics.mean_search_time = compute_average(results->measurements.search_times, num_measurements);
-    results->statistics.std_search_time  = compute_std(results->statistics.mean_search_time,
-                                                       results->measurements.search_times, num_measurements);
+    results->statistics.std_search_time = compute_std(results->statistics.mean_search_time,
+                                                      results->measurements.search_times, num_measurements);
 
     // Compute median pre and search times:
     // To calculate medians, we need to sort the arrays.   Copy them into a temp array before sorting,
@@ -503,10 +555,8 @@ void calculate_algo_statistics(algo_results_t *results, int num_measurements)
     results->statistics.median_search_time = compute_median_of_sorted_array(temp, num_measurements);
 }
 
-
-
 int benchmark_algos_using_random_patterns(algo_results_t *results, const run_command_opts_t *opts, unsigned char *T, int n, unsigned char **pattern_list, int m,
-                                          int num_running, char algo_names[][STR_BUF], int (**algo_functions)(unsigned char *, int, unsigned char *, int, double *, double *))
+                                          int num_running, char algo_names[][STR_BUF], algo_func_t *algo_functions)
 {
     printf("\n");
     print_edge(TOP_EDGE_WIDTH);
@@ -529,7 +579,7 @@ int benchmark_algos_using_random_patterns(algo_results_t *results, const run_com
             printf(".");
 
         results->algo_id = algo;
-        results->success_state = run_algo(pattern_list, m, T, n, opts, algo_functions[algo], results);
+        results->success_state = run_algo(pattern_list, m, T, n, opts, algo_functions + algo, results);
 
         if (results->success_state == SUCCESS)
             calculate_algo_statistics(results, opts->num_runs);
@@ -551,7 +601,7 @@ int get_num_pattern_lengths(const run_command_opts_t *opts)
 }
 
 int benchmark_algos(const char *expcode, const run_command_opts_t *opts, unsigned char *T, int n,
-                    int num_algos, char algo_names[][STR_BUF], int (**algo_functions)(unsigned char *, int, unsigned char *, int, double *, double *))
+                    int num_algos, char algo_names[][STR_BUF], algo_func_t *algo_functions)
 {
     int num_pattern_lengths = get_num_pattern_lengths(opts);
     benchmark_results_t results[num_pattern_lengths];
@@ -560,8 +610,8 @@ int benchmark_algos(const char *expcode, const run_command_opts_t *opts, unsigne
     allocate_benchmark_results(results, num_pattern_lengths, num_algos, opts->num_runs);
     allocate_pattern_matrix(pattern_list, opts->num_runs, sizeof(unsigned char) * (PATTERN_SIZE_MAX + 1));
 
-    //TODO: can replace this hard-coded power of two thing with configurable arithmetic or geometric progressions.
-    //      e.g. set lower bound, upper bound, operator and ratio/step - e.g. (1-16 + 1) or (2-156 * 1.5).
+    // TODO: can replace this hard-coded power of two thing with configurable arithmetic or geometric progressions.
+    //       e.g. set lower bound, upper bound, operator and ratio/step - e.g. (1-16 + 1) or (2-156 * 1.5).
     for (int m = opts->pattern_min_len, pattern_idx = 0; m <= opts->pattern_max_len; m *= 2, pattern_idx++)
     {
         gen_random_patterns(pattern_list, m, T, n, opts->num_runs);
@@ -673,7 +723,11 @@ void run_benchmark(run_command_opts_t *opts, unsigned char *T)
 
     // Load the algorithms to search with:
     char algo_names[MAX_SELECT_ALGOS][STR_BUF];
-    int (*algo_functions[MAX_SELECT_ALGOS])(unsigned char *, int, unsigned char *, int, double *, double *);
+
+    algo_func_t algo_functions[MAX_SELECT_ALGOS];
+
+    // int (*algo_functions[MAX_SELECT_ALGOS])(unsigned char *, int, unsigned char *, int, double *, double *);
+
     long shared_object_handles[MAX_SELECT_ALGOS];
     int num_running = load_algo_names_from_file(algo_names, "selected_algos");
     load_algos(algo_names, num_running, algo_functions, shared_object_handles);
