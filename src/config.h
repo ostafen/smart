@@ -84,9 +84,9 @@ void init_config(smart_config_t *config)
     set_smart_config_dir(config);          // This is just relative to user home directory.
     set_smart_results_dir(config);         // This is just relative to user home directory.
     set_smart_algo_dir(config);            // This depends on smart_exe_dir.
-    set_smart_algo_search_paths(config);   // This depends on smart_algo_dir
+    set_smart_algo_search_paths(config);   // This uses smart_algo_dir if it exists - but also set with environment variable.
     set_smart_data_dir(config);            // This depends on smart_exe_dir.
-    set_smart_data_search_paths(config);   // This depends on smart_data_dir.
+    set_smart_data_search_paths(config);   // This uses smart_data_dir if it exists - but also set with environment variable.
 }
 
 int last_index_of_from_pos(const char *string, char to_find, int pos)
@@ -105,32 +105,32 @@ void set_smart_exe_dir(smart_config_t *config)
     length = wai_getExecutablePath(NULL, 0, &dirname_length);
 
     if (length >= MAX_PATH_LENGTH) {
-        printf("ERROR - path to exe is longer than max path length %d.", MAX_PATH_LENGTH);
-        exit(1);
+        printf("WARNING - path to executable is longer than max path length %d.\nYou may need to set paths to algorithms and data with environment variables.\n", MAX_PATH_LENGTH);
+        config->smart_exe_dir[0] = '\0'; // no exe path obtained.
     }
+    else {
 
-    if (length > 0)
-    {
-        path = (char *) malloc(length + 1);
-        if (path == NULL)
-            abort();
-        wai_getExecutablePath(path, length, &dirname_length);
-        path[length] = '\0';
+        if (length > 0) {
+            path = (char *) malloc(length + 1);
+            if (path == NULL)
+                abort();
+            wai_getExecutablePath(path, length, &dirname_length);
+            path[length] = '\0';
 
-        // We use length - 2 because length - 1 is the last character of the path.
-        // If the last character of the path is already a slash, we want to ignore it and find the one before that.
-        int last_slash = last_index_of_from_pos(path, '/', length - 2);
+            // We use length - 2 because length - 1 is the last character of the path.
+            // If the last character of the path is already a slash, we want to ignore it and find the one before that.
+            int last_slash = last_index_of_from_pos(path, '/', length - 2);
 
-        memcpy(config->smart_exe_dir, path, last_slash);
-        config->smart_exe_dir[last_slash] = '\0';
+            memcpy(config->smart_exe_dir, path, last_slash);
+            config->smart_exe_dir[last_slash] = '\0';
+        } else {
+            printf("WARNING - could not obtain path to executable.\nYou may need to set paths to algorithms and data with environment variables.\n");
+            config->smart_exe_dir[0] = '\0'; // no exe path obtained.
+        }
+
+        if (path != NULL)
+            free(path);
     }
-    else
-    {
-        config->smart_exe_dir[0] = '\0'; // no exe path obtained - should we quit?
-    }
-
-    if (path != NULL)
-        free(path);
 }
 
 void append_folder(char *string, const char *path, int path_len, const char *folder)
