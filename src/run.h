@@ -291,11 +291,13 @@ int load_algos(smart_config_t *smart_config, const char algo_names[][STR_BUF], i
         char valid_path[MAX_PATH_LENGTH];
         locate_file_path(valid_path, algo_lib_filename, smart_config->smart_algo_search_paths, smart_config->num_algo_search_paths);
 
-        if (valid_path[0] != '\0') {
-            void *lib_handle = dlopen(algo_lib_filename, RTLD_NOW);
+        if (valid_path[0] != '\0')
+        {
+            void *lib_handle = dlopen(valid_path, RTLD_NOW);
             int (*search)(unsigned char *, int, unsigned char *, int, double *, double *) = dlsym(lib_handle,
                                                                                                   SEARCH_FUNC_NAME);
-            if (lib_handle == NULL || search == NULL) {
+            if (lib_handle == NULL || search == NULL)
+            {
                 print_format_error_message_and_exit("unable to load algorithm %s\n", algo_names[i]);
             }
             shared_object_handles[i] = (long) lib_handle;
