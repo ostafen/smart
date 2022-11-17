@@ -25,6 +25,7 @@
 #include "string_set.h"
 #include "parser.h"
 #include "utils.h"
+#include "regex.h"
 
 #define SMART_BIN_FOLDER "./bin/algos"
 
@@ -107,7 +108,7 @@ void add_algos(FILE *fp, const char **algos, int n_algos)
     }
 
     // Build list of compiled algo shared objects
-    char filenames[MAX_FILE_LINES][STR_BUF];
+    char filenames[MAX_FILE_LINES][MAX_PATH_LENGTH];
     int n_compiled_algos = list_dir(SMART_BIN_FOLDER, filenames, DT_REG, 0);
 
     // Check each compiled algorithm name against our regexes.  If they match, and we don't already have it, add it.
@@ -186,7 +187,7 @@ void list_algo_file(FILE *fp)
 
 void list_selectable_algos()
 {
-	char filenames[MAX_FILE_LINES][STR_BUF];
+	char filenames[MAX_FILE_LINES][MAX_PATH_LENGTH];
 	int n = list_dir(SMART_BIN_FOLDER, filenames, DT_REG, 0);
 	if (n < 0)
 	{
@@ -194,7 +195,7 @@ void list_selectable_algos()
 		exit(1);
 	}
 
-	qsort(filenames, n, sizeof(char) * STR_BUF, str_compare);
+	qsort(filenames, n, sizeof(char) * MAX_PATH_LENGTH, str_compare);
 
 	for (int i = 0; i < n; i++)
 	{
@@ -204,7 +205,7 @@ void list_selectable_algos()
 	}
 }
 
-int exec_select(select_command_opts_t *opts)
+int exec_select(select_command_opts_t *opts, smart_config_t *smart_config)
 {
 	if (opts->show_all)
 	{
