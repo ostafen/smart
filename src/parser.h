@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include <time.h>
 #include "utils.h"
-#include "regex.h"
+#include "config.h"
 
 #define RUN_COMMAND "run"
 #define SELECT_COMMAND "select"
@@ -19,8 +19,6 @@
 #define PATTERN_MIN_LEN_DEFAULT 2
 #define PATTERN_MAX_LEN_DEFAULT 4096
 #define TEXT_SIZE_DEFAULT 1048576
-#define SMART_DATA_PATH_DEFAULT "data"
-#define SMART_DATA_DIR_ENV "SMART_DATA_DIR"
 #define MEGA_BYTE (1024 * 1024) // constant for 1 MB size
 #define MAX_SELECT_ALGOS 2048
 
@@ -85,6 +83,7 @@ static char *const OPTION_LONG_HELP = "--help";
 typedef struct smart_opts
 {
     const char *subcommand;
+    const smart_config_t *smart_config;
     void *opts;
 } smart_subcommand_t;
 
@@ -104,7 +103,6 @@ typedef struct run_command_opts
 {
     enum data_source_type data_source;           // What type of data is to be scanned - files or random.
     const char *data_sources[MAX_DATA_SOURCES];  // A list of files/data_sources to load data from.
-    const char *search_path;                     // The search path to locate the data_sources, defaults to data folder of SMART.
     int text_size;                               // Size of the text buffer to fill for benchmarking.
     int alphabet_size;                           // Size of the alphabet to use when creating random texts.
     int pattern_min_len, pattern_max_len;
@@ -237,21 +235,11 @@ void print_format_error_message_and_exit(const char * format, ...)
     exit(1);
 }
 
-/*
- * Returns the location where the smart search data is located.
- */
-const char *get_smart_data_dir()
-{
-    const char *path = getenv(SMART_DATA_DIR_ENV);
-    return path != NULL ? path : SMART_DATA_PATH_DEFAULT;
-}
-
 void opts_init_default(run_command_opts_t *opts)
 {
     opts->data_source = NOT_DEFINED;
     for (int i = 0; i < MAX_DATA_SOURCES; i++)
         opts->data_sources[i] = NULL;
-    opts->search_path = get_smart_data_dir();
     opts->cpu_pinning = "last";
     opts->alphabet_size = ALPHABET_SIZE_DEFAULT;
     opts->text_size = TEXT_SIZE_DEFAULT;
