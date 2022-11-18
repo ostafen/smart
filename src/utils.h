@@ -175,6 +175,10 @@ int read_all_lines(FILE *fp, char output[][STR_BUF])
             strcpy(output[k++], line);
         }
 	}
+
+    if (line != NULL)
+        free(line);
+
 	return k;
 }
 
