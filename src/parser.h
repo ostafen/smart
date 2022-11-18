@@ -15,6 +15,7 @@
 #define NUM_RUNS_DEFAULT 500
 #define ALPHABET_SIZE_DEFAULT 256
 #define TIME_LIMIT_MILLIS_DEFAULT 300
+#define CPU_PIN_DEFAULT "last"
 
 #define PATTERN_MIN_LEN_DEFAULT 2
 #define PATTERN_MAX_LEN_DEFAULT 4096
@@ -240,7 +241,7 @@ void opts_init_default(run_command_opts_t *opts)
     opts->data_source = NOT_DEFINED;
     for (int i = 0; i < MAX_DATA_SOURCES; i++)
         opts->data_sources[i] = NULL;
-    opts->cpu_pinning = "last";
+    opts->cpu_pinning = CPU_PIN_DEFAULT;
     opts->alphabet_size = ALPHABET_SIZE_DEFAULT;
     opts->text_size = TEXT_SIZE_DEFAULT;
     opts->pattern_min_len = PATTERN_MIN_LEN_DEFAULT;
@@ -250,6 +251,7 @@ void opts_init_default(run_command_opts_t *opts)
     opts->random_seed = time(NULL);
     opts->simple = 0;
     opts->fill_buffer = 0;
+    opts->pre = 0;
     opts->occ = 0;
     opts->txt = 0;
     opts->tex = 0;
