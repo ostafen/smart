@@ -49,6 +49,22 @@ int str_set_contains(str_set_t *set, const char *s)
     return str_set_contains_hash(set, s, str_hash(s));
 }
 
+int str_set_to_array(str_set_t *set, const char *array[], int max_size)
+{
+    int num_added = 0;
+    for (int i = 0; i < SET_SIZE; i++)
+    {
+        for (node_t *curr = set->buckets[i]; curr != NULL;)
+        {
+            if (num_added >= max_size)
+                break;
+            array[num_added++] = curr->s;
+            curr = curr->next;
+        }
+    }
+    return num_added;
+}
+
 void str_set_free(str_set_t *set)
 {
     for (int i = 0; i < SET_SIZE; i++)

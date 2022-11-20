@@ -20,5 +20,6 @@ typedef struct str_set
 void str_set_init(str_set_t *set);
 int str_set_add(str_set_t *set, const char *s);
 int str_set_contains(str_set_t *set, const char *s);
+int str_set_to_array(str_set_t *set, const char *array[], int max_size);
 void str_set_free(str_set_t *set);
 #endif
