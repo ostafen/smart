@@ -18,24 +18,27 @@
  */
 #define _GNU_SOURCE // Must be defined as the first include of the program to enable use of CPU pinning macros.
 
+#include "config.h"
 #include "parser.h"
 #include "select.h"
 #include "run.h"
 
 int main(int argc, const char *argv[])
 {
-	smart_subcommand_t subcommand;
+	smart_config_t smart_config;
+    init_config(&smart_config);
+
+    smart_subcommand_t subcommand;
 	parse_args(argc, argv, &subcommand);
 
 	if (!strcmp(subcommand.subcommand, SELECT_COMMAND))
 	{
-		exec_select((select_command_opts_t *)subcommand.opts);
-		exit(0);
+		exec_select((select_command_opts_t *)subcommand.opts, &smart_config);
+	}
+    else if (!strcmp(subcommand.subcommand, RUN_COMMAND))
+	{
+		exec_run((run_command_opts_t *)subcommand.opts, &smart_config);
 	}
 
-	if (!strcmp(subcommand.subcommand, RUN_COMMAND))
-	{
-		exec_run((run_command_opts_t *)subcommand.opts);
-		exit(0);
-	}
+    exit(0);
 }

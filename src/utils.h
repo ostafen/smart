@@ -24,17 +24,22 @@
 #include <strings.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <stdarg.h>
+#include <time.h>
+#include <regex.h>
+
+#define STR_BUF 512
+#define MAX_FILE_LINES 2048
+#define MAX_PATH_LENGTH 2048
 
 static int str_compare(const void *str1, const void *str2)
 {
-	if (strcmp(str1, str2) >= 0)
-		return 1;
-	else
-		return 0;
+	return strcmp(str1, str2);
 }
 
 int strcmpany(const char *s, int n, ...)
 {
+    int result = -1;
     va_list ptr;
 
     va_start(ptr, n);
@@ -42,11 +47,14 @@ int strcmpany(const char *s, int n, ...)
     {
         const char *curr_str = va_arg(ptr, const char *);
         if (!strcmp(curr_str, s))
-            return 0;
+        {
+            result = 0;
+            break;
+        }
     }
     va_end(ptr);
 
-    return -1;
+    return result;
 }
 
 int has_suffix(const char *s, const char *suffix)
@@ -62,7 +70,7 @@ void trim_suffix(char *s, const char *suffix)
 
 int trim_str(char *s)
 {
-	int pos = strlen(s) - 1;
+	long pos = strlen(s) - 1;
 	while (pos >= 0)
 	{
 		char c = s[pos];
@@ -72,6 +80,17 @@ int trim_str(char *s)
 			break;
 	}
     s[pos + 1] = '\0';
+}
+
+/*
+ * Returns the last index of a character from pos in a string, or -1 if not found.
+ */
+long last_index_of_from_pos(const char *string, char to_find, long pos)
+{
+    long limit = strlen(string) - 1;
+    if (pos > limit) pos = limit;
+    while (pos >= 0 && string[pos] != to_find) pos--;
+    return pos;
 }
 
 /* returns 1 if s is an integer number. 0 otherwise */
@@ -86,7 +105,7 @@ int is_int(const char *s)
 
 char *str2lower(char *s)
 {
-	int n = strlen(s) - 1;
+	long n = strlen(s) - 1;
 	while (n >= 0)
 	{
 		if (s[n] >= 'A' && s[n] <= 'Z')
@@ -98,7 +117,7 @@ char *str2lower(char *s)
 
 char *str2upper(char *s)
 {
-	int n = strlen(s) - 1;
+	long n = strlen(s) - 1;
 	while (n >= 0)
 	{
 		if (s[n] >= 'a' && s[n] <= 'z')
@@ -121,7 +140,7 @@ int split_filename(const char *filename, char list_of_filenames[500][50])
 {
 	int i, j, k;
 	i = j = k = 0;
-	int m = strlen(filename);
+	size_t m = strlen(filename);
 	while (i < m)
 	{
 		while (filename[i] != '-' && i < m)
@@ -140,15 +159,13 @@ int split_filename(const char *filename, char list_of_filenames[500][50])
 	return (k + 1);
 }
 
-#define STR_BUF 512
-
-int read_all_lines(FILE *fp, char output[][STR_BUF])
+int read_all_lines(FILE *fp, char output[][STR_BUF], int max_lines)
 {
 	char *line = NULL;
 	size_t len;
 
 	int k = 0;
-	while ((getline(&line, &len, fp)) != -1)
+	while (k < max_lines && (getline(&line, &len, fp)) != -1)
 	{
 		trim_str(line);
         if (strlen(line) > 0)
@@ -156,10 +173,61 @@ int read_all_lines(FILE *fp, char output[][STR_BUF])
             strcpy(output[k++], line);
         }
 	}
+
+    if (line != NULL)
+        free(line);
+
 	return k;
 }
 
-#define MAX_FILE_LINES 2048
+/*
+ * Writes out the selected_algos file with the lines provided.
+ */
+void write_lines_to_file(const char **lines, int num_lines, const char *file_name)
+{
+    char tmp_file_name[MAX_PATH_LENGTH];
+    snprintf(tmp_file_name, MAX_PATH_LENGTH, "%s%s", file_name, ".tmp");
+
+    FILE *tmp_fp = fopen(tmp_file_name, "w");
+    for (int i = 0; i < num_lines; i++)
+    {
+        fprintf(tmp_fp, "%s\n", lines[i]);
+    }
+    fclose(tmp_fp);
+
+    rename(tmp_file_name, file_name);
+    remove(tmp_file_name);
+}
+
+int copy_text_file(const char *source_filename, const char *destination_filename)
+{
+    FILE *src = fopen(source_filename, "r");
+    if (src != NULL)
+    {
+        FILE *dst = fopen(destination_filename, "w");
+        if (dst != NULL)
+        {
+            char *line = NULL;
+            size_t len;
+
+            int k = 0;
+            while ((getline(&line, &len, src)) != -1)
+            {
+                fprintf(dst, "%s\n", line);
+            }
+
+            if (line != NULL)
+                free(line);
+        }
+    }
+    else
+    {
+        //TODO: error message here?  return -1?
+    }
+
+    return 0;
+}
+
 
 __mode_t get_file_mode(const char *path)
 {
@@ -180,68 +248,59 @@ size_t fsize(const char *path)
     return st.st_size;
 }
 
-void locate_file_path(char valid_path[STR_BUF], const char *filename, const char search_paths[][STR_BUF], int num_search_paths)
+/*
+ * Searches for a filename in the search paths provided.  The filename can also be a directory name.
+ * Sets the full path if found in valid_path, or an empty string otherwise.
+ * Returns true (1) if a valid path was found, and 0 (false) if not.
+ */
+int locate_file_path(char valid_path[MAX_PATH_LENGTH], const char *filename, const char search_paths[][MAX_PATH_LENGTH], int num_search_paths)
 {
-    // Check to see if file or dir exists without using search path:
-    char working_dir[STR_BUF];
-    char local_file[STR_BUF];
-    if (getcwd(working_dir, STR_BUF) == NULL)
+    valid_path[0] = '\0';
+    char search_path[MAX_PATH_LENGTH];
+
+    for (int path = 0; path < num_search_paths; path++)
     {
-        strcpy(local_file, filename);
-    } else {
-        strcpy(local_file, working_dir);
-        int dirlen = strlen(local_file);
-        if (dirlen > 0 && local_file[dirlen - 1] != '/')
-        {
-            strcat(local_file, "/");
-        }
-        strcat(local_file, filename);
-    }
+        long len = strlen(search_paths[path]);
+        if (len + strlen(filename) < MAX_PATH_LENGTH - 1) {
 
-    if (access(local_file, F_OK) == 0)
-    {
-        strcpy(valid_path, local_file);
-    }
-    else {  // Check search paths:
-        valid_path[0] = '\0';
-        char search_path[STR_BUF];
-
-        for (int path = 0; path < num_search_paths; path++) {
-            int len = strlen(search_paths[path]);
-            if (len + strlen(filename) < STR_BUF - 1) {
-
-                if (search_paths[path][len - 1] == '/') { // check to see if search path already terminates with /
-                    snprintf(search_path, STR_BUF,"%s%s", search_paths[path], filename);
-                } else {
-                    snprintf(search_path, STR_BUF, "%s/%s", search_paths[path], filename);
-                }
-
-                if (access(search_path, F_OK) == 0) {
-                    strcpy(valid_path, search_path);
-                    break;
-                }
+            // check to see if search path already terminates with /
+            if (search_paths[path][len - 1] == '/')
+            {
+                snprintf(search_path, MAX_PATH_LENGTH,"%s%s", search_paths[path], filename);
             } else {
-                printf("\t: Ignoring: Length of search path %s and filename %s exceeds maximum file path length:",
-                       search_paths[path], filename);
+                snprintf(search_path, MAX_PATH_LENGTH, "%s/%s", search_paths[path], filename);
             }
+
+            if (access(search_path, F_OK) == 0)
+            {
+                strcpy(valid_path, search_path);
+                break;
+            }
+        }
+        else
+        {
+            printf("\tWARN\tLength of search path %s and filename %s exceeds maximum file path length - ignoring search path.\n",
+                   search_paths[path], filename);
         }
     }
 
     // ensure that valid path does not end with a /
-    int path_len = strlen(valid_path);
+    long path_len = strlen(valid_path);
     if (path_len > 0 && valid_path[path_len - 1] == '/')
     {
         valid_path[path_len - 1] = '\0';
     }
+
+    return valid_path[0] != '\0';
 }
 
-int add_filenames_in_dir(const char *path, char filenames[][STR_BUF], int filename_index, int max_files){
+int add_filenames_in_dir(const char *path, char filenames[][MAX_PATH_LENGTH], int filename_index, int max_files){
     DIR *dir = opendir(path);
     if (dir != NULL) {
 
-        char full_path[STR_BUF];
+        char full_path[MAX_PATH_LENGTH];
         strcpy(full_path, path);
-        int path_len = strlen(path);
+        long path_len = strlen(path);
         full_path[path_len++] = '/';
         full_path[path_len] = '\0';
 
@@ -250,14 +309,16 @@ int add_filenames_in_dir(const char *path, char filenames[][STR_BUF], int filena
         {
             if (entry->d_type == DT_REG)
             {
-                int entry_len = strlen(entry->d_name);
-                if (path_len + entry_len < STR_BUF)
+                long entry_len = strlen(entry->d_name);
+                if (path_len + entry_len < MAX_PATH_LENGTH)
                 {
                     strcpy(full_path + path_len, entry->d_name);
                     strcpy(filenames[filename_index++], full_path);
                 }
-                else {
-                    printf("\tFile %s and path %s exceed maximum path length %d - cannot process.", entry->d_name, full_path, STR_BUF);
+                else
+                {
+                    printf("\tWARN\tFile %s and path %s exceed maximum path length %d - cannot process.",
+                           entry->d_name, full_path, MAX_PATH_LENGTH);
                 }
             }
         }
@@ -268,25 +329,38 @@ int add_filenames_in_dir(const char *path, char filenames[][STR_BUF], int filena
     return filename_index;
 }
 
-int split_search_paths(const char *search_path, char search_paths[][STR_BUF], int max_paths)
+int matches(const char *pattern, regex_t *regex)
 {
-    const char *path_delimitter = ":";
-    int pathlen = strlen(search_path);
-    char tokenised_search_path[pathlen + 1];
-    strcpy(tokenised_search_path, search_path);
-
-    int path_count = 0;
-    char *path = strtok(tokenised_search_path, path_delimitter);
-    while (path != NULL && path_count < max_paths)
-    {
-        strcpy(search_paths[path_count++], path);
-        path = strtok(NULL, path_delimitter);
-    }
-
-    return path_count;
+    return regex == NULL || regexec(regex, pattern, 0, NULL, 0) == 0;
 }
 
-int list_dir(const char *path, char filenames[][STR_BUF], int f_type, int include_path)
+/*
+ * Lists all the filenames in the path and places them in filenames, starting from the current index.
+ * If you want to restrict the filenames, you can supply a regex to match the ones you want.  If it is NULL then no filtering is done.
+ * Returns the number of filenames added to filenames.
+ */
+int add_filenames_in_path(const char *path, char filenames[][MAX_PATH_LENGTH], int current_index, regex_t *filename_filter)
+{
+    int num_file_names = 0;
+    DIR *dir = opendir(path);
+    if (dir != NULL)
+    {
+        struct dirent *entry;
+        while ((entry = readdir(dir)) != NULL)
+        {
+            if (entry->d_type == DT_REG && matches(entry->d_name, filename_filter))
+            {
+                strcpy(filenames[current_index + num_file_names++], entry->d_name);
+            }
+        }
+
+        closedir(dir);
+    }
+
+    return num_file_names;
+}
+
+int list_dir(const char *path, char filenames[][MAX_PATH_LENGTH], int f_type, int include_path)
 {
 	DIR *dir = opendir(path);
 	if (dir == NULL)
@@ -299,8 +373,8 @@ int list_dir(const char *path, char filenames[][STR_BUF], int f_type, int includ
 		if (entry->d_type == f_type)
 		{
 			// TODO: extract function join_path();
-			char full_path[STR_BUF];
-			memset(full_path, 0, sizeof(char) * STR_BUF);
+			char full_path[MAX_PATH_LENGTH];
+			memset(full_path, 0, sizeof(char) * MAX_PATH_LENGTH);
 
 			if (include_path)
 			{

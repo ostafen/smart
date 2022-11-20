@@ -25,7 +25,6 @@
 #define TOP_EDGE_WIDTH 60
 
 #define MAX_FILES 500
-#define MAX_SEARCH_PATHS 50
 #define MAX_LINE_LEN 128
 
 void print_edge(int len)
@@ -70,7 +69,7 @@ int load_text_buffer(const char *filename, unsigned char *buffer, int n)
  * Loads the files defined in the list of filenames into a text buffer T, up to a maximum size of text.
  * Returns the current size of data loaded.
  */
-int merge_text_buffers(const char filenames[][STR_BUF], int n_files, unsigned char *T, int max_text_size)
+int merge_text_buffers(const char filenames[][MAX_PATH_LENGTH], int n_files, unsigned char *T, int max_text_size)
 {
     int curr_size = 0;
     for (int i = 0; i < n_files && curr_size < max_text_size; i++)
@@ -106,10 +105,10 @@ void replicate_buffer(unsigned char *buffer, int size, int target_size)
  * If the data source points to a file, just that file is added.
  * Returns the number of files in the filenames array.
  */
-int add_files(char search_paths[][STR_BUF], int num_search_paths, const char *data_source,
-              char filenames[][STR_BUF], int num_files, int max_files)
+int add_files(const char search_paths[][MAX_PATH_LENGTH], int num_search_paths, const char *data_source,
+              char filenames[][MAX_PATH_LENGTH], int num_files, int max_files)
 {
-    char valid_path[STR_BUF];
+    char valid_path[MAX_PATH_LENGTH];
     locate_file_path(valid_path, data_source, search_paths, num_search_paths);
 
     if (valid_path[0] != '\0')
@@ -132,15 +131,13 @@ int add_files(char search_paths[][STR_BUF], int num_search_paths, const char *da
  * Builds a list of filenames from the data sources and places them in filenames, searching the search path.
  * Returns the number of files in the filenames array.
  */
-int build_list_of_files_to_load(const char *search_path, const char *data_sources[MAX_DATA_SOURCES], char filenames[][STR_BUF])
+int build_list_of_files_to_load(const smart_config_t *smart_config, const char *data_sources[MAX_DATA_SOURCES], char filenames[][MAX_PATH_LENGTH])
 {
-    char search_paths[MAX_SEARCH_PATHS][STR_BUF];
-    int num_search_paths = split_search_paths(search_path, search_paths, MAX_SEARCH_PATHS);
-
     int source_index = 0, num_files = 0;
     while (source_index < MAX_DATA_SOURCES && num_files < MAX_FILES && data_sources[source_index] != NULL)
     {
-        num_files = add_files(search_paths, num_search_paths, data_sources[source_index++],
+        num_files = add_files(smart_config->smart_data_search_paths, smart_config->num_data_search_paths,
+                              data_sources[source_index++],
                               filenames, num_files, MAX_FILES);
     }
 
@@ -167,10 +164,10 @@ void print_no_data_found_and_exit(const char *search_path)
  * Uses the search path to locate files or directories if they do not exist locally.
  * Returns the size of data loaded into the buffer.
  */
-int gen_search_text(const char *search_path, const char *data_sources[MAX_DATA_SOURCES], unsigned char *buffer, int bufsize, int fill_buffer)
+int gen_search_text(smart_config_t *smart_config, const char *data_sources[MAX_DATA_SOURCES], unsigned char *buffer, int bufsize, int fill_buffer)
 {
-    char filenames[MAX_FILES][STR_BUF];
-    int n_files = build_list_of_files_to_load(search_path, data_sources, filenames);
+    char filenames[MAX_FILES][MAX_PATH_LENGTH];
+    int n_files = build_list_of_files_to_load(smart_config, data_sources, filenames);
     if (n_files > 0)
     {
         int n = merge_text_buffers(filenames, n_files, buffer, bufsize);
@@ -184,7 +181,7 @@ int gen_search_text(const char *search_path, const char *data_sources[MAX_DATA_S
             return bufsize;
     }
 
-    print_no_data_found_and_exit(search_path);
+    print_no_data_found_and_exit(smart_config->smart_data_dir);
 }
 
 /*
@@ -264,11 +261,13 @@ double compute_std(double avg, double *T, int n)
 
 #define SEARCH_FUNC_NAME "internal_search"
 
-
+/*
+ * Loads the names of algos to run from a text file (e.g. selected_algos), and sorts them.
+ */
 int load_algo_names_from_file(char algo_names[][STR_BUF], const char *filename)
 {
     FILE *algo_file = fopen(filename, "r");
-    int num_running = read_all_lines(algo_file, algo_names);
+    int num_running = read_all_lines(algo_file, algo_names, MAX_SELECT_ALGOS);
     fclose(algo_file);
     qsort(algo_names, num_running, sizeof(char) * STR_BUF, str_compare);
     return num_running;
@@ -278,23 +277,36 @@ int load_algo_names_from_file(char algo_names[][STR_BUF], const char *filename)
  * Dynamically loads the algorithms defined in algo_names as shared objects into the benchmarking process.
  * Returns 0 if successful.  Will exit with status 1 if it is unable to load an algorithm.
  */
-int load_algos(const char algo_names[][STR_BUF], int num_algos, int (**functions)(unsigned char *, int, unsigned char *, int, double *, double *),
+int load_algos(smart_config_t *smart_config, const char algo_names[][STR_BUF], int num_algos,
+               int (**functions)(unsigned char *, int, unsigned char *, int, double *, double *),
                long shared_object_handles[MAX_SELECT_ALGOS])
 {
     for (int i = 0; i < num_algos; i++)
     {
+        // Build algo filename as lower case algo name with .so suffix.
         char algo_lib_filename[STR_BUF];
-        //TODO: configure location of algo shared objects - environment variable?
-        snprintf(algo_lib_filename, STR_BUF, "bin/algos/%s.so", str2lower((char *)algo_names[i]));
+        snprintf(algo_lib_filename, STR_BUF, "%s.so", str2lower((char *)algo_names[i]));
 
-        void *lib_handle = dlopen(algo_lib_filename, RTLD_NOW);
-        int (*search)(unsigned char *, int, unsigned char *, int, double *, double *) = dlsym(lib_handle, SEARCH_FUNC_NAME);
-        if (lib_handle == NULL || search == NULL)
+        // Locate the algo filename in the algo search paths:
+        char valid_path[MAX_PATH_LENGTH];
+        locate_file_path(valid_path, algo_lib_filename, smart_config->smart_algo_search_paths, smart_config->num_algo_search_paths);
+
+        if (valid_path[0] != '\0')
         {
-            print_format_error_message_and_exit("unable to load algorithm %s\n", algo_names[i]);
+            void *lib_handle = dlopen(valid_path, RTLD_NOW);
+            int (*search)(unsigned char *, int, unsigned char *, int, double *, double *) = dlsym(lib_handle,
+                                                                                                  SEARCH_FUNC_NAME);
+            if (lib_handle == NULL || search == NULL)
+            {
+                print_format_error_message_and_exit("unable to load algorithm %s\n", algo_names[i]);
+            }
+            shared_object_handles[i] = (long) lib_handle;
+            functions[i] = search;
         }
-        shared_object_handles[i] = (long) lib_handle;
-        functions[i] = search;
+        else
+        {
+            printf("\tWarning: could not locate the algo %s in the defined algo search paths.\n", algo_names[i]);
+        }
     }
 
     return 0;
@@ -634,7 +646,7 @@ void print_text_info(const unsigned char *T, int n)
  * Fills the text buffer T with opts->text_size of data.
  * Returns the size of the text loaded.
  */
-int get_text(run_command_opts_t *opts, unsigned char *T)
+int get_text(smart_config_t *smart_config, run_command_opts_t *opts, unsigned char *T)
 {
     int size = 0;
     if (opts->data_source == RANDOM)
@@ -643,7 +655,7 @@ int get_text(run_command_opts_t *opts, unsigned char *T)
     }
     else if (opts->data_source == FILES)
     {
-        size = gen_search_text(opts->search_path, opts->data_sources, T, opts->text_size, opts->fill_buffer);
+        size = gen_search_text(smart_config, opts->data_sources, T, opts->text_size, opts->fill_buffer);
     }
     else
     {
@@ -658,7 +670,7 @@ int get_text(run_command_opts_t *opts, unsigned char *T)
  * at the end of the text if they wish.  This is a special optimisation that allows a search algorithm to omit a length check,
  * as the algorithm is guaranteed to stop when it detects the sentinel pattern past the end of the actual text.
  */
-void run_benchmark(run_command_opts_t *opts, unsigned char *T)
+void run_benchmark(smart_config_t *smart_config, run_command_opts_t *opts, unsigned char *T)
 {
     // Generate experiment code
     char expcode[STR_BUF];
@@ -666,7 +678,7 @@ void run_benchmark(run_command_opts_t *opts, unsigned char *T)
     printf("\tStarting experimental tests with code %s\n", expcode);
 
     // Get the text to search in:
-    int n = get_text(opts, T);
+    int n = get_text(smart_config, opts, T);
     print_text_info(T, n);
 
     // Load the algorithms to search with:
@@ -674,7 +686,7 @@ void run_benchmark(run_command_opts_t *opts, unsigned char *T)
     int (*algo_functions[MAX_SELECT_ALGOS])(unsigned char *, int, unsigned char *, int, double *, double *);
     long shared_object_handles[MAX_SELECT_ALGOS];
     int num_running = load_algo_names_from_file(algo_names, "selected_algos");
-    load_algos(algo_names, num_running, algo_functions, shared_object_handles);
+    load_algos(smart_config, algo_names, num_running, algo_functions, shared_object_handles);
 
     // Benchmark the algorithms:
     char time_format[26];
@@ -749,7 +761,7 @@ void set_random_seed(run_command_opts_t *opts)
  * Main method to set things up before executing benchmarks with the benchmarking options provided.
  * Returns 0 if successful.
  */
-int exec_run(run_command_opts_t *opts)
+int exec_run(run_command_opts_t *opts, smart_config_t *smart_config)
 {
     print_logo();
 
@@ -759,7 +771,7 @@ int exec_run(run_command_opts_t *opts)
 
     unsigned char *T = (unsigned char *)malloc(sizeof(unsigned char) * (opts->text_size + opts->pattern_max_len));
 
-    run_benchmark(opts, T);
+    run_benchmark(smart_config, opts, T);
 
     free(T);
 
