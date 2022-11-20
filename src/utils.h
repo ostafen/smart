@@ -26,6 +26,7 @@
 #include <unistd.h>
 #include <stdarg.h>
 #include <time.h>
+#include <regex.h>
 
 #define STR_BUF 512
 #define MAX_FILE_LINES 2048
@@ -33,10 +34,7 @@
 
 static int str_compare(const void *str1, const void *str2)
 {
-	if (strcmp(str1, str2) >= 0)
-		return 1;
-	else
-		return 0;
+	return strcmp(str1, str2);
 }
 
 int strcmpany(const char *s, int n, ...)
@@ -161,13 +159,13 @@ int split_filename(const char *filename, char list_of_filenames[500][50])
 	return (k + 1);
 }
 
-int read_all_lines(FILE *fp, char output[][STR_BUF])
+int read_all_lines(FILE *fp, char output[][STR_BUF], int max_lines)
 {
 	char *line = NULL;
 	size_t len;
 
 	int k = 0;
-	while ((getline(&line, &len, fp)) != -1)
+	while (k < max_lines && (getline(&line, &len, fp)) != -1)
 	{
 		trim_str(line);
         if (strlen(line) > 0)
@@ -181,6 +179,55 @@ int read_all_lines(FILE *fp, char output[][STR_BUF])
 
 	return k;
 }
+
+/*
+ * Writes out the selected_algos file with the lines provided.
+ */
+void write_lines_to_file(const char **lines, int num_lines, const char *file_name)
+{
+    char tmp_file_name[MAX_PATH_LENGTH];
+    snprintf(tmp_file_name, MAX_PATH_LENGTH, "%s%s", file_name, ".tmp");
+
+    FILE *tmp_fp = fopen(tmp_file_name, "w");
+    for (int i = 0; i < num_lines; i++)
+    {
+        fprintf(tmp_fp, "%s\n", lines[i]);
+    }
+    fclose(tmp_fp);
+
+    rename(tmp_file_name, file_name);
+    remove(tmp_file_name);
+}
+
+int copy_text_file(const char *source_filename, const char *destination_filename)
+{
+    FILE *src = fopen(source_filename, "r");
+    if (src != NULL)
+    {
+        FILE *dst = fopen(destination_filename, "w");
+        if (dst != NULL)
+        {
+            char *line = NULL;
+            size_t len;
+
+            int k = 0;
+            while ((getline(&line, &len, src)) != -1)
+            {
+                fprintf(dst, "%s\n", line);
+            }
+
+            if (line != NULL)
+                free(line);
+        }
+    }
+    else
+    {
+        //TODO: error message here?  return -1?
+    }
+
+    return 0;
+}
+
 
 __mode_t get_file_mode(const char *path)
 {
@@ -280,6 +327,37 @@ int add_filenames_in_dir(const char *path, char filenames[][MAX_PATH_LENGTH], in
     }
 
     return filename_index;
+}
+
+int matches(const char *pattern, regex_t *regex)
+{
+    return regex == NULL || regexec(regex, pattern, 0, NULL, 0) == 0;
+}
+
+/*
+ * Lists all the filenames in the path and places them in filenames, starting from the current index.
+ * If you want to restrict the filenames, you can supply a regex to match the ones you want.  If it is NULL then no filtering is done.
+ * Returns the number of filenames added to filenames.
+ */
+int add_filenames_in_path(const char *path, char filenames[][MAX_PATH_LENGTH], int current_index, regex_t *filename_filter)
+{
+    int num_file_names = 0;
+    DIR *dir = opendir(path);
+    if (dir != NULL)
+    {
+        struct dirent *entry;
+        while ((entry = readdir(dir)) != NULL)
+        {
+            if (entry->d_type == DT_REG && matches(entry->d_name, filename_filter))
+            {
+                strcpy(filenames[current_index + num_file_names++], entry->d_name);
+            }
+        }
+
+        closedir(dir);
+    }
+
+    return num_file_names;
 }
 
 int list_dir(const char *path, char filenames[][MAX_PATH_LENGTH], int f_type, int include_path)
