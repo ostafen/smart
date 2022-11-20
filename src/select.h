@@ -268,9 +268,18 @@ void add_algos(const char **algos, int n_algos, const smart_config_t *smart_conf
 /*
  * Overwrites the current selected_algos file with the contents of a new file.
  */
-void load_selected_algos(const char **algos, int n_algos, const smart_config_t *smart_config)
+void load_selected_algos(const char *load_name, const smart_config_t *smart_config)
 {
-    //TODO:
+    char selected_algo_filename[MAX_PATH_LENGTH];
+    if (snprintf(selected_algo_filename, MAX_PATH_LENGTH, "%s/%s", smart_config->smart_config_dir, SELECTED_ALGOS_FILENAME) > MAX_PATH_LENGTH)
+        abort(); //TODO: error messages.
+
+    char load_filename[MAX_PATH_LENGTH];
+    if (snprintf(load_filename, MAX_PATH_LENGTH, "%s/%s.algos", smart_config->smart_config_dir, load_name) > MAX_PATH_LENGTH)
+        abort(); //TODO: error messages.
+
+    copy_text_file(load_filename, selected_algo_filename);
+    printf("Copied %s over the selected algorithms file.", load_name);
 }
 
 /*
@@ -410,7 +419,7 @@ int exec_select(select_command_opts_t *opts, const smart_config_t *smart_config)
         }
         case LOAD:
         {
-            load_selected_algos(opts->algos, opts->n_algos, smart_config);
+            load_selected_algos(opts->algos[0], smart_config);
             break;
         }
         case SAVE:
