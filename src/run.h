@@ -262,12 +262,12 @@ double compute_std(double avg, double *T, int n)
 #define SEARCH_FUNC_NAME "internal_search"
 
 /*
- * Loads the names of algos to run from a text file (e.g. selected_algos).
+ * Loads the names of algos to run from a text file (e.g. selected_algos), and sorts them.
  */
 int load_algo_names_from_file(char algo_names[][STR_BUF], const char *filename)
 {
     FILE *algo_file = fopen(filename, "r");
-    int num_running = read_all_lines(algo_file, algo_names);
+    int num_running = read_all_lines(algo_file, algo_names, MAX_SELECT_ALGOS);
     fclose(algo_file);
     qsort(algo_names, num_running, sizeof(char) * STR_BUF, str_compare);
     return num_running;
