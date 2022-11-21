@@ -169,10 +169,10 @@ int read_all_lines_in_selected_algo_file(const smart_config_t *smart_config, cha
  * Adds all shared object files found in the path to filenames, starting from the current_index of filenames.
  * Returns the number of filenames added.
  */
-int add_shared_objects(const char *path, char filenames[][MAX_PATH_LENGTH], int current_index)
+int add_matching_files(const char *path, const char *pattern, char filenames[][MAX_PATH_LENGTH], int current_index)
 {
     regex_t filename_filter;
-    regcomp(&filename_filter, ".so$", REG_EXTENDED);
+    regcomp(&filename_filter, pattern, REG_EXTENDED);
     int num_added = add_filenames_in_path(path, filenames, current_index, &filename_filter);
     regfree(&filename_filter);
 
@@ -188,7 +188,8 @@ int find_selectable_algos(char filenames[][MAX_PATH_LENGTH], const smart_config_
     int num_selectable_algos = 0;
     for (int i = 0; i < smart_config->num_algo_search_paths; i++)
     {
-        num_selectable_algos += add_shared_objects(smart_config->smart_algo_search_paths[i], filenames, num_selectable_algos);
+        num_selectable_algos += add_matching_files(smart_config->smart_algo_search_paths[i], ".so$", filenames,
+                                                   num_selectable_algos);
     }
 
     return num_selectable_algos;
@@ -279,7 +280,7 @@ void load_selected_algos(const char *load_name, const smart_config_t *smart_conf
         abort(); //TODO: error messages.
 
     copy_text_file(load_filename, selected_algo_filename);
-    printf("Copied %s over the selected algorithms file.", load_name);
+    printf("Copied %s over the selected algorithms file.\n", load_name);
 }
 
 /*
@@ -298,6 +299,25 @@ void save_selected_algos(const char *save_name, const smart_config_t *smart_conf
 
     copy_text_file(selected_algo_filename, save_filename);
     printf("Saved current selected algorithms as %s\n", save_name);
+}
+
+void list_saved_algos(const smart_config_t *smart_config)
+{
+    char algo_files[MAX_SELECT_ALGOS][MAX_PATH_LENGTH];
+    int num_files = add_matching_files( smart_config->smart_config_dir, "[.]algos$", algo_files, 0);
+    if (num_files > 0)
+    {
+        printf("Saved algorithm sets are:\n");
+        for (int i = 0; i < num_files; i++)
+        {
+            trim_suffix(algo_files[i], ".algos");
+            printf("%s\n", algo_files[i]);
+        }
+    }
+    else
+    {
+        printf("No saved algo files found at: %s\n", smart_config->smart_config_dir);
+    }
 }
 
 /*
@@ -425,6 +445,11 @@ int exec_select(select_command_opts_t *opts, const smart_config_t *smart_config)
         case SAVE:
         {
             save_selected_algos(opts->algos[0], smart_config);
+            break;
+        }
+        case LIST_SAVE:
+        {
+            list_saved_algos(smart_config);
             break;
         }
         case ADD:
