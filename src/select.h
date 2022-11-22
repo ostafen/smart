@@ -27,8 +27,6 @@
 #include "utils.h"
 #include "regex.h"
 
-#define SELECTED_ALGOS_FILENAME "selected_algos"
-
 static const char *ALGO_COLUMN_FORMAT = "%-18s ";
 static const int ALGO_NUM_COLUMNS = 6;
 
@@ -280,7 +278,7 @@ void load_selected_algos(const char *load_name, const smart_config_t *smart_conf
         abort(); //TODO: error messages.
 
     copy_text_file(load_filename, selected_algo_filename);
-    printf("Copied %s over the selected algorithms file.\n", load_name);
+    printf("Copied %s over the selected algorithms file in %s.\n", load_name, smart_config->smart_config_dir);
 }
 
 /*
@@ -298,7 +296,7 @@ void save_selected_algos(const char *save_name, const smart_config_t *smart_conf
         abort(); //TODO: error messages.
 
     copy_text_file(selected_algo_filename, save_filename);
-    printf("Saved current selected algorithms as %s\n", save_name);
+    printf("Saved current selected algorithms as %s.algos in %s\n", save_name, smart_config->smart_config_dir);
 }
 
 void list_saved_algos(const smart_config_t *smart_config)
@@ -307,7 +305,7 @@ void list_saved_algos(const smart_config_t *smart_config)
     int num_files = add_matching_files( smart_config->smart_config_dir, "[.]algos$", algo_files, 0);
     if (num_files > 0)
     {
-        printf("Saved algorithm sets are:\n");
+        printf("Saved algorithm sets in %s:\n", smart_config->smart_config_dir);
         for (int i = 0; i < num_files; i++)
         {
             trim_suffix(algo_files[i], ".algos");
