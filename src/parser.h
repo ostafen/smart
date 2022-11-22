@@ -81,6 +81,8 @@ static char *const OPTION_SHORT_LOAD = "-l";
 static char *const OPTION_LONG_LOAD = "--load";
 static char *const OPTION_SHORT_SAVE = "-s";
 static char *const OPTION_LONG_SAVE = "--save";
+static char *const OPTION_SHORT_LIST_SAVE = "-ls";
+static char *const OPTION_LONG_LIST_SAVE = "--list-saved";
 
 static char *const OPTION_SHORT_HELP = "-h";
 static char *const OPTION_LONG_HELP = "--help";
@@ -92,7 +94,7 @@ typedef struct smart_opts
     void *opts;
 } smart_subcommand_t;
 
-enum select_command_type {ADD, REMOVE, SHOW_SELECTED, SHOW_ALL, LOAD, SAVE, DESELECT_ALL, NO_COMMAND};
+enum select_command_type {ADD, REMOVE, SHOW_SELECTED, SHOW_ALL, LOAD, SAVE, LIST_SAVE, DESELECT_ALL, NO_COMMAND};
 
 typedef struct select_command_opts
 {
@@ -198,16 +200,17 @@ void print_select_usage_and_exit(const char *command)
 {
     print_logo();
 
-    printf("\n usage: %s select [algo1, algo2, ...] [ -a | -r | -sa | -ss | -n | -l | -s | -h]\n\n", command);
+    printf("\n usage: %s select [algo1, algo2, ...] [ -a | -r | -sa | -ss | -n | -l | -s | -ls | -h ]\n\n", command);
 
     print_help_line("add the list of specified algorithms to the set.  Algorithm names are specified as POSIX extended regular expressions.", OPTION_SHORT_ADD, OPTION_LONG_ADD, "algo...");
     print_help_line("remove the list of specified algorithms to the set.  Algorithm names are specified as POSIX extended regular expressions.", OPTION_SHORT_REMOVE, OPTION_LONG_REMOVE, "algo...");
     print_help_line("clears all selected algorithms", OPTION_SHORT_NO_ALGOS, OPTION_LONG_NO_ALGOS, "");
     print_help_line("saves the current selected algorithm set with name N.  This copies the selected_algos file to a new file N.algos.", OPTION_SHORT_SAVE, OPTION_LONG_SAVE, "N");
     print_help_line("loads a previously saved set of algorithms with name N.  This overwrites the selected_algos file with the contents of N.algos.", OPTION_SHORT_LOAD, OPTION_LONG_LOAD, "N");
-    print_help_line("shows the list of all algorithms", OPTION_SHORT_SHOW_ALL, OPTION_LONG_SHOW_ALL, "");
-    print_help_line("shows the list of all selected algorithms", OPTION_SHORT_SHOW_SELECTED, OPTION_LONG_SHOW_SELECTED, "");
-    print_help_line("gives this help list", OPTION_SHORT_HELP, OPTION_LONG_HELP, "");
+    print_help_line("lists previously saved selected algorithm sets in the config folder.", OPTION_SHORT_LIST_SAVE, OPTION_LONG_LIST_SAVE, "");
+    print_help_line("shows the list of all algorithms.", OPTION_SHORT_SHOW_ALL, OPTION_LONG_SHOW_ALL, "");
+    print_help_line("shows the list of all selected algorithms.", OPTION_SHORT_SHOW_SELECTED, OPTION_LONG_SHOW_SELECTED, "");
+    print_help_line("gives this help list.", OPTION_SHORT_HELP, OPTION_LONG_HELP, "");
     printf("\n\n");
 
     exit(0);
@@ -526,7 +529,7 @@ int is_flag_argument(const char *arg)
 
 int select_command_has_params(enum select_command_type select_command)
 {
-    return select_command == ADD || select_command == REMOVE;
+    return select_command == ADD || select_command == REMOVE || select_command == LOAD || select_command == SAVE;
 }
 
 void parse_select_args(int argc, const char **argv, smart_subcommand_t *subcommand)
@@ -567,6 +570,10 @@ void parse_select_args(int argc, const char **argv, smart_subcommand_t *subcomma
         else if (!strcmpany(argv[i], 2, OPTION_SHORT_SAVE, OPTION_LONG_SAVE))
         {
             opts->select_command = SAVE;
+        }
+        else if (!strcmpany(argv[i], 2, OPTION_SHORT_LIST_SAVE, OPTION_LONG_LIST_SAVE))
+        {
+            opts->select_command = LIST_SAVE;
         }
         else if (!strcmpany(argv[i], 2, OPTION_SHORT_HELP, OPTION_LONG_HELP))
         {

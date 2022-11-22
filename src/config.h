@@ -19,6 +19,38 @@
 #ifndef SMART_CONFIG_H
 #define SMART_CONFIG_H
 
+/*
+ * This unit defines the file paths that smart uses to locate the files it needs.
+ * The default folder structure of smart is as follows, assuming a "smart" parent folder:
+ *
+ * smart/bin         location of the smart executable file
+ * smart/bin/algos   location of the compiled algorithm shared objects.
+ * smart/data        location of built-in data to search with.
+ * smart/config      location of config files, such as which algorithms are selected and saved algorithm sets.
+ * smart/results     location where smart writes out results by default.
+ *
+ * smart will first obtain the location of the running executable.
+ * The smart folder, and smart bin folder itself can be called anything, as all other paths are determined relative
+ * to that location, assuming the structure above.
+ *
+ * All the paths above (except the smart/bin folder determined at runtime) can be configured be setting
+ * the appropriate environment variable.  If set, it will override the structure above for that item.
+ *
+ * smart/bin/algos  SMART_ALGO_DIR
+ * smart/data       SMART_DATA_DIR
+ * smart/config     SMART_CONFIG_DIR
+ * smart/results    SMART_RESULTS_DIR
+ *
+ * You can also configure additional search paths for data and algorithms that smart will use to locate them.
+ * These are unix-style search paths, with each path separated by a colon :
+ *
+ * Data                        SMART_DATA_SEARCH_PATHS
+ * Algorithm shared objects    SMART_ALGO_SEARCH_PATHS
+ *
+ * Search paths are set in addition to the paths smart sets for data or algos, so any default path (or path set by
+ * environment variable) will still be searched as well as any paths defined in the search path environment variable.
+ */
+
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -35,6 +67,7 @@
 #define SMART_ALGO_DIR_DEFAULT "algos"
 #define SMART_RESULTS_PATH_DEFAULT "results"
 #define SMART_CONFIG_PATH_DEFAULT "config"
+#define SELECTED_ALGOS_FILENAME "selected_algos"
 
 /*
  * Environment variable names to configure directories and search paths.
