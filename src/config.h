@@ -29,9 +29,9 @@
  * smart/config      location of config files, such as which algorithms are selected and saved algorithm sets.
  * smart/results     location where smart writes out results by default.
  *
- * If not configured otherwise by environment variables, smart will first obtain the location of the running
- * executable.  The smart bin folder itself can be called anything, as all other paths are determined relative
- * to that location assuming the structure above.
+ * smart will first obtain the location of the running executable.
+ * The smart folder, and smart bin folder itself can be called anything, as all other paths are determined relative
+ * to that location, assuming the structure above.
  *
  * All the paths above (except the smart/bin folder determined at runtime) can be configured be setting
  * the appropriate environment variable.  If set, it will override the structure above for that item.
