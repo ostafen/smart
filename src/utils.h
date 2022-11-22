@@ -209,20 +209,24 @@ int copy_text_file(const char *source_filename, const char *destination_filename
         {
             char *line = NULL;
             size_t len;
-
-            int k = 0;
             while ((getline(&line, &len, src)) != -1)
             {
-                fprintf(dst, "%s\n", line);
+                fprintf(dst, "%s", line);
             }
 
             if (line != NULL)
                 free(line);
         }
+        else
+        {
+            printf("WARN\tCould not open destination file for writing: %s\n", destination_filename);
+            return -1;
+        }
     }
     else
     {
-        //TODO: error message here?  return -1?
+        printf("WARN\tCould not open source file for reading: %s\n", source_filename);
+        return -1;
     }
 
     return 0;
