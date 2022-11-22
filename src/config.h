@@ -35,6 +35,7 @@
 #define SMART_ALGO_DIR_DEFAULT "algos"
 #define SMART_RESULTS_PATH_DEFAULT "results"
 #define SMART_CONFIG_PATH_DEFAULT "config"
+#define SELECTED_ALGOS_FILENAME "selected_algos"
 
 /*
  * Environment variable names to configure directories and search paths.
