@@ -200,7 +200,7 @@ void print_select_usage_and_exit(const char *command)
 {
     print_logo();
 
-    printf("\n usage: %s select [algo1, algo2, ...] [ -a | -r | -sa | -ss | -n | -l | -s | -h]\n\n", command);
+    printf("\n usage: %s select [algo1, algo2, ...] [ -a | -r | -sa | -ss | -n | -l | -s | -ls | -h ]\n\n", command);
 
     print_help_line("add the list of specified algorithms to the set.  Algorithm names are specified as POSIX extended regular expressions.", OPTION_SHORT_ADD, OPTION_LONG_ADD, "algo...");
     print_help_line("remove the list of specified algorithms to the set.  Algorithm names are specified as POSIX extended regular expressions.", OPTION_SHORT_REMOVE, OPTION_LONG_REMOVE, "algo...");
