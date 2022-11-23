@@ -153,7 +153,8 @@ void print_logo()
     printf("	|___/_| |_| |_|\\__,_|_|   \\__|\n");
     printf("	A String Matching Research Tool\n");
     printf("	by Math Palmer, Simone Faro, Stefano Scafiti and Thierry Lecroq\n");
-    printf("	Last Update: May 2017\n");
+    printf("\tLast Build Time: %s\n", BUILD_TIME);
+    printf("\tCommit: %s\n", COMMIT);
     printf("\n");
     printf("	If you use this tool in your research please cite the following paper:\n");
     printf("	| Simone Faro and Thierry Lecroq\n");
