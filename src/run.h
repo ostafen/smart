@@ -17,7 +17,7 @@
 #include "timer.h"
 #include "parser.h"
 
-#define SIGMA 256 // constant alphabet size
+#define SIGMA 256            // constant alphabet size
 #define NUM_PATTERNS_MAX 100 // maximum number of different pattern lengths to benchmark at one time.
 
 #define TEXT_SIZE_DEFAULT 1048576
@@ -152,7 +152,7 @@ void print_no_data_found_and_exit(const char *search_path)
     char working_dir[STR_BUF];
     if (getcwd(working_dir, STR_BUF) != 0)
     {
-       strcpy(working_dir, "(unknown)");
+        strcpy(working_dir, "(unknown)");
     }
 
     print_format_error_message_and_exit("\nERROR: No files could be found to generate the search text.\nSearch path: %s\nWorking dir: %s\n",
@@ -240,10 +240,11 @@ double compute_median_of_sorted_array(const double *T, int n)
     // if the list of doubles  has an even number of elements:
     if (n % 2 == 0)
     {
-        return (T[n/2] + T[n/2 + 1]) / 2; // return mean of n/2 and n/2+1 elements.
+        return (T[n / 2] + T[n / 2 + 1]) / 2; // return mean of n/2 and n/2+1 elements.
     }
-    else {
-        return T[(n+1)/2]; // return the element in the middle of the sorted array.
+    else
+    {
+        return T[(n + 1) / 2]; // return the element in the middle of the sorted array.
     }
 }
 
@@ -300,7 +301,7 @@ int load_algos(smart_config_t *smart_config, const char algo_names[][STR_BUF], i
             {
                 print_format_error_message_and_exit("unable to load algorithm %s\n", algo_names[i]);
             }
-            shared_object_handles[i] = (long) lib_handle;
+            shared_object_handles[i] = (long)lib_handle;
             functions[i] = search;
         }
         else
@@ -319,7 +320,7 @@ void unload_algos(int num_algos, long shared_object_handles[MAX_SELECT_ALGOS])
 {
     for (int i = 0; i < num_algos; i++)
     {
-        dlclose((void *) shared_object_handles[i]);
+        dlclose((void *)shared_object_handles[i]);
     }
 }
 
@@ -335,7 +336,13 @@ void free_pattern_matrix(unsigned char **M, int n)
         free(M[i]);
 }
 
-enum measurement_status {SUCCESS, TIMED_OUT, CANNOT_SEARCH, ERROR};
+enum measurement_status
+{
+    SUCCESS,
+    TIMED_OUT,
+    CANNOT_SEARCH,
+    ERROR
+};
 
 typedef struct algo_measurements
 {
@@ -372,13 +379,13 @@ void allocate_benchmark_results(benchmark_results_t *bench_result, int num_patte
     // For each pattern length we process, allocate space for bench_result for all the algorithms:
     for (int i = 0; i < num_pattern_lengths; i++)
     {
-        bench_result[i].algo_results = malloc(sizeof(algo_results_t) * num_algos);
+        bench_result[i].algo_results = (algo_results_t *)malloc(sizeof(algo_results_t) * num_algos);
 
-        //For each algorithm we process for a pattern length, allocate space for all the measurements it will make:
+        // For each algorithm we process for a pattern length, allocate space for all the measurements it will make:
         for (int j = 0; j < num_algos; j++)
         {
-            bench_result[i].algo_results[j].measurements.search_times = malloc(sizeof(double) * num_runs);
-            bench_result[i].algo_results[j].measurements.pre_times = malloc(sizeof(double) * num_runs);
+            bench_result[i].algo_results[j].measurements.search_times = (double *)malloc(sizeof(double) * num_runs);
+            bench_result[i].algo_results[j].measurements.pre_times = (double *)malloc(sizeof(double) * num_runs);
         }
     }
 }
@@ -441,64 +448,65 @@ void print_benchmark_res(char *output_line, const run_command_opts_t *opts, algo
 {
     switch (results->success_state)
     {
-        case SUCCESS:
+    case SUCCESS:
+    {
+        printf("\b\b\b\b\b\b\b.[OK]  ");
+        if (opts->pre)
+            snprintf(output_line, MAX_LINE_LEN, "\tmean: %.2f + [%.2f ± %.2f] ms\tmedian: %.2f + [%.2f] ms",
+                     results->statistics.mean_pre_time,
+                     results->statistics.mean_search_time,
+                     results->statistics.std_search_time,
+                     results->statistics.median_pre_time,
+                     results->statistics.median_search_time);
+        else // TODO: we are not adding pre-time to search time.  should we get rid of -pre option entirely and always report pre-time?
+            snprintf(output_line, MAX_LINE_LEN, "\tmean: [%.2f ± %.2f] ms\tmedian: %.2f ms",
+                     results->statistics.mean_search_time,
+                     results->statistics.std_search_time,
+                     results->statistics.median_search_time);
+
+        printf("%s", output_line);
+
+        if (opts->occ)
         {
-            printf("\b\b\b\b\b\b\b.[OK]  ");
             if (opts->pre)
-                snprintf(output_line, MAX_LINE_LEN,"\tmean: %.2f + [%.2f ± %.2f] ms\tmedian: %.2f + [%.2f] ms",
-                        results->statistics.mean_pre_time,
-                        results->statistics.mean_search_time,
-                        results->statistics.std_search_time,
-                        results->statistics.median_pre_time,
-                        results->statistics.median_search_time);
-            else //TODO: we are not adding pre-time to search time.  should we get rid of -pre option entirely and always report pre-time?
-                snprintf(output_line, MAX_LINE_LEN,"\tmean: [%.2f ± %.2f] ms\tmedian: %.2f ms",
-                        results->statistics.mean_search_time,
-                        results->statistics.std_search_time,
-                        results->statistics.median_search_time);
-
-            printf("%s", output_line);
-
-            if (opts->occ)
-            {
-                if (opts->pre)
-                    printf("\t\tocc \%d", results->occurrence_count);
-                else
-                    printf("\tocc \%d", results->occurrence_count);
-            }
-            printf("\n");
-            break;
+                printf("\t\tocc \%d", results->occurrence_count);
+            else
+                printf("\tocc \%d", results->occurrence_count);
         }
-        case CANNOT_SEARCH:
-        {
-            printf("\b\b\b\b\b.[--]  \n");
-            break;
-        }
-        case TIMED_OUT:
-        {
-            printf("\b\b\b\b\b\b.[OUT]  \n");
-            break;
-        }
-        case ERROR:
-        {
-            printf("\b\b\b\b\b\b\b\b.[ERROR] \n");
-            break;
-        }
+        printf("\n");
+        break;
+    }
+    case CANNOT_SEARCH:
+    {
+        printf("\b\b\b\b\b.[--]  \n");
+        break;
+    }
+    case TIMED_OUT:
+    {
+        printf("\b\b\b\b\b\b.[OUT]  \n");
+        break;
+    }
+    case ERROR:
+    {
+        printf("\b\b\b\b\b\b\b\b.[ERROR] \n");
+        break;
+    }
     }
 }
 
 int double_compare(const void *a, const void *b)
 {
-    return (*(double*)a > *(double*)b) ? 1 : (*(double*)a < *(double*)b) ? -1 : 0;
+    return (*(double *)a > *(double *)b) ? 1 : (*(double *)a < *(double *)b) ? -1
+                                                                             : 0;
 }
 
 void calculate_algo_statistics(algo_results_t *results, int num_measurements)
 {
     // Compute mean pre and search times:
-    results->statistics.mean_pre_time    = compute_average(results->measurements.pre_times, num_measurements);
+    results->statistics.mean_pre_time = compute_average(results->measurements.pre_times, num_measurements);
     results->statistics.mean_search_time = compute_average(results->measurements.search_times, num_measurements);
-    results->statistics.std_search_time  = compute_std(results->statistics.mean_search_time,
-                                                       results->measurements.search_times, num_measurements);
+    results->statistics.std_search_time = compute_std(results->statistics.mean_search_time,
+                                                      results->measurements.search_times, num_measurements);
 
     // Compute median pre and search times:
     // To calculate medians, we need to sort the arrays.   Copy them into a temp array before sorting,
@@ -512,8 +520,6 @@ void calculate_algo_statistics(algo_results_t *results, int num_measurements)
     qsort(temp, num_measurements, sizeof(double), double_compare);
     results->statistics.median_search_time = compute_median_of_sorted_array(temp, num_measurements);
 }
-
-
 
 int benchmark_algos_using_random_patterns(algo_results_t *results, const run_command_opts_t *opts, unsigned char *T, int n, unsigned char **pattern_list, int m,
                                           int num_running, char algo_names[][STR_BUF], int (**algo_functions)(unsigned char *, int, unsigned char *, int, double *, double *))
@@ -570,8 +576,8 @@ int benchmark_algos(const char *expcode, const run_command_opts_t *opts, unsigne
     allocate_benchmark_results(results, num_pattern_lengths, num_algos, opts->num_runs);
     allocate_pattern_matrix(pattern_list, opts->num_runs, sizeof(unsigned char) * (opts->pattern_max_len + 1));
 
-    //TODO: can replace this hard-coded power of two thing with configurable arithmetic or geometric progressions.
-    //      e.g. set lower bound, upper bound, operator and ratio/step - e.g. (1-16 + 1) or (2-156 * 1.5).
+    // TODO: can replace this hard-coded power of two thing with configurable arithmetic or geometric progressions.
+    //       e.g. set lower bound, upper bound, operator and ratio/step - e.g. (1-16 + 1) or (2-156 * 1.5).
     for (int m = opts->pattern_min_len, pattern_idx = 0; m <= opts->pattern_max_len; m *= 2, pattern_idx++)
     {
         gen_random_patterns(pattern_list, m, T, n, opts->num_runs);
