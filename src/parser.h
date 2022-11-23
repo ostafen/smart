@@ -39,7 +39,7 @@ static char *const OPTION_RANDOM_TEXT_SHORT = "-rt";
 static char *const OPTION_RANDOM_TEXT_LONG = "--rand-text";
 static char *const OPTION_PATTERN_LEN_SHORT = "-pl";
 static char *const OPTION_PATTERN_LEN_LONG = "--plen";
-static char *const OPTION_SEED_SHORT= "-rs";
+static char *const OPTION_SEED_SHORT = "-rs";
 static char *const OPTION_SEED_LONG = "--rand-seed";
 static char *const OPTION_SIMPLE_SHORT = "-s";
 static char *const OPTION_SIMPLE_LONG = "--simple";
@@ -47,7 +47,7 @@ static char *const OPTION_CPU_PIN_SHORT = "-pin";
 static char *const OPTION_CPU_PIN_LONG = "--pin-cpu";
 
 static char *const ERROR_PARAMS_NOT_PROVIDED = "required parameters were not provided for option %s.";
-static char *const ERROR_PARAM_NOT_INTEGER  = "parameter for option %s is not an integer: %s";
+static char *const ERROR_PARAM_NOT_INTEGER = "parameter for option %s is not an integer: %s";
 static char *const ERROR_MUTUALLY_EXCLUSIVE = "mutually exclusive options you cannot have both %s and %s.";
 static char *const ERROR_INTEGER_NOT_IN_RANGE = "parameter for option % must be between %d and %d";
 static char *const ERROR_MAX_LESS_THAN_MIN = "max parameter %d for option %s must not be less than minimum %d";
@@ -94,7 +94,18 @@ typedef struct smart_opts
     void *opts;
 } smart_subcommand_t;
 
-enum select_command_type {ADD, REMOVE, SHOW_SELECTED, SHOW_ALL, LOAD, SAVE, LIST_SAVE, DESELECT_ALL, NO_COMMAND};
+enum select_command_type
+{
+    ADD,
+    REMOVE,
+    SHOW_SELECTED,
+    SHOW_ALL,
+    LOAD,
+    SAVE,
+    LIST_SAVE,
+    DESELECT_ALL,
+    NO_COMMAND
+};
 
 typedef struct select_command_opts
 {
@@ -103,23 +114,28 @@ typedef struct select_command_opts
     int n_algos;
 } select_command_opts_t;
 
-enum data_source_type{NOT_DEFINED, FILES, RANDOM};
+enum data_source_type
+{
+    NOT_DEFINED,
+    FILES,
+    RANDOM
+};
 
 typedef struct run_command_opts
 {
-    enum data_source_type data_source;           // What type of data is to be scanned - files or random.
-    const char *data_sources[MAX_DATA_SOURCES];  // A list of files/data_sources to load data from.
-    int text_size;                               // Size of the text buffer to fill for benchmarking.
-    int alphabet_size;                           // Size of the alphabet to use when creating random texts.
+    enum data_source_type data_source;          // What type of data is to be scanned - files or random.
+    const char *data_sources[MAX_DATA_SOURCES]; // A list of files/data_sources to load data from.
+    int text_size;                              // Size of the text buffer to fill for benchmarking.
+    int alphabet_size;                          // Size of the alphabet to use when creating random texts.
     int pattern_min_len, pattern_max_len;
-    int num_runs;                                // Number of patterns of a given length to benchmark.
+    int num_runs; // Number of patterns of a given length to benchmark.
     int time_limit_millis;
-    long random_seed;                            // Random seed used to generate text or patterns.
-    const char *cpu_pinning;                     // Either auto, off or a number indicating the core to pin to.
+    long random_seed;        // Random seed used to generate text or patterns.
+    const char *cpu_pinning; // Either auto, off or a number indicating the core to pin to.
     // flags
 
     int simple,
-        fill_buffer,                             // whether to replicate data to fill up a buffer.
+        fill_buffer, // whether to replicate data to fill up a buffer.
         occ,
         txt,
         pre,
@@ -136,7 +152,7 @@ void print_logo()
     printf("	\\__ \\ | | | | | (_| | |  | |_ \n");
     printf("	|___/_| |_| |_|\\__,_|_|   \\__|\n");
     printf("	A String Matching Research Tool\n");
-    printf("	by Simone Faro, Stefano Scafiti and Thierry Lecroq\n");
+    printf("	by Math Palmer, Simone Faro, Stefano Scafiti and Thierry Lecroq\n");
     printf("	Last Update: May 2017\n");
     printf("\n");
     printf("	If you use this tool in your research please cite the following paper:\n");
@@ -162,7 +178,7 @@ void print_subcommand_usage_and_exit(const char *command)
 
 void print_help_line(const char *description, const char *short_option, const char *long_option, const char *params)
 {
-    printf("\t%-4s %-16s %-8s %s\n",short_option, long_option, params, description);
+    printf("\t%-4s %-16s %-8s %s\n", short_option, long_option, params, description);
 }
 
 void print_run_usage_and_exit(const char *command)
@@ -228,12 +244,13 @@ void print_test_usage_and_exit()
     printf("\n\n");
 }
 
-void print_error_message_and_exit(const char * message) {
+void print_error_message_and_exit(const char *message)
+{
     printf("Error in input parameters: %s\nUse -h for help.\n\n", message);
     exit(1);
 }
 
-void print_format_error_message_and_exit(const char * format, ...)
+void print_format_error_message_and_exit(const char *format, ...)
 {
     printf("Error in input parameters: ");
     va_list args;
@@ -316,7 +333,7 @@ int parse_text(run_command_opts_t *line, int curr_arg, int argc, const char **ar
     check_has_params(curr_arg + 1, argc, OPTION_TEXT_SOURCE_LONG);
 
     if (line->data_source == RANDOM)
-       print_format_error_message_and_exit(ERROR_MUTUALLY_EXCLUSIVE, OPTION_TEXT_SOURCE_LONG, OPTION_RANDOM_TEXT_LONG);
+        print_format_error_message_and_exit(ERROR_MUTUALLY_EXCLUSIVE, OPTION_TEXT_SOURCE_LONG, OPTION_RANDOM_TEXT_LONG);
 
     int name_arg = 0;
     while (name_arg < MAX_DATA_SOURCES && curr_arg + name_arg + 1 < argc && argv[curr_arg + name_arg + 1][0] != '-')
@@ -325,12 +342,14 @@ int parse_text(run_command_opts_t *line, int curr_arg, int argc, const char **ar
         name_arg++;
     }
 
-    //TODO: test that there are not more parameters after MAX_DATA_SOURCES?
+    // TODO: test that there are not more parameters after MAX_DATA_SOURCES?
 
     if (name_arg > 0)
     {
         line->data_source = FILES;
-    } else {
+    }
+    else
+    {
         print_format_error_message_and_exit(ERROR_PARAMS_NOT_PROVIDED, OPTION_TEXT_SOURCE_LONG);
     }
 
@@ -382,7 +401,8 @@ int parse_seed(run_command_opts_t *line, int curr_arg, int argc, const char **ar
     return 1;
 }
 
-int parse_cpu_pinning(run_command_opts_t *line, int curr_arg, int argc, const char **argv) {
+int parse_cpu_pinning(run_command_opts_t *line, int curr_arg, int argc, const char **argv)
+{
     check_has_params(curr_arg + 1, argc, OPTION_CPU_PIN_LONG);
 
     char param[STR_BUF];
@@ -392,7 +412,8 @@ int parse_cpu_pinning(run_command_opts_t *line, int curr_arg, int argc, const ch
     {
         line->cpu_pinning = param;
     }
-    else {
+    else
+    {
         print_format_error_message_and_exit("Incorrect parameter %s for option %s.  Must be off | last | {digit}", argv[curr_arg + 1], OPTION_CPU_PIN_LONG);
     }
 
@@ -407,7 +428,7 @@ int parse_simple(run_command_opts_t *line, int curr_arg, int argc, const char **
     check_has_params(curr_arg + 2, argc, OPTION_SIMPLE_LONG);
     check_string_length(argv[curr_arg + 2], 1000, OPTION_SIMPLE_LONG);
 
-    //TODO: set simple search params somewhere! This only checks they are correct - doesn't record them.
+    // TODO: set simple search params somewhere! This only checks they are correct - doesn't record them.
 
     line->simple = 1;
     return 2;
@@ -442,12 +463,12 @@ int parse_flag(run_command_opts_t *line, int curr_arg, int argc, const char **ar
     }
     if (!strcmpany(argv[curr_arg], 2, FLAG_SHORT_PATTERN_LENGTHS_SHORT, FLAG_SHORT_PATTERN_LENGTHS_LONG))
     {
-        //TODO: PATT_SIZE = PATT_SHORT_SIZE;
+        // TODO: PATT_SIZE = PATT_SHORT_SIZE;
         return 1;
     }
     if (!strcmpany(argv[curr_arg], 2, FLAG_VERY_SHORT_PATTERN_LENGTHS_SHORT, FLAG_VERY_SHORT_PATTERN_LENGTHS_LONG))
     {
-        //TODO: PATT_SIZE = PATT_VERY_SHORT;
+        // TODO: PATT_SIZE = PATT_VERY_SHORT;
         return 1;
     }
     if (!strcmpany(argv[curr_arg], 2, FLAG_FILL_BUFFER_SHORT, FLAG_FILL_BUFFER_LONG))
@@ -519,7 +540,7 @@ void parse_run_args(int argc, const char **argv, smart_subcommand_t *subcommand)
 void parse_test_args(int argc, const char **argv, smart_subcommand_t *subcommand)
 {
     print_test_usage_and_exit();
-    //TODO: parse test.
+    // TODO: parse test.
 }
 
 int is_flag_argument(const char *arg)
