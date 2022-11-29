@@ -28,15 +28,85 @@
 #include <time.h>
 #include <regex.h>
 
-#define STR_BUF 512
-#define MAX_FILE_LINES 2048
-#define MAX_PATH_LENGTH 2048
+#include "defines.h"
 
+/*
+ * Prints the smart logo.
+ */
+void print_logo()
+{
+    printf("                                \n");
+    printf("	                          _   \n");
+    printf("	 ___ _ __ ___   __ _ _ __| |_ \n");
+    printf("	/ __|  _   _ \\ / _  |  __| __|\n");
+    printf("	\\__ \\ | | | | | (_| | |  | |_ \n");
+    printf("	|___/_| |_| |_|\\__,_|_|   \\__|\n");
+    printf("	A String Matching Research Tool\n");
+    printf("	by Simone Faro, Stefano Scafiti and Thierry Lecroq\n");
+    printf("	Last Update: May 2017\n");
+    printf("\n");
+    printf("	If you use this tool in your research please cite the following paper:\n");
+    printf("	| Simone Faro and Thierry Lecroq\n");
+    printf("	| The Exact Online String Matching Problem: a Review of the Most Recent Results\n");
+    printf("	| ACM Computing Surveys, Vol. 45(2): p.13 (2013)\n");
+    printf(" ");
+}
+
+/*
+ * Prints a formatted message and then exits with return code 1.
+ */
+void print_format_error_message_and_exit(const char * format, ...)
+{
+    va_list args;
+    va_start(args, format);
+    vprintf(format, args);
+    va_end(args);
+    exit(1);
+}
+
+/*
+ * Prints a standard formatted warning message.
+ */
+void warn(const char * format, ...)
+{
+    printf("\tWARN:\t");
+    va_list args;
+    va_start(args, format);
+    vprintf(format, args);
+    va_end(args);
+    printf("\n");
+}
+
+/*
+ * Sets the random seed for this run, and prints a message showing the seed.
+ */
+void set_random_seed(const long random_seed)
+{
+    srand(random_seed);
+    printf("\n\tSetting random seed to %ld.  Use -seed %ld if you need to rerun identically.\n",
+           random_seed, random_seed);
+}
+
+/*
+ * Compares a double with another double.
+ */
+static int double_compare(const void *a, const void *b)
+{
+    return (*(double*)a > *(double*)b) ? 1 : (*(double*)a < *(double*)b) ? -1 : 0;
+}
+
+/*
+ * Compares a string with another string.
+ */
 static int str_compare(const void *str1, const void *str2)
 {
 	return strcmp(str1, str2);
 }
 
+/*
+ * Compares a list of strings with s to see if any match.
+ * Returns 0 if it finds a match to any of the list, or -1 if it doesn't.
+ */
 int strcmpany(const char *s, int n, ...)
 {
     int result = -1;
@@ -57,17 +127,17 @@ int strcmpany(const char *s, int n, ...)
     return result;
 }
 
+/*
+ * Returns 1 if the string has the suffix, and 0 if not.
+ */
 int has_suffix(const char *s, const char *suffix)
 {
 	return !strcmp(s + strlen(s) - strlen(suffix), suffix);
 }
 
-void trim_suffix(char *s, const char *suffix)
-{
-	if (has_suffix(s, suffix))
-		s[strlen(s) - strlen(suffix)] = '\0';
-}
-
+/*
+ * Trims whitespace from the end of a string, modifies string memory in-place.
+ */
 int trim_str(char *s)
 {
 	long pos = strlen(s) - 1;
@@ -103,6 +173,9 @@ int is_int(const char *s)
 	return 1;
 }
 
+/*
+ * Converts string s to lower case.
+ */
 char *str2lower(char *s)
 {
 	long n = strlen(s) - 1;
@@ -115,6 +188,9 @@ char *str2lower(char *s)
 	return s;
 }
 
+/*
+ * Converts string s to upper case.
+ */
 char *str2upper(char *s)
 {
 	long n = strlen(s) - 1;
@@ -127,6 +203,40 @@ char *str2upper(char *s)
 	return s;
 }
 
+/*
+ * Sets the upper_case algo name to an upper case version of the source.
+ */
+void set_upper_case_algo_name(char upper_case[ALGO_NAME_LEN], const char source[ALGO_NAME_LEN])
+{
+    snprintf(upper_case, ALGO_NAME_LEN, "%s", source);
+    str2upper(upper_case);
+}
+
+/*
+ * Sets the lower case algo name to a lower case version of the source.
+ */
+void set_lower_case_algo_name(char lower_case[ALGO_NAME_LEN], const char source[ALGO_NAME_LEN])
+{
+    snprintf(lower_case, ALGO_NAME_LEN, "%s", source);
+    str2lower(lower_case);
+}
+
+/*
+ * Builds the full path given a path (with no trailing /) and a filename.
+ * If the length of both exceeds the max path length, an error message is printed and the program exits.
+ */
+void set_full_path(char fullname[MAX_PATH_LENGTH], const char *path, const char *filename)
+{
+    if (snprintf(fullname, MAX_PATH_LENGTH, "%s/%s", path, filename) > MAX_PATH_LENGTH)
+    {
+        print_format_error_message_and_exit("Full path exceeds max path length of %d\n%s/%s",
+                                            MAX_PATH_LENGTH, path, filename);
+    }
+}
+
+/*
+ * Sets a time string using the time string format.
+ */
 void set_time_string(char *time_string, int size, const char * time_format)
 {
     time_t date_timer;
@@ -136,120 +246,98 @@ void set_time_string(char *time_string, int size, const char * time_format)
     strftime(time_string, size, time_format, tm_info);
 }
 
-int split_filename(const char *filename, char list_of_filenames[500][50])
+/*
+ * Prints a message followed by the time.
+ */
+void print_time_message(const char *message)
 {
-	int i, j, k;
-	i = j = k = 0;
-	size_t m = strlen(filename);
-	while (i < m)
-	{
-		while (filename[i] != '-' && i < m)
-		{
-			list_of_filenames[k][j++] = filename[i];
-			i++;
-		}
-		list_of_filenames[k][j] = '\0';
-		if (filename[i] == '-')
-		{
-			k++;
-			j = 0;
-			i++;
-		}
-	}
-	return (k + 1);
+    char time_format[26];
+    set_time_string(time_format, 26, "%Y:%m:%d %H:%M:%S");
+    printf("%s %s\n", message, time_format);
 }
 
-int read_all_lines(FILE *fp, char output[][STR_BUF], int max_lines)
+/*
+ * Loads an individual file given in filename into a buffer, up to a max size of n.
+ * Returns the number of characters read from the file.
+ */
+int load_text_buffer(const char *filename, unsigned char *buffer, int n)
 {
-	char *line = NULL;
-	size_t len;
+    FILE *input = fopen(filename, "r");
+    if (input == NULL)
+        return -1;
 
-	int k = 0;
-	while (k < max_lines && (getline(&line, &len, fp)) != -1)
-	{
-		trim_str(line);
-        if (strlen(line) > 0)
+    int i = 0, c;
+    while (i < n && (c = getc(input)) != EOF)
+        buffer[i++] = c;
+
+    fclose(input);
+    return i;
+}
+
+/*
+ * Empties the file passed in.
+ */
+void empty_file(char *filename)
+{
+    FILE *fp = fopen(filename, "w");
+    if (fp != NULL) {
+
+        if (ftruncate(fileno(fp), 0))
         {
-            strcpy(output[k++], line);
+            printf("error while truncating the file: %s\n", filename);
         }
-	}
+        else
+        {
+            printf("Cleared file: %s\n", filename);
+        }
+
+        fclose(fp);
+    }
+}
+
+/*
+ * Loads the names of algo_names to run from a text file (e.g. selected_algos).
+ * Valid names can be no longer than ALGO_NAME_LEN.
+ */
+int read_valid_algo_names_from_filename(char lines[][ALGO_NAME_LEN], const char *filename, int max_lines)
+{
+    FILE *algo_file = fopen(filename, "r");
+
+    char *line = NULL;
+    size_t len;
+
+    int num_lines = 0;
+    while (num_lines < max_lines && (getline(&line, &len, algo_file)) != -1)
+    {
+        trim_str(line);
+        unsigned long length = strlen(line);
+        if (length > ALGO_NAME_LEN)
+        {
+            warn("Ignoring algorithm '%s' as the length exceeds the maximum name length: %d", line, ALGO_NAME_LEN);
+        }
+        else if (length > 0)
+        {
+            strcpy(lines[num_lines++], line);
+        }
+    }
 
     if (line != NULL)
         free(line);
 
-	return k;
+    fclose(algo_file);
+
+    return num_lines;
 }
 
 /*
- * Writes out the selected_algos file with the lines provided.
+ * Returns the file mode of the file or directory passed in.
  */
-void write_lines_to_file(const char **lines, int num_lines, const char *file_name)
-{
-    char tmp_file_name[MAX_PATH_LENGTH];
-    snprintf(tmp_file_name, MAX_PATH_LENGTH, "%s%s", file_name, ".tmp");
-
-    FILE *tmp_fp = fopen(tmp_file_name, "w");
-    for (int i = 0; i < num_lines; i++)
-    {
-        fprintf(tmp_fp, "%s\n", lines[i]);
-    }
-    fclose(tmp_fp);
-
-    rename(tmp_file_name, file_name);
-    remove(tmp_file_name);
-}
-
-int copy_text_file(const char *source_filename, const char *destination_filename)
-{
-    FILE *src = fopen(source_filename, "r");
-    if (src != NULL)
-    {
-        FILE *dst = fopen(destination_filename, "w");
-        if (dst != NULL)
-        {
-            char *line = NULL;
-            size_t len;
-            while ((getline(&line, &len, src)) != -1)
-            {
-                fprintf(dst, "%s", line);
-            }
-
-            if (line != NULL)
-                free(line);
-        }
-        else
-        {
-            printf("WARN\tCould not open destination file for writing: %s\n", destination_filename);
-            return -1;
-        }
-    }
-    else
-    {
-        printf("WARN\tCould not open source file for reading: %s\n", source_filename);
-        return -1;
-    }
-
-    return 0;
-}
-
-
 __mode_t get_file_mode(const char *path)
 {
     struct stat st;
     if (stat(path, &st) < 0)
         return 0;
     return st.st_mode;
-}
-
-/*
- * Returns the size of the file given in path.
- */
-size_t fsize(const char *path)
-{
-    struct stat st;
-    if (stat(path, &st) < 0)
-        return -1;
-    return st.st_size;
 }
 
 /*
@@ -264,7 +352,7 @@ int locate_file_path(char valid_path[MAX_PATH_LENGTH], const char *filename, con
 
     for (int path = 0; path < num_search_paths; path++)
     {
-        long len = strlen(search_paths[path]);
+        unsigned long len = strlen(search_paths[path]);
         if (len + strlen(filename) < MAX_PATH_LENGTH - 1) {
 
             // check to see if search path already terminates with /
@@ -283,13 +371,13 @@ int locate_file_path(char valid_path[MAX_PATH_LENGTH], const char *filename, con
         }
         else
         {
-            printf("\tWARN\tLength of search path %s and filename %s exceeds maximum file path length - ignoring search path.\n",
+            warn("Length of search path %s and filename %s exceeds maximum file path length - ignoring search path.",
                    search_paths[path], filename);
         }
     }
 
     // ensure that valid path does not end with a /
-    long path_len = strlen(valid_path);
+    unsigned long path_len = strlen(valid_path);
     if (path_len > 0 && valid_path[path_len - 1] == '/')
     {
         valid_path[path_len - 1] = '\0';
@@ -298,13 +386,18 @@ int locate_file_path(char valid_path[MAX_PATH_LENGTH], const char *filename, con
     return valid_path[0] != '\0';
 }
 
+/*
+ * Adds all the files that exist in the path into filenames, with the full path provided, up to a maximum number of files.
+ * Starts adding files at the filename_index provided.
+ * Returns the number of files added.
+ */
 int add_filenames_in_dir(const char *path, char filenames[][MAX_PATH_LENGTH], int filename_index, int max_files){
     DIR *dir = opendir(path);
     if (dir != NULL) {
 
         char full_path[MAX_PATH_LENGTH];
         strcpy(full_path, path);
-        long path_len = strlen(path);
+        unsigned long path_len = strlen(path);
         full_path[path_len++] = '/';
         full_path[path_len] = '\0';
 
@@ -313,7 +406,7 @@ int add_filenames_in_dir(const char *path, char filenames[][MAX_PATH_LENGTH], in
         {
             if (entry->d_type == DT_REG)
             {
-                long entry_len = strlen(entry->d_name);
+                unsigned long entry_len = strlen(entry->d_name);
                 if (path_len + entry_len < MAX_PATH_LENGTH)
                 {
                     strcpy(full_path + path_len, entry->d_name);
@@ -321,7 +414,7 @@ int add_filenames_in_dir(const char *path, char filenames[][MAX_PATH_LENGTH], in
                 }
                 else
                 {
-                    printf("\tWARN\tFile %s and path %s exceed maximum path length %d - cannot process.",
+                    warn("File %s and path %s exceed maximum path length %d - cannot process.",
                            entry->d_name, full_path, MAX_PATH_LENGTH);
                 }
             }
@@ -333,28 +426,85 @@ int add_filenames_in_dir(const char *path, char filenames[][MAX_PATH_LENGTH], in
     return filename_index;
 }
 
-int matches(const char *pattern, regex_t *regex)
+/*
+ * Returns true if there is no regex to match, or if the regex matches the text.
+ */
+int matches(const char *text_to_match, regex_t *regex)
 {
-    return regex == NULL || regexec(regex, pattern, 0, NULL, 0) == 0;
+    return regex == NULL || regexec(regex, text_to_match, 0, NULL, 0) == 0;
 }
 
 /*
- * Lists all the filenames in the path and places them in filenames, starting from the current index.
- * If you want to restrict the filenames, you can supply a regex to match the ones you want.  If it is NULL then no filtering is done.
- * Returns the number of filenames added to filenames.
+ * Compiles algorithm name regular expressions into an array of regex_t compiled expressions.
+ * It adds an anchor to the start and end of each regex, so the whole regex must match the entire algorithm name.
  */
-int add_filenames_in_path(const char *path, char filenames[][MAX_PATH_LENGTH], int current_index, regex_t *filename_filter)
+int compile_algo_name_regexes(regex_t *expressions[], const char * const algo_names[], int n_algos)
+{
+    for (int i = 0; i < n_algos; i++)
+    {
+        unsigned long length = strlen(algo_names[i]);
+        char anchored_expression[length + 3];
+        anchored_expression[0] = '^'; // anchor to start of string.
+        memcpy(anchored_expression + 1, algo_names[i], length);
+        anchored_expression[length + 1] = '$'; //anchor to end of string.
+        anchored_expression[length + 2] = '\0';
+
+        if (regcomp(expressions[i], anchored_expression, REG_ICASE | REG_EXTENDED) != 0)
+        {
+            print_format_error_message_and_exit("Could not compile regular expression %s", algo_names[i]);
+        }
+    }
+
+    return 0;
+}
+
+/*
+ * Frees memory in an array of regexes.
+ */
+void free_regexes(regex_t *expressions[], int num_expressions)
+{
+    for (int i = 0; i < num_expressions; i++)
+        regfree(expressions[i]);
+}
+
+/*
+ * Returns true if any of the regular expressions match the string provided.
+ */
+int regexes_match(regex_t *expressions[], int n_expressions, const char *string)
+{
+    for (int i = 0; i < n_expressions; i++)
+    {
+        if (regexec(expressions[i], string, 0, NULL, 0) == 0)
+        {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+/*
+ * Lists all the filenames in the path with the given suffix, and places them in filenames, stripping out the suffix,
+ * starting from the current index.
+ */
+int add_and_trim_filenames_with_suffix(char filenames[][ALGO_NAME_LEN], const char *path, int current_index, const char *suffix)
 {
     int num_file_names = 0;
     DIR *dir = opendir(path);
+
     if (dir != NULL)
     {
+        const unsigned long suffix_len = strlen(suffix);
         struct dirent *entry;
         while ((entry = readdir(dir)) != NULL)
         {
-            if (entry->d_type == DT_REG && matches(entry->d_name, filename_filter))
+            if (entry->d_type == DT_REG && has_suffix(entry->d_name, suffix))
             {
-                strcpy(filenames[current_index + num_file_names++], entry->d_name);
+                unsigned long filename_len = strlen(entry->d_name);
+                if (filename_len - suffix_len > 0) {
+                    strncpy(filenames[current_index + num_file_names], entry->d_name, filename_len - suffix_len);
+                    num_file_names++;
+                }
             }
         }
 
@@ -364,37 +514,20 @@ int add_filenames_in_path(const char *path, char filenames[][MAX_PATH_LENGTH], i
     return num_file_names;
 }
 
-int list_dir(const char *path, char filenames[][MAX_PATH_LENGTH], int f_type, int include_path)
+/*
+ * Finds files with a given suffix in a list of paths, and adds them to the filenames
+ */
+int add_and_trim_filenames_with_suffix_in_paths(char filenames[][ALGO_NAME_LEN], const char *suffix,
+                                                const int num_search_paths, const char search_paths[][MAX_PATH_LENGTH])
 {
-	DIR *dir = opendir(path);
-	if (dir == NULL)
-		return -1;
+    int num_files = 0;
+    for (int i = 0; i < num_search_paths; i++)
+    {
+        num_files += add_and_trim_filenames_with_suffix(filenames, search_paths[i], num_files, suffix);
+    }
 
-	int n = 0;
-	struct dirent *entry;
-	while ((entry = readdir(dir)) != NULL)
-	{
-		if (entry->d_type == f_type)
-		{
-			// TODO: extract function join_path();
-			char full_path[MAX_PATH_LENGTH];
-			memset(full_path, 0, sizeof(char) * MAX_PATH_LENGTH);
-
-			if (include_path)
-			{
-				strcat(full_path, path);
-				strcat(full_path, "/");
-			}
-			strcat(full_path, entry->d_name);
-
-			strcpy(filenames[n++], full_path);
-		}
-	}
-
-	if (closedir(dir) < 0)
-		return -1;
-
-	return n;
+    return num_files;
 }
+
 
 #endif
