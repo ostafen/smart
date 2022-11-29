@@ -20,6 +20,7 @@
 #ifndef UTILS_H
 #define UTILS_H
 
+#include <stdio.h>
 #include <dirent.h>
 #include <strings.h>
 #include <sys/stat.h>
