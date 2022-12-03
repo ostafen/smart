@@ -16,21 +16,28 @@
  * contact the authors at: faro@dmi.unict.it and thierry.lecroq@univ-rouen.fr
  * download the tool at: http://www.dmi.unict.it/~faro/smart/
  */
-#define _GNU_SOURCE // Must be defined as the first include of the program to enable use of CPU pinning macros.
+#if defined __linux__
+#define _GNU_SOURCE // Must be defined as the first include of the program to enable use of GNU CPU pinning macros on linux.
+#endif
 
 #include "config.h"
+#include "commands.h"
 #include "parser.h"
 #include "select.h"
 #include "run.h"
+#include "test.h"
 
 int main(int argc, const char *argv[])
 {
-	smart_config_t smart_config;
+	// Initialise all the file paths, process environment variables and any other config required for smart to run.
+    smart_config_t smart_config;
     init_config(&smart_config);
 
+    // Parse the arguments into a valid subcommand with its associated parameters.
     smart_subcommand_t subcommand;
 	parse_args(argc, argv, &subcommand);
 
+    // Execute the appropriate subcommand:
 	if (!strcmp(subcommand.subcommand, SELECT_COMMAND))
 	{
 		exec_select((select_command_opts_t *)subcommand.opts, &smart_config);
@@ -39,6 +46,14 @@ int main(int argc, const char *argv[])
 	{
 		exec_run((run_command_opts_t *)subcommand.opts, &smart_config);
 	}
+    else if (!strcmp(subcommand.subcommand, TEST_COMMAND))
+    {
+        exec_test((test_command_opts_t *)subcommand.opts, &smart_config);
+    }
+    else if (!strcmp(subcommand.subcommand, CONFIG_COMMAND))
+    {
+        print_config(&smart_config);
+    }
 
     exit(0);
 }
