@@ -15,7 +15,7 @@
  *
  * contact the authors at: faro@dmi.unict.it, thierry.lecroq@univ-rouen.fr
  * download the tool at: http://www.dmi.unict.it/~faro/smart/
- */
+*/
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,292 +23,101 @@
 #include <unistd.h>
 
 #include "string_set.h"
-#include "parser.h"
+#include "defines.h"
 #include "utils.h"
-#include "regex.h"
-
-static const char *ALGO_COLUMN_FORMAT = "%-18s ";
-static const int ALGO_NUM_COLUMNS = 6;
-
-/*
- * Writes the strings contained in lines up to num_lines to the current selected algorithms file.
- */
-void write_lines_to_selected_algos(const char **lines, int num_lines, const smart_config_t *smart_config)
-{
-    char selected_file_name[MAX_PATH_LENGTH];
-    snprintf(selected_file_name, MAX_PATH_LENGTH, "%s/%s", smart_config->smart_config_dir, SELECTED_ALGOS_FILENAME);
-    write_lines_to_file(lines, num_lines, selected_file_name);
-}
+#include "config.h"
+#include "parser.h"
+#include "algorithms.h"
 
 /*
- * Compiles algorithm name regular expressions into an array of regex_t compiled expressions.
- * It adds an anchor to the start and end of each regex, so the whole regex must match the entire algorithm name.
+ * Adds algorithms that match the regex algo names to the selected set.
  */
-int compile_regexes(regex_t *expressions, const char **algos, int n_algos)
+void add_algos(const char **algos, int n_algos, const smart_config_t *smart_config)
 {
-    for (int i = 0; i < n_algos; i++)
+    algo_info_t matching_algos;
+    get_all_algo_names(smart_config, &matching_algos);
+    filter_out_names_not_matching_regexes(&matching_algos, NULL, algos, n_algos);
+
+    int num_merged = 0;
+    if (matching_algos.num_algos > 0)
     {
-        int length = strlen(algos[i]);
-        char anchored_expression[length + 3];
-        anchored_expression[0] = '^'; // anchor to start of string.
-        memcpy(anchored_expression + 1, algos[i], length);
-        anchored_expression[length + 1] = '$'; //anchor to end of string.
-        anchored_expression[length + 2] = '\0';
+        algo_info_t selected_algos;
+        read_algo_names_from_file(smart_config, &selected_algos, SELECTED_ALGOS_FILENAME);
 
-        if (regcomp(&(expressions[i]), anchored_expression, REG_ICASE | REG_EXTENDED) != 0)
+        algo_info_t new_algos;
+        num_merged = merge_algorithms(&selected_algos, &matching_algos, &new_algos);
+
+        if (num_merged > 0)
         {
-            print_format_error_message_and_exit("Could not compile regular expression %s", algos[i]);
+            sort_algorithm_names(&new_algos);
+            print_algorithms_as_list("Adding algorithms ", &new_algos);
+
+            sort_algorithm_names(&selected_algos);
+            write_algo_names_to_file(smart_config, &selected_algos, SELECTED_ALGOS_FILENAME);
         }
     }
 
-    return 0;
-}
-
-/*
- * Returns true if any of the regular expressions match the string provided.
- */
-int regexes_match(regex_t *expressions, int n_expressions, const char *string)
-{
-    for (int i = 0; i < n_expressions; i++)
+    if (num_merged == 0)
     {
-        if (regexec(&(expressions[i]), string, 0, NULL, 0) == 0)
-        {
-            return 1;
-        }
+        printf("No new algorithms were found to add to the existing set.\n");
     }
-
-    return 0;
 }
 
 /*
- * Removes algorithms from the selected set, by matching to POSIX extended regular expressions.
- * Any algorithm in the selected set that matches any of the regular expressions will be removed.
+ * Removes any algorithms that match the regex algo names from the selected set.
  */
 void remove_algos(const char **algos, int n_algos, const smart_config_t *smart_config)
 {
-    char selected_algos[MAX_SELECT_ALGOS][STR_BUF];
-    char selected_algos_path[MAX_PATH_LENGTH];
-    snprintf(selected_algos_path, MAX_PATH_LENGTH, "%s/%s", smart_config->smart_config_dir, SELECTED_ALGOS_FILENAME);
+    algo_info_t selected_algos;
+    read_algo_names_from_file(smart_config, &selected_algos, SELECTED_ALGOS_FILENAME);
 
-    FILE *fp = fopen(selected_algos_path, "r");
-    if (fp != NULL)
+    algo_info_t filtered_out;
+    filter_out_names_matching_regexes(&selected_algos, &filtered_out, algos, n_algos);
+
+    if (filtered_out.num_algos > 0)
     {
-        int n_selected_algos = read_all_lines(fp, selected_algos, MAX_SELECT_ALGOS);
-        fclose(fp);
-
-        // Compile regular expressions:
-        regex_t regexes[n_algos];
-        compile_regexes(regexes, algos, n_algos);
-
-        // Find lines that don't match any of the regexes.
-        const char *remaining_selected_algos[MAX_SELECT_ALGOS];
-        int remain_count = 0;
-        int matched = 0;
-        for (int i = 0; i < n_selected_algos; i++)
-        {
-            if (!regexes_match(regexes, n_algos, selected_algos[i]))
-            {
-                remaining_selected_algos[remain_count++] = selected_algos[i];
-            } else
-            {
-                if (!matched)
-                    printf("Removing %s", selected_algos[i]);
-                else
-                    printf(", %s", selected_algos[i]);
-                matched = 1;
-            }
-        }
-
-        if (matched)
-            printf(".\n");
-
-        // If we have fewer lines that we started with, rewrite the file.
-        if (remain_count < n_selected_algos)
-        {
-            write_lines_to_selected_algos(remaining_selected_algos, remain_count, smart_config);
-        } else
-        {
-            printf("Did not find any algorithms to remove in the selected set.\n");
-        }
-
-        // Free regex memory.
-        for (int i = 0; i < n_algos; i++)
-            regfree(&(regexes[i]));
+        sort_algorithm_names(&filtered_out);
+        print_algorithms_as_list("Removing algorithms ", &filtered_out);
+        write_algo_names_to_file(smart_config, &selected_algos, SELECTED_ALGOS_FILENAME);
     }
     else
     {
-        printf("\tWARN\tCould not open selected algos file: %s\n", selected_algos_path);
+        printf("No algorithms were found to remove from the existing set.\n");
     }
-}
-
-/*
- * Returns a pointer to the selected algorithm file opened with the file_mode, or NULL if it could not be opened.
- */
-FILE *open_selected_algorithm_file(const smart_config_t *smart_config, const char *file_mode)
-{
-    char selectable_algos_filename[MAX_PATH_LENGTH];
-    snprintf(selectable_algos_filename, MAX_PATH_LENGTH, "%s/%s", smart_config->smart_config_dir, SELECTED_ALGOS_FILENAME);
-
-    return fopen(selectable_algos_filename, file_mode);
-}
-
-int read_all_lines_in_selected_algo_file(const smart_config_t *smart_config, char lines[][STR_BUF], int max_lines)
-{
-    FILE *fp = open_selected_algorithm_file(smart_config, "r");
-    int num_read = 0;
-    if (fp != NULL) {
-        num_read = read_all_lines(fp, lines, max_lines);
-        fclose(fp);
-    }
-    return num_read;
-}
-
-/*
- * Adds all shared object files found in the path to filenames, starting from the current_index of filenames.
- * Returns the number of filenames added.
- */
-int add_matching_files(const char *path, const char *pattern, char filenames[][MAX_PATH_LENGTH], int current_index)
-{
-    regex_t filename_filter;
-    regcomp(&filename_filter, pattern, REG_EXTENDED);
-    int num_added = add_filenames_in_path(path, filenames, current_index, &filename_filter);
-    regfree(&filename_filter);
-
-    return num_added;
-}
-
-/*
- * Finds selectable algorithm shared objects in all the algo search paths defined in the config.
- * Returns the number of selectable algorithms found.
- */
-int find_selectable_algos(char filenames[][MAX_PATH_LENGTH], const smart_config_t *smart_config)
-{
-    int num_selectable_algos = 0;
-    for (int i = 0; i < smart_config->num_algo_search_paths; i++)
-    {
-        num_selectable_algos += add_matching_files(smart_config->smart_algo_search_paths[i], ".so$", filenames,
-                                                   num_selectable_algos);
-    }
-
-    return num_selectable_algos;
-}
-
-int add_algos_matching_regexes_to_set(str_set_t *selected_algo_set, char filenames[][MAX_PATH_LENGTH],
-                                       int num_selectable_algos, regex_t regexes[], int num_regexes, const smart_config_t *smart_config)
-{
-    int matched = 0;
-    for (int i = 0; i < num_selectable_algos; i++)
-    {
-        trim_suffix(filenames[i], ".so");
-
-        if (regexes_match(regexes, num_regexes, filenames[i]))
-        {
-            if (!str_set_contains(selected_algo_set, filenames[i]))
-            {
-                if (!matched) {
-                    printf("Adding %s", filenames[i]);
-                } else
-                {
-                    printf(", %s", filenames[i]);
-                }
-                str_set_add(selected_algo_set, filenames[i]);
-                matched = 1;
-            }
-        }
-    }
-
-    if (matched)
-        printf(".\n");
-    else
-        printf("Did not find any new algorithms to add to the selected set.\n");
-
-    return matched;
-}
-
-void add_algos(const char **algos, int n_algos, const smart_config_t *smart_config)
-{
-    // Read all the lines in the selected algo file and add them to a set.
-    str_set_t selected_algo_set;
-    str_set_init(&selected_algo_set);
-    char lines[MAX_SELECT_ALGOS][STR_BUF];
-    int num_read = read_all_lines_in_selected_algo_file(smart_config, lines, MAX_SELECT_ALGOS);
-    for (int i = 0; i < num_read; i++) {
-        str2lower(lines[i]); //TODO: always adds as lower case - but we convert to upper case as well?  Review case handling.
-        str_set_add(&selected_algo_set, lines[i]);
-    }
-
-    // Build list of available compiled algo shared objects on all algo search paths:
-    char filenames[MAX_FILE_LINES][MAX_PATH_LENGTH];
-    int num_selectable_algos = find_selectable_algos(filenames, smart_config);
-    qsort(filenames, num_selectable_algos, sizeof(char) * MAX_PATH_LENGTH, str_compare);
-
-    // Check each compiled algorithm name against our regexes.  If they match, and we don't already have it, add it to the set.
-    regex_t regexes[n_algos];
-    compile_regexes(regexes, algos, n_algos);
-    if (add_algos_matching_regexes_to_set(&selected_algo_set, filenames, num_selectable_algos,
-                                           regexes, n_algos, smart_config))
-    {
-        // We matched some new algos - get the algos in the set, sort them, and write them out to a new selected_algos file.
-        const char *new_algos[MAX_SELECT_ALGOS];
-        int num_algos = str_set_to_array(&selected_algo_set, new_algos, MAX_SELECT_ALGOS);
-
-        //TODO: sorting not working - probably have some confusion here over pointers or something...
- //       qsort(new_algos, num_algos, sizeof(const char *), str_compare);
-
-        write_lines_to_selected_algos(new_algos, num_algos, smart_config);
-    }
-
-    // Free memory.
-    str_set_free(&selected_algo_set);
-    for (int i = 0; i < n_algos; i++)
-        regfree(&(regexes[i]));
 }
 
 /*
  * Overwrites the current selected_algos file with the contents of a new file.
  */
-void load_selected_algos(const char *load_name, const smart_config_t *smart_config)
+void write_algo_names(const char *load_name, const char *save_name, const smart_config_t *smart_config)
 {
-    char selected_algo_filename[MAX_PATH_LENGTH];
-    if (snprintf(selected_algo_filename, MAX_PATH_LENGTH, "%s/%s", smart_config->smart_config_dir, SELECTED_ALGOS_FILENAME) > MAX_PATH_LENGTH)
-        abort(); //TODO: error messages.
-
-    char load_filename[MAX_PATH_LENGTH];
-    if (snprintf(load_filename, MAX_PATH_LENGTH, "%s/%s.algos", smart_config->smart_config_dir, load_name) > MAX_PATH_LENGTH)
-        abort(); //TODO: error messages.
-
-    copy_text_file(load_filename, selected_algo_filename);
-    printf("Copied %s over the selected algorithms file in %s.\n", load_name, smart_config->smart_config_dir);
+    algo_info_t algorithms;
+    read_algo_names_from_file(smart_config, &algorithms, load_name);
+    write_algo_names_to_file(smart_config, &algorithms, save_name);
 }
 
 /*
- * Saves the selected_algos file to a new file, with an .algos extension.
- * We impose the .algos extension to prevent accidentally overwriting an important file.
+ * Empties the selected_algos file.
  */
-void save_selected_algos(const char *save_name, const smart_config_t *smart_config)
+void empty_selected_algos(const smart_config_t *smart_config)
 {
-    char selected_algo_filename[MAX_PATH_LENGTH];
-    if (snprintf(selected_algo_filename, MAX_PATH_LENGTH, "%s/%s", smart_config->smart_config_dir, SELECTED_ALGOS_FILENAME) > MAX_PATH_LENGTH)
-        abort(); //TODO: error messages.
-
-    char save_filename[MAX_PATH_LENGTH];
-    if (snprintf(save_filename, MAX_PATH_LENGTH, "%s/%s.algos", smart_config->smart_config_dir, save_name) > MAX_PATH_LENGTH)
-        abort(); //TODO: error messages.
-
-    copy_text_file(selected_algo_filename, save_filename);
-    printf("Saved current selected algorithms as %s.algos in %s\n", save_name, smart_config->smart_config_dir);
+    char fullpath[MAX_PATH_LENGTH];
+    set_full_path_or_exit(fullpath, smart_config->smart_config_dir, SELECTED_ALGOS_FILENAME);
+    empty_file(fullpath);
 }
 
+/*
+ * Prints any saved algo files in the smart config dir.
+ */
 void list_saved_algos(const smart_config_t *smart_config)
 {
-    char algo_files[MAX_SELECT_ALGOS][MAX_PATH_LENGTH];
-    int num_files = add_matching_files( smart_config->smart_config_dir, "[.]algos$", algo_files, 0);
+    char algo_files[MAX_SELECT_ALGOS][ALGO_NAME_LEN];
+    int num_files = add_and_trim_filenames_with_suffix(algo_files, smart_config->smart_config_dir, 0, ".algos");
     if (num_files > 0)
     {
         printf("Saved algorithm sets in %s:\n", smart_config->smart_config_dir);
         for (int i = 0; i < num_files; i++)
         {
-            trim_suffix(algo_files[i], ".algos");
             printf("%s\n", algo_files[i]);
         }
     }
@@ -319,97 +128,62 @@ void list_saved_algos(const smart_config_t *smart_config)
 }
 
 /*
- * Empties the selected_algos file.
+ * Prints the algorithms in the selected_algos file to the console, in a tabular format.
  */
-void empty_selected_algos(const smart_config_t *smart_config)
+void print_selected_algo_file(const smart_config_t *smart_config)
 {
-    FILE *fp = open_selected_algorithm_file(smart_config, "w");
-    if (fp != NULL) {
+    algo_info_t algorithms;
+    read_algo_names_from_file(smart_config, &algorithms, SELECTED_ALGOS_FILENAME);
 
-        if (ftruncate(fileno(fp), 0))
-        {
-            printf("error while truncating the file\n");
-        }
-        else
-        {
-            printf("Cleared selected algorithms.\n");
-        }
-
-        fclose(fp);
+    if (algorithms.num_algos > 0) {
+        sort_algorithm_names(&algorithms);
+        printf("Algorithms selected for benchmarking:\n");
+        print_algorithms_in_tabular_format(&algorithms);
+    }
+    else
+    {
+        printf("No algorithms are selected for benchmarking, looked in %s/%s\n", smart_config->smart_config_dir, SELECTED_ALGOS_FILENAME);
     }
 }
 
 /*
- * Prints the algorithms in the selected_algos file to the console, in a tabular format.
+ * Prints the algorithms in the named set file to the console, in a tabular format.
  */
-void list_selected_algo_file(const smart_config_t *smart_config)
+void print_named_set(const smart_config_t *smart_config, const char *save_name)
 {
-    FILE *fp = open_selected_algorithm_file(smart_config, "r");
-    if (fp != NULL) {
+    char filename_with_suffix[MAX_PATH_LENGTH];
+    set_filename_suffix_or_exit(filename_with_suffix, save_name, ALGO_FILENAME_SUFFIX);
 
-        char algos[MAX_SELECT_ALGOS][STR_BUF];
-        int n = read_all_lines(fp, algos, MAX_SELECT_ALGOS);
-        fclose(fp);
+    algo_info_t algorithms;
+    read_algo_names_from_file(smart_config, &algorithms, filename_with_suffix);
 
-        for (int i = 0; i <= n - ALGO_NUM_COLUMNS; i += ALGO_NUM_COLUMNS)
-        {
-            for (int j = i; j < i + ALGO_NUM_COLUMNS; j++)
-            {
-                printf(ALGO_COLUMN_FORMAT, algos[j]);
-            }
-            printf("\n");
-        }
-
-        int remaining_columns = n % ALGO_NUM_COLUMNS;
-        if (remaining_columns > 0)
-        {
-            for (int i = n - remaining_columns; i < n; i++)
-            {
-                printf(ALGO_COLUMN_FORMAT, algos[i]);
-            }
-            printf("\n");
-        }
+    if (algorithms.num_algos > 0) {
+        sort_algorithm_names(&algorithms);
+        printf("Algorithms in the named set: %s\n", filename_with_suffix);
+        print_algorithms_in_tabular_format(&algorithms);
+    }
+    else
+    {
+        printf("No algorithms could be read from: %s\n", filename_with_suffix);
     }
 }
-
 /*
  * Prints all selectable algorithm shared objects in all the algo search paths defined in the config,
  * in a tabular format.
  */
-void list_selectable_algos(const smart_config_t *smart_config) {
-    char filenames[MAX_FILE_LINES][MAX_PATH_LENGTH];
-    int num_algos = find_selectable_algos(filenames, smart_config);
+void print_selectable_algos(const smart_config_t *smart_config) {
 
-    if (num_algos > 0)
-    {
-        qsort(filenames, num_algos, sizeof(char) * MAX_PATH_LENGTH, str_compare);
+    algo_info_t algorithms;
+    get_all_algo_names(smart_config, &algorithms);
 
-        for (int i = 0; i < num_algos - ALGO_NUM_COLUMNS; i += ALGO_NUM_COLUMNS)
-        {
-            for (int j = i; j < i + ALGO_NUM_COLUMNS; j++)
-            {
-                trim_suffix(filenames[j], ".so");
-                str2upper(filenames[j]);
-                printf(ALGO_COLUMN_FORMAT, filenames[j]);
-            }
-            printf("\n");
-        }
-
-        int remaining_columns = num_algos % ALGO_NUM_COLUMNS;
-        if (remaining_columns > 0)
-        {
-            for (int i = num_algos - remaining_columns; i < num_algos; i++)
-            {
-                trim_suffix(filenames[i], ".so");
-                str2upper(filenames[i]);
-                printf(ALGO_COLUMN_FORMAT, filenames[i]);
-            }
-            printf("\n");
-        }
+    if (algorithms.num_algos > 0) {
+        sort_algorithm_names(&algorithms);
+        printf("\nAlgorithms available for benchmarking:\n");
+        print_algorithms_in_tabular_format(&algorithms);
     }
     else
     {
-        printf("\tWARN\tUnable to find algos.\n"); //TODO: improve error message.
+        printf("No algorithms could be found to benchmark.");
     }
 }
 
@@ -420,36 +194,6 @@ int exec_select(select_command_opts_t *opts, const smart_config_t *smart_config)
 {
 	switch (opts->select_command)
     {
-        case SHOW_ALL:
-        {
-            list_selectable_algos(smart_config);
-            break;
-        }
-        case SHOW_SELECTED:
-        {
-            list_selected_algo_file(smart_config);
-            break;
-        }
-        case DESELECT_ALL:
-        {
-            empty_selected_algos(smart_config);
-            break;
-        }
-        case LOAD:
-        {
-            load_selected_algos(opts->algos[0], smart_config);
-            break;
-        }
-        case SAVE:
-        {
-            save_selected_algos(opts->algos[0], smart_config);
-            break;
-        }
-        case LIST_SAVE:
-        {
-            list_saved_algos(smart_config);
-            break;
-        }
         case ADD:
         {
             add_algos(opts->algos, opts->n_algos, smart_config);
@@ -460,9 +204,47 @@ int exec_select(select_command_opts_t *opts, const smart_config_t *smart_config)
             remove_algos(opts->algos, opts->n_algos, smart_config);
             break;
         }
+        case DESELECT_ALL:
+        {
+            empty_selected_algos(smart_config);
+            break;
+        }
+        case SHOW_ALL:
+        {
+            print_selectable_algos(smart_config);
+            break;
+        }
+        case SHOW_SELECTED:
+        {
+            print_selected_algo_file(smart_config);
+            break;
+        }
+        case SHOW_NAMED: {
+            print_named_set(smart_config, opts->named_set);
+            break;
+        }
+        case LIST_NAMED:
+        {
+            list_saved_algos(smart_config);
+            break;
+        }
+        case SET_AS_DEFAULT:
+        {
+            char filename_with_suffix[MAX_PATH_LENGTH];
+            set_filename_suffix_or_exit(filename_with_suffix,opts->named_set, ALGO_FILENAME_SUFFIX);
+            write_algo_names(filename_with_suffix, SELECTED_ALGOS_FILENAME, smart_config);
+            break;
+        }
+        case SAVE_AS:
+        {
+            char filename_with_suffix[MAX_PATH_LENGTH];
+            set_filename_suffix_or_exit(filename_with_suffix, opts->named_set, ALGO_FILENAME_SUFFIX);
+            write_algo_names(SELECTED_ALGOS_FILENAME, filename_with_suffix, smart_config);
+            break;
+        }
         default:
         {
-            print_format_error_message_and_exit("Unknown select command enountered: %d", opts->select_command);
+            error_and_exit("Unknown select command enountered: %d\n", opts->select_command);
         }
     }
 
