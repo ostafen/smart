@@ -77,7 +77,7 @@ void error_and_exit(const char * format, ...)
  */
 void warn(const char * format, ...)
 {
-    printf("\n\tWARNING: ");
+    printf("\tWARNING: ");
     va_list args;
     va_start(args, format);
     vprintf(format, args);
@@ -457,6 +457,28 @@ int load_text_buffer(const char *filename, unsigned char *buffer, int n)
 
     fclose(input);
     return i;
+}
+
+
+/*
+ * Generates a random text and stores it in the buffer of size bufsize, with an alphabet of sigma.
+ * Returns the size of the random data (which will be bufsize).
+ */
+int gen_random_text(const int sigma, unsigned char *buffer, const int bufsize)
+{
+    // An alphabet of one means all symbols are the same - so just set zero.
+    if (sigma == 1)
+    {
+        memset(buffer, 0, bufsize);
+    }
+    else
+    {
+        for (int i = 0; i < bufsize; i++)
+        {
+            buffer[i] = rand() % sigma;
+        }
+    }
+    return bufsize;
 }
 
 /*

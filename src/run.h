@@ -163,29 +163,6 @@ int gen_user_data(const run_command_opts_t *opts, unsigned char *buffer)
 }
 
 /*
- * Generates a random text and stores it in the buffer of size bufsize, with an alphabet of sigma.
- * Returns the size of the random data (which will be bufsize).
- */
-int gen_random_text(const int sigma, unsigned char *buffer, const int bufsize)
-{
-    info("Generating random text with alphabet size of %d", sigma);
-
-    // An alphabet of one means all symbols are the same - so just set zero.
-    if (sigma == 1)
-    {
-        memset(buffer, 0, bufsize);
-    }
-    else
-    {
-        for (int i = 0; i < bufsize; i++)
-        {
-            buffer[i] = rand() % sigma;
-        }
-    }
-    return bufsize;
-}
-
-/*
  * Generates the patterns to use to search with.
  * If a pattern was supplied by the user, all the runs use the same pattern specified on the command line.
  * Otherwise, it builds a list of random patterns of size m by randomly extracting them from a text T of size n.
@@ -599,6 +576,7 @@ int get_text(const smart_config_t *smart_config, run_command_opts_t *opts, unsig
     {
         case DATA_SOURCE_RANDOM:
         {
+            info("Generating random text with alphabet size of %d", opts->alphabet_size);
             size = gen_random_text(opts->alphabet_size, T, opts->text_size);
             break;
         }
