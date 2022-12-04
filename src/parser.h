@@ -450,6 +450,10 @@ void parse_test_args(int argc, const char **argv, smart_subcommand_t *subcommand
         {
             opts->algo_source = SELECTED;
         }
+        else if (matches_option(param, OPTION_SHORT_VERBOSE, OPTION_LONG_VERBOSE))
+        {
+            opts->verbose = 1;
+        }
         else if (matches_option(param, OPTION_SHORT_USE_NAMED, OPTION_LONG_USE_NAMED))
         {
             curr_arg += parse_test_use_named_set(opts, curr_arg, argc, argv);

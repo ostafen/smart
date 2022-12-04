@@ -307,6 +307,8 @@ static char *const OPTION_SHORT_TEST_ALL = "-all";
 static char *const OPTION_LONG_TEST_ALL = "--all-algos";
 static char *const OPTION_SHORT_TEST_SELECTED = "-sel";
 static char *const OPTION_LONG_TEST_SELECTED = "--selected";
+static char *const OPTION_SHORT_VERBOSE = "-v";
+static char *const OPTION_LONG_VERBOSE = "--verbose";
 
 /*
  * Which set of algorithms are to be tested.
@@ -323,6 +325,7 @@ typedef struct test_command_opts
     const char *algo_names[MAX_SELECT_ALGOS];      // algo_names to test, as POSIX regular expressions.
     int num_algo_names;                            // Number of algo names recorded.
     long random_seed;                              // Random seed used to generate text or patterns.
+    int verbose;                                   // Whether to report more detailed test results.
 } test_command_opts_t;
 
 /*
@@ -334,6 +337,7 @@ void init_test_command_opts(test_command_opts_t *opts)
     opts->named_set    = NULL;
     opts->num_algo_names = 0;
     opts->random_seed  = time(NULL);   // default unless -seed option is specified.
+    opts->verbose = 0;
 }
 
 /*
@@ -343,7 +347,7 @@ void print_test_usage_and_exit(const char *command)
 {
     print_logo();
 
-    printf("\n usage: %s test [algo1, algo2, ...] | -all | -sel | -use {name} | -h\n\n", command);
+    printf("\n usage: %s test [algo1, algo2, ...] | -all | -sel | -use {name} | -v | -h\n\n", command);
 
     info("Tests a set of smart algorithms for correctness with a variety of fixed and randomized tests.");
     info("You can specify the algorithms to test directly using POSIX extended regular expressions, e.g. test hor wfr.*");
@@ -352,6 +356,7 @@ void print_test_usage_and_exit(const char *command)
     print_help_line("Tests all of the algorithms smart finds in its algo search paths.", OPTION_SHORT_TEST_ALL, OPTION_LONG_TEST_ALL, "");
     print_help_line("Tests the currently selected algorithms in addition to any algorithms specified directly.", OPTION_SHORT_TEST_SELECTED, OPTION_LONG_TEST_SELECTED, "");
     print_help_line("Tests a set of algorithms named N.algos in the config folder, in addition to any algorithms specified directly.", OPTION_SHORT_USE_NAMED, OPTION_LONG_USE_NAMED, "N");
+    print_help_line("Reports more detailed test results.", OPTION_SHORT_VERBOSE, OPTION_LONG_VERBOSE, "");
     print_help_line("Sets the random seed to integer S, ensuring tests can be precisely repeated.", OPTION_SHORT_SEED, OPTION_LONG_SEED, "S");
     print_help_line("Gives this help list.", OPTION_SHORT_HELP, OPTION_LONG_HELP, "");
 
