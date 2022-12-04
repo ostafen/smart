@@ -53,31 +53,10 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <sys/stat.h>
+
 #include "whereami.c"
+#include "defines.h"
 #include "utils.h"
-
-#define MAX_SEARCH_PATHS 32
-
-/*
- * Default directory names.
- */
-#define SMART_DATA_DIR_DEFAULT "data"
-#define SMART_ALGO_DIR_DEFAULT "algos"
-#define SMART_RESULTS_PATH_DEFAULT "results"
-#define SMART_CONFIG_PATH_DEFAULT "config"
-#define SELECTED_ALGOS_FILENAME "selected_algos"
-
-/*
- * Environment variable names to configure directories and search paths.
- */
-#define SMART_DATA_DIR_ENV "SMART_DATA_DIR"
-#define SMART_ALGO_DIR_ENV "SMART_ALGO_DIR"
-#define SMART_RESULTS_DIR_ENV "SMART_RESULTS_DIR"
-#define SMART_CONFIG_DIR_ENV "SMART_CONFIG_DIR"
-#define SMART_DATA_SEARCH_PATHS_ENV "SMART_DATA_SEARCH_PATHS"
-#define SMART_ALGO_SEARCH_PATHS_ENV "SMART_ALGO_SEARCH_PATHS"
 
 /*
  * Paths to the locations of files required by smart and search paths to locate user data or algorithms.
@@ -122,76 +101,33 @@ void init_config(smart_config_t *config)
 
 /*
  * Sets the path to the currently running SMART executable, using the whereami library to get this in a cross platform way.
+ *
+ * Usage of whereami is to first call with NULL buffer to get the size of the buffer to allocate.
+ * Then call again with allocated buffer to get the actual path.
  */
 void set_smart_exe_dir(smart_config_t *config)
 {
-    char *path = NULL;
     int length, dirname_length;
-
-    // Obtain executable path using whereami cross-platform library.
-    // Usage is you first call it with null parameters in order to get the length required to allocate a buffer.
-    // Then call it again with an appropriately sized buffer to get the actual path.
     length = wai_getExecutablePath(NULL, 0, &dirname_length);
 
-    if (length >= MAX_PATH_LENGTH) {
-        printf("\tWARN\tPath to executable is longer than max path length %d.\nYou may need to set paths to algorithms and data with environment variables.\n",
-               MAX_PATH_LENGTH);
-        config->smart_exe_dir[0] = '\0'; // no exe path obtained.
-    }
-    else {
-
-        if (length > 0) {
-            path = (char *) malloc(length + 1);
-            if (path == NULL)
-                abort();
-
-            // Call again to obtain the actual path:
-            wai_getExecutablePath(path, length, &dirname_length);
-            path[length] = '\0';
-
-            // We use length - 2 because length - 1 is the last character of the path.
-            // If the last character of the path is already a slash, we want to ignore it and find the one before that.
-            long last_slash = last_index_of_from_pos(path, '/', length - 2);
-
-            memcpy(config->smart_exe_dir, path, last_slash);
-            config->smart_exe_dir[last_slash] = '\0';
-        } else {
-            printf("\tWARN\tCould not obtain path to executable.\nYou may need to set paths to algorithms and data with environment variables.\n");
-            config->smart_exe_dir[0] = '\0'; // no exe path obtained.
-        }
-
-        if (path != NULL)
-            free(path);
-    }
-}
-
-/*
- * Appends a folder to a path of a given length and places the result in string.
- * The path_len controls how much of the given path is used up.  Normally this will be the entire path string,
- * but you can use a shorter length so that you exclude some later directories on the path.
- * Ensures that all strings can be no longer than MAX_PATH_LENGTH.
- */
-void append_folder(char *string, const char *path, long path_len, const char *folder)
-{
-    size_t folder_name_len = strlen(folder);
-    int ends_with_slash = path[path_len - 1] == '/';
-    int MAX_LEN = ends_with_slash ? MAX_PATH_LENGTH : MAX_PATH_LENGTH - 1;
-    if (path_len + folder_name_len >= MAX_LEN)
+    if (length > 0)
     {
-        printf("\tWARN\tPath to folder is longer than max path length %d:\n%s\\%s\n", MAX_PATH_LENGTH, path, folder);
-        return;
-    }
+        // Obtain the exe path, which includes the name of the executable.
+        char * path = (char *) malloc(length + 1);
+        wai_getExecutablePath(path, length, &dirname_length);
+        path[length] = STR_END_CHAR; // ensure path is fully terminated.
 
-    if (ends_with_slash)
-    {
-        memcpy(string, path, path_len);
-        strcpy(string + path_len, folder);
+        // Get the folder the exe is in by stripping back to the last /
+        char folder_without_exe_name[MAX_PATH_LENGTH];
+        set_one_folder_back_or_exit(folder_without_exe_name, path);
+        copy_path_or_exit(config->smart_exe_dir, folder_without_exe_name);
+
+        free(path);
     }
     else
     {
-        memcpy(string, path, path_len);
-        string[path_len] = '/';
-        strncpy(string + path_len + 1, folder, MAX_PATH_LENGTH);
+        warn("Could not obtain path to executable.\nYou may need to set paths to algorithms and data with environment variables.");
+        set_empty_string(config->smart_exe_dir); // no exe path obtained.  //TODO: test what happens if no exe path is obtained.
     }
 }
 
@@ -205,28 +141,26 @@ int build_search_paths(const char *default_path, const char *search_path, char s
 
     // Make the default path the first search path, if it exists.
     if (default_path != NULL) {
-        strncpy(search_paths[0], default_path, MAX_PATH_LENGTH);
-        path_count++;
+        copy_path_or_exit(search_paths[path_count++], default_path);
     }
 
     // Now add in any other search paths in the search path string, separated by :
     if (search_path != NULL)
     {
-        const char path_delimitter = ':';
         size_t pathlen = strlen(search_path);
         char tokenised_search_path[pathlen + 1];
         strcpy(tokenised_search_path, search_path);
 
-        char *path = strtok(tokenised_search_path, &path_delimitter);
+        char *path = strtok(tokenised_search_path, SEARCH_PATH_DELIMITER);
         while (path != NULL && path_count < MAX_SEARCH_PATHS) {
-            strcpy(search_paths[path_count++], path);
-            path = strtok(NULL, &path_delimitter);
+            copy_path_or_exit(search_paths[path_count++], path);
+            path = strtok(NULL, SEARCH_PATH_DELIMITER);
         }
 
         if (path_count >= MAX_SEARCH_PATHS && path != NULL)
         {
-            printf("\tWARN\tMaximum number %d of %c separated search paths exceeded; ignoring any subsequent paths in:\n\t\t\t%s\n",
-                   MAX_SEARCH_PATHS, path_delimitter, search_path);
+            warn("Maximum number %d of %c delimited search paths exceeded; ignoring subsequent paths in:\n%s",
+                 MAX_SEARCH_PATHS, SEARCH_PATH_DELIMITER, search_path);
         }
     }
 
@@ -234,55 +168,59 @@ int build_search_paths(const char *default_path, const char *search_path, char s
 }
 
 /*
- * Copies a path from src to dst, ensuring it is not longer than the MAX_PATH_LENGTH.
- * If it is longer than MAX_PATH_LENGTH, a warning message will be printed, and the string will be truncated
- * to MAX_PATH_LENGTH.
- */
-void copy_path(char *dst, const char *src)
-{
-    size_t len = strlen(src);
-    if (len >= MAX_PATH_LENGTH)
-    {
-        printf("\tWARN\tPath is longer than max path length:\n%s\n", src);
-    }
-
-    strncpy(dst, src, MAX_PATH_LENGTH);
-}
-
-/*
- * Sets a string to be either (1) the value of an environment variable if it is defined,
- * or (2) a path consisting of a root folder up to some length followed by a folder name.
- */
-void set_env_var_or_default(char *string, const char *env_var_name, const char *root_folder, long root_path_len, const char *sub_folder)
-{
-    const char * env_var = getenv(env_var_name);
-    if (env_var == NULL)
-    {
-        append_folder(string, root_folder, root_path_len, sub_folder);
-    }
-    else
-    {
-        copy_path(string, env_var);
-    }
-}
-
-/*
- * Checks whether a path exists or not, and prints a warning message if it does not.
+ * Checks whether a path is accessible or not, and prints a warning message if it does not.
  * It attempts to use the current working directory instead in that case.
- * Returns true if the file exists (1) and false (0) if it does not.
+ * If it can't fall back to the current working directory, it makes the path empty.
  */
-int check_exists_use_working_dir(char path[MAX_PATH_LENGTH], const char *description)
+void fallback_to_working_dir_if_not_accessible(char path[MAX_PATH_LENGTH], const char *description)
 {
-    int result = access(path, F_OK);
-    if (result != 0)
+    if (access(path, F_OK) != 0)
     {
-        printf("\tWARN\tFile path for %s is not accessible:\t%s\n", description, path);
+        warn("File path for %s files is not accessible:\t%s", description, path);
+
         if (getcwd(path, MAX_PATH_LENGTH) != NULL)
         {
-            printf("\t\t\tUsing the current working directory for %s files:\t%s\n", description, path);
+            warn("Using the current working directory for %s files:\t%s", description, path);
+        }
+        else
+        {
+            warn("Could not obtain current working directory for %s files, empty dir used.", description);
+            set_empty_string(path);
         }
     }
-    return result == 0;
+}
+
+/*
+ * Sets the smart algo dir where the built shared objects of algorithms distributed with SMART are stored.
+ * In order of precedence, this will be:
+ * 1) A folder set by the environment variable SMART_ALGO_DIR.
+ * 2) A default "/algos" folder, existing as a subfolder of the folder where the executable lives, i.e. /bin/algos
+ *
+ * This does not fall back to the current working directory if it is not accessible.  It is not likely that the algo
+ * shared objects will be found there if the other directories are not accessible.
+ *
+ * Operations that involve looking at the algo shared objects (listing, benchmarking and testing) will not succeed.
+ */
+void set_smart_algo_dir(smart_config_t *config)
+{
+    char default_path[MAX_PATH_LENGTH];
+    set_full_path_or_exit(default_path, config->smart_exe_dir, SMART_ALGO_DIR_DEFAULT);
+    set_env_var_or_default(config->smart_algo_dir, SMART_ALGO_DIR_ENV, default_path);
+}
+
+/*
+ * Sets a path from an environment variable if set, or by setting as a peer folder of another.
+ */
+void set_path_from_env_var_or_peer_folder(char *path_to_set, const char *env_var_name, const char *peer_folder, const char *folder_name, const char *description)
+{
+    char one_folder_back[MAX_PATH_LENGTH];
+    set_one_folder_back_or_exit(one_folder_back, peer_folder);
+
+    char default_path[MAX_PATH_LENGTH];
+    set_full_path_or_exit(default_path, one_folder_back, folder_name);
+
+    set_env_var_or_default(path_to_set, env_var_name, default_path);
+    fallback_to_working_dir_if_not_accessible(path_to_set, description);
 }
 
 /*
@@ -294,10 +232,8 @@ int check_exists_use_working_dir(char path[MAX_PATH_LENGTH], const char *descrip
  */
 void set_smart_config_dir(smart_config_t *config)
 {
-    long root_path_len = strlen(config->smart_exe_dir);
-    long last_slash = last_index_of_from_pos(config->smart_exe_dir, '/', root_path_len - 2);
-    set_env_var_or_default(config->smart_config_dir, SMART_CONFIG_DIR_ENV, config->smart_exe_dir, last_slash, SMART_CONFIG_PATH_DEFAULT);
-    check_exists_use_working_dir(config->smart_config_dir, "config");
+    set_path_from_env_var_or_peer_folder(config->smart_config_dir, SMART_CONFIG_DIR_ENV,
+                                         config->smart_exe_dir, SMART_CONFIG_PATH_DEFAULT, "config");
 }
 
 /*
@@ -309,22 +245,8 @@ void set_smart_config_dir(smart_config_t *config)
  */
 void set_smart_results_dir(smart_config_t *config)
 {
-    long root_path_len = strlen(config->smart_exe_dir);
-    long last_slash = last_index_of_from_pos(config->smart_exe_dir, '/', root_path_len - 2);
-    set_env_var_or_default(config->smart_results_dir, SMART_RESULTS_DIR_ENV, config->smart_exe_dir, last_slash, SMART_RESULTS_PATH_DEFAULT);
-    check_exists_use_working_dir(config->smart_results_dir, "results");
-}
-
-/*
- * Sets the smart algo dir where the built shared objects of algorithms distributed with SMART are stored.
- * In order of precedence, this will be:
- * 1) A folder set by the environment variable SMART_ALGO_DIR.
- * 2) A default "/algos" folder, existing as a subfolder of the folder where the executable lives, i.e. /bin/algos
- */
-void set_smart_algo_dir(smart_config_t *config)
-{
-    long root_path_len = strlen(config->smart_exe_dir);
-    set_env_var_or_default(config->smart_algo_dir, SMART_ALGO_DIR_ENV, config->smart_exe_dir, root_path_len, SMART_ALGO_DIR_DEFAULT);
+    set_path_from_env_var_or_peer_folder(config->smart_results_dir, SMART_RESULTS_DIR_ENV,
+                                         config->smart_exe_dir, SMART_RESULTS_PATH_DEFAULT, "results");
 }
 
 /*
@@ -335,9 +257,8 @@ void set_smart_algo_dir(smart_config_t *config)
  */
 void set_smart_data_dir(smart_config_t *config)
 {
-    long root_path_len = strlen(config->smart_exe_dir);
-    long last_slash = last_index_of_from_pos(config->smart_exe_dir, '/', root_path_len - 2);
-    set_env_var_or_default(config->smart_data_dir, SMART_DATA_DIR_ENV, config->smart_exe_dir, last_slash, SMART_DATA_DIR_DEFAULT);
+    set_path_from_env_var_or_peer_folder(config->smart_data_dir, SMART_DATA_DIR_ENV,
+                                         config->smart_exe_dir, SMART_DATA_DIR_DEFAULT, "data");
 }
 
 /*
@@ -352,7 +273,7 @@ void set_smart_data_search_paths(smart_config_t *config)
 }
 
 /*
- * Builds a list of search paths for algos, given the smart algo dir folder (set by set_smart_algo_dir), and
+ * Builds a list of search paths for algo_names, given the smart algo dir folder (set by set_smart_algo_dir), and
  * the environment variable SMART_ALGO_SEARCH_PATHS, which is a : delimited string containing multiple paths to search in.
  */
 void set_smart_algo_search_paths(smart_config_t *config)
@@ -361,5 +282,36 @@ void set_smart_algo_search_paths(smart_config_t *config)
                                                        getenv(SMART_ALGO_SEARCH_PATHS_ENV),
                                                        config->smart_algo_search_paths);
 }
+
+/*
+ * Prints the smart configuration values.
+ */
+void print_config(smart_config_t *config)
+{
+    print_logo();
+
+    printf("\nPaths determined:\n\n");
+
+    print_name_value("Executable path:", config->smart_exe_dir, COL_WIDTH);
+    print_name_value("Config path:", config->smart_config_dir, COL_WIDTH);
+    print_name_value("Results path:", config->smart_results_dir, COL_WIDTH);
+    print_list_of_paths("Algorithm path(s):", config->smart_algo_search_paths,
+                        config->num_algo_search_paths, COL_WIDTH);
+    print_list_of_paths("Data path(s)", config->smart_data_search_paths,
+                        config->num_data_search_paths, COL_WIDTH);
+    print_file_and_access("Selected algorithms file:", config->smart_config_dir, SELECTED_ALGOS_FILENAME, COL_WIDTH);
+
+    printf("\nEnvironment variables:\n\n");
+
+    print_env_var(SMART_CONFIG_DIR_ENV, COL_WIDTH);
+    print_env_var(SMART_ALGO_DIR_ENV, COL_WIDTH);
+    print_env_var(SMART_RESULTS_DIR_ENV, COL_WIDTH);
+    print_env_var(SMART_ALGO_SEARCH_PATHS_ENV, COL_WIDTH);
+    print_env_var(SMART_DATA_SEARCH_PATHS_ENV, COL_WIDTH);
+
+    printf("\n");
+}
+
+
 
 #endif //SMART_CONFIG_H

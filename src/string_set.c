@@ -28,6 +28,7 @@ int str_set_contains_hash(str_set_t *set, const char *s, uint16_t hash)
         if (strcmp(curr->s, s) == 0)
             return 1;
     }
+
     return 0;
 }
 
@@ -42,6 +43,8 @@ int str_set_add(str_set_t *set, const char *s)
     node->s = s;
     set->buckets[hash] = node;
     set->size++;
+
+    return 1;
 }
 
 int str_set_contains(str_set_t *set, const char *s)
@@ -62,6 +65,7 @@ int str_set_to_array(str_set_t *set, const char *array[], int max_size)
             curr = curr->next;
         }
     }
+
     return num_added;
 }
 

@@ -3,7 +3,11 @@ SRC_DIR=src
 
 ALGO_DIR=algos
 
-CFLAGS=-O3 -lm -msse4 -ldl
+# Release CFLAGS.
+CFLAGS=-O3 -lm -msse4 -ldl -Wno-format-truncation
+
+# Debug CFLAGS.
+#CFLAGS=-O1 -lm -msse4 -ldl -g -gdwarf-2 -Wno-format-truncation
 
 BIN_DIR=bin
 
