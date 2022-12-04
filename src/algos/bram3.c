@@ -12,6 +12,9 @@ int search(unsigned char *x, int m, unsigned char *y, int n)
 {
     uint16_t c;
 
+    if (m<Q)
+        return -1;
+
     BEGIN_PREPROCESSING
     int F[DSIGMA], L[DSIGMA];
     for (int i = 0; i < DSIGMA; i++)
