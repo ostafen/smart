@@ -59,7 +59,7 @@ int preSimon(unsigned char *x, int m, List L[]) {
    int i, k, ell;
    List cell;
  
-   memset(L, 0, (m - 2)*sizeof(List));
+   memset(L, 0, (m - 1)*sizeof(List));
    ell = -1;
    for (i = 1; i < m; ++i) {
       k = ell;
