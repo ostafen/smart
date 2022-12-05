@@ -38,7 +38,7 @@ int search(unsigned char *x, int m, unsigned char *y, int n)
 	int i, j, k, mq1=m-Q+1, B[ASIZE];
 	unsigned int D, ch, mask=AMASK;
 	if(m <= Q) return -1;
-	if((WORD*8) < Q) abort();
+	if((WORD*8) < Q) return -1;
 	if(ASIZE > BSIZE)	return -1;
 	
 	/* Preprocessing */
