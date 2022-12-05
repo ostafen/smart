@@ -110,7 +110,8 @@ int search2(unsigned char* pattern, int patlen, unsigned char* x, int textlen)
         text++;
     }
     //now we are at the beginning of the last 16-byte block, perform naive check
-    for(j=16*(textlen/16);j<textlen;j++)
+    k = 16*(textlen/16) == 0 ? 1 : 16*(textlen/16);
+    for(j=k;j<textlen;j++)
         cnt += ((x[j-1]==firstch) && (x[j]==lastch));
     END_SEARCHING
     return cnt;
@@ -155,7 +156,8 @@ carry0 = j & 0x0000C000;
         text++;
     }
     //now we are at the beginning of the last 16-byte block, perform naive check
-    for (j=16*(textlen/16);j<textlen;j++)
+    k = 16*(textlen/16) == 0 ? 2 : 16*(textlen/16);
+    for (j=k;j<textlen;j++)
         cnt += ((x[j-2]==pattern[0]) && (x[j-1]==pattern[1]) && (x[j]==pattern[2]));
     END_SEARCHING
     
