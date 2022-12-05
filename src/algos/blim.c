@@ -25,16 +25,15 @@
 
 #include "include/define.h"
 #include "include/main.h"
-#define MAXWSIZE (XSIZE + WORD)
 
 int search(unsigned char* x, int m, unsigned char* y, int n)
 {
    int i,j,k,count;
    unsigned int   wsize = WORD - 1 + m;
-   unsigned long* M = (unsigned long*)malloc(sizeof(unsigned long)*SIGMA * MAXWSIZE);
+   unsigned long* M = (unsigned long*)malloc(sizeof(unsigned long)*SIGMA * (m + WORD));
    unsigned long  tmp, F;
-   unsigned int   ScanOrder[XSIZE];
-   unsigned int   MScanOrder[XSIZE];
+   unsigned int   ScanOrder[wsize];
+   unsigned int   MScanOrder[wsize];
    unsigned int*  so  = ScanOrder;
    unsigned int*  mso = MScanOrder;
    unsigned int   shift[SIGMA];
@@ -82,6 +81,7 @@ int search(unsigned char* x, int m, unsigned char* y, int n)
       i+=shift[y[i+wsize]];
       F = M[MScanOrder[0]+y[i+ScanOrder[0]]] & M[MScanOrder[1]+y[i+ScanOrder[1]]];
    }
+   free(M);
    END_SEARCHING
    return count;
 }
