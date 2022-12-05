@@ -25,14 +25,12 @@
 #include "include/define.h"
 #include "include/main.h"
 
-#define DSIGMA 65536
+#define DSIGMA 2048 // Max returned by HS = 255 + (255*4) = 1275
 #define HS(x,i) (x[i]<<2) + x[i+1]
 #define Q 2
 
 int search(unsigned char *x, int m, unsigned char *y, int n) {
-	unsigned int B[DSIGMA];
 	int i, j, k, count;
-    unsigned int s,d;
     if(m<Q) return -1;
     
     BEGIN_PREPROCESSING
