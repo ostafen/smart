@@ -21,7 +21,7 @@
 #include "include/main.h"
 #include "include/AUTOMATON.h"
 
-#define DSIGMA 16380
+#define DSIGMA 21700 // max index given HS = 255 + (255 * 4) + (255 * 16) + (255 * 64) = 21675
 #define HS(x,i) (x[i]<<6) + (x[i+1]<<4) +  (x[i+2]<<2) + x[i+3]
 #define Q 4
 
