@@ -347,7 +347,7 @@ void print_test_usage_and_exit(const char *command)
 {
     print_logo();
 
-    printf("\n usage: %s test [algo1, algo2, ...] | -all | -sel | -use {name} | -v | -h\n\n", command);
+    printf("\n usage: %s test [algo1, algo2, ...] | -all | -sel | -use {name} | -v | | -rs | -h\n\n", command);
 
     info("Tests a set of smart algorithms for correctness with a variety of fixed and randomized tests.");
     info("You can specify the algorithms to test directly using POSIX extended regular expressions, e.g. test hor wfr.*");

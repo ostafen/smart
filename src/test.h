@@ -200,16 +200,16 @@ int get_random_pattern_from_text(unsigned char pattern[TEST_PATTERN_MAX_LEN], un
     return pat_len;
 }
 
-void run_random_test(test_results_info_t *test_results, unsigned char *pattern, int m, unsigned char *T,
+int run_random_test(test_results_info_t *test_results, unsigned char *pattern, int m, unsigned char *T,
                      const char *test_description, int sigma)
 {
-    if (!test_algo(pattern, m, T, TEST_TEXT_SIZE, test_results) && test_results->opts->verbose)
+    int passed = test_algo(pattern, m, T, TEST_TEXT_SIZE, test_results);
+    if (!passed && test_results->opts->verbose)
     {
-        info("\t%s failed on %s tests in random text of alphabet %d, failed with pattern length %d",
-             test_results->algo_name, test_description, sigma, m);
-
-        return; // do not test more if we are logging verbosely.  info to reproduce has been printed.
+        info("\t%s failed on %s tests in random text of alphabet %d, failed with pattern length %d, random seed: %ld",
+             test_results->algo_name, test_description, sigma, m, test_results->opts->random_seed);
     }
+    return passed;
 }
 
 void run_random_tests(test_results_info_t *test_results, unsigned char *T)
@@ -222,30 +222,37 @@ void run_random_tests(test_results_info_t *test_results, unsigned char *T)
         gen_random_text(sigma, T, TEST_TEXT_SIZE);
         unsigned char pattern[TEST_PATTERN_MAX_LEN];
 
+        int passed = 1;
+
         // Test random patterns extracted from the text:
         for (int test_no = 1; test_no <= NUM_RANDOM_PATTERN_TESTS; test_no++)
         {
             // Test pattern which exists in the text:
             int m = get_random_pattern_from_text(pattern, T);
-            run_random_test(test_results, pattern, m, T, "random text", sigma);
+            passed &= run_random_test(test_results, pattern, m, T, "random positions", sigma);
 
             // Test pattern which may not exist in the text but only modifies the first character:
             pattern[0] ^= pattern[0];
-            run_random_test(test_results, pattern, m, T, "random text", sigma);
+            passed &= run_random_test(test_results, pattern, m, T, "first char modified", sigma);
         }
 
         // Test short patterns from start of text:
         for (int pat_len = 1; pat_len < 16; pat_len++)
         {
             memcpy(pattern, T, pat_len);
-            run_random_test(test_results, pattern, pat_len, T, "short patterns at the start", sigma);
+            passed &= run_random_test(test_results, pattern, pat_len, T, "patterns at the start", sigma);
         }
 
         // Test short patterns at end of text:
         for (int pat_len = 1; pat_len < 16; pat_len++)
         {
             memcpy(pattern, T + TEST_TEXT_SIZE - pat_len, pat_len);
-            run_random_test(test_results, pattern, pat_len, T, "short patterns at the end", sigma);
+            passed &= run_random_test(test_results, pattern, pat_len, T, "patterns at the end", sigma);
+        }
+
+        if (!passed)
+        {
+            break; // don't test more alphabets if we have failures in this one.
         }
     }
 }
@@ -278,7 +285,7 @@ void print_test_results(test_results_info_t *test_results)
     }
     else
     {
-        info("Tested  %-*s [ERROR] Some passed               (%d/%d)", ALGO_NAME_LEN, test_results->algo_name,
+        info("Tested  %-*s [ERROR] Some failed               (%d/%d)", ALGO_NAME_LEN, test_results->algo_name,
              test_results->num_passed, test_results->num_tests);
     }
     if (test_results->opts->verbose)

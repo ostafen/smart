@@ -58,9 +58,9 @@
 /*
  * Test defaults
  */
-#define TEST_TEXT_SIZE 8192              // size of text buffer for testing.
-#define TEST_PATTERN_MAX_LEN 2048        // max length of random patterns to use when testing.
-#define NUM_RANDOM_PATTERN_TESTS 8       // number of different random patterns to test for each algo and alphabet size.
+#define TEST_TEXT_SIZE 8192               // size of text buffer for testing.
+#define TEST_PATTERN_MAX_LEN 2048         // max length of random patterns to use when testing.
+#define NUM_RANDOM_PATTERN_TESTS 16       // number of different random patterns to test for each algo and alphabet size.
 
 /*
  * Console output formatting defines.

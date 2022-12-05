@@ -209,7 +209,7 @@ void set_one_folder_back_or_exit(char one_folder_back[MAX_PATH_LENGTH], const ch
 void set_random_seed(const long random_seed)
 {
     srand(random_seed);
-    info("\n\tSetting random seed to %ld.  Use -seed %ld if you need to rerun identically.\n",
+    info("\n\tSetting random seed to %ld.  Use -rs %ld if you need to rerun identically.\n",
            random_seed, random_seed);
 }
 
