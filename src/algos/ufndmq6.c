@@ -55,7 +55,7 @@ int search(unsigned char *x, int m, unsigned char *y, int n) {
          i += m;
          D = (D<<m) | GRAM6(i);
       }
-      if (F=~(D|mask)) {
+      if ((F=~(D|mask))) {
          for (k=i-mq+1; F; F<<=1, k++)
             if (F >= mm) {
                for (j=0; j<m; j++)
@@ -73,7 +73,6 @@ int search(unsigned char *x, int m, unsigned char *y, int n) {
       i += q;
       D = (D<<q) | GRAM6(i);
    }
-   abort();
 }
 
 /*
@@ -130,5 +129,4 @@ int search_large(unsigned char *x, int m, unsigned char *y, int n) {
       i += q;
       D = (D<<q) | GRAM6(i);
    }
-   abort();
 }

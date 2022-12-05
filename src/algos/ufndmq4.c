@@ -73,7 +73,6 @@ int search(unsigned char *x, int m, unsigned char *y, int n) {
       i += q;
       D = (D<<q) | GRAM4(i);
    }
-   abort();  
 }
 
 /*
@@ -132,5 +131,4 @@ int search_large(unsigned char *x, int m, unsigned char *y, int n)
       i += q;
       D = (D<<q) | GRAM4(i);
    }
-   abort();
 }
