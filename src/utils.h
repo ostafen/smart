@@ -666,7 +666,7 @@ void compile_algo_name_regexes(regex_t *expressions[], const char * const algo_n
         anchored_expression[length + 1] = '$'; //anchor to end of string.
         anchored_expression[length + 2] = STR_END_CHAR; // terminate string.
 
-        expressions[i] = malloc(sizeof(regex_t *));
+        expressions[i] = malloc(sizeof(regex_t));
         if (regcomp(expressions[i], anchored_expression, REG_ICASE | REG_EXTENDED) != 0)
         {
             error_and_exit("Could not compile regular expression %s\n\t\tCheck the POSIX extended regex syntax.", algo_names[i]);
