@@ -11,90 +11,13 @@
 typedef struct test_results_info
 {
     const test_command_opts_t *opts;
-    const char *algo_name;
+    char algo_name[ALGO_NAME_LEN];
     search_function *search_func;
     int num_tests;
     int num_passed;
     int last_expected_count;
     int last_actual_count;
 } test_results_info_t;
-
-/*
- // 12) search for rand in rand
- for (h = 0; h < 10; h++)
-     T[h] = rand() % 128;
- for (h = 0; h < 4; h++)
-     P[h] = T[h];
- T[YSIZE] = P[4] = '\0';
- if (!attempt(&rip, count, P, 4, T, 10, algoname, pkey, tkey, rkey, ekey, prekey, alpha, parameter, 12))
-     exit(1);
-
- // 13) search for rand in rand
- for (h = 0; h < 10; h++)
-     T[h] = rand() % 128;
- for (h = 0; h < 4; h++)
-     P[h] = T[h];
- T[10] = P[4] = '\0';
- if (!attempt(&rip, count, P, 4, T, 10, algoname, pkey, tkey, rkey, ekey, prekey, alpha, parameter, 13))
-     exit(1);
-
- // 14) search for rand in rand
- for (h = 0; h < 64; h++)
-     T[h] = rand() % 128;
- for (h = 0; h < 40; h++)
-     P[h] = T[h];
- T[64] = P[40] = '\0';
- if (!attempt(&rip, count, P, 40, T, 64, algoname, pkey, tkey, rkey, ekey, prekey, alpha, parameter, 14))
-     exit(1);
-
- // 15) search for rand in rand
- for (h = 0; h < 64; h++)
-     T[h] = rand() % 128;
- for (h = 0; h < 40; h++)
-     P[h] = T[h];
- T[64] = P[40] = '\0';
- if (!attempt(&rip, count, P, 40, T, 64, algoname, pkey, tkey, rkey, ekey, prekey, alpha, parameter, 15))
-     exit(1);
-*/
-
-/*
-// 16) search for rand in rand
-for (h = 0; h < 64; h++)
-    T[h] = 'a';
-for (h = 0; h < 40; h++)
-    P[h] = 'a';
-T[64] = P[40] = '\0';
-if (!attempt(&rip, count, P, 40, T, 64, algoname, pkey, tkey, rkey, ekey, prekey, alpha, parameter, 16))
-    exit(1);
-
-// 17) search for rand in rand
-for (h = 0; h < 64; h += 2)
-    T[h] = 'a';
-for (h = 1; h < 64; h += 2)
-    T[h] = 'b';
-for (h = 0; h < 40; h += 2)
-    P[h] = 'a';
-for (h = 1; h < 40; h += 2)
-    P[h] = 'b';
-T[64] = P[40] = '\0';
-if (!attempt(&rip, count, P, 40, T, 64, algoname, pkey, tkey, rkey, ekey, prekey, alpha, parameter, 17))
-    exit(1);
-
-// 18) search for rand in rand
-for (h = 0; h < 64; h += 2)
-    T[h] = 'a';
-for (h = 1; h < 64; h += 2)
-    T[h] = 'b';
-for (h = 0; h < 40; h += 2)
-    P[h] = 'a';
-for (h = 1; h < 40; h += 2)
-    P[h] = 'b';
-P[39] = 'c';
-T[64] = P[40] = '\0';
-if (!attempt(&rip, count, P, 40, T, 64, algoname, pkey, tkey, rkey, ekey, prekey, alpha, parameter, 18))
-    exit(1);
-
-*/
 
 /* the brute force algorithm used for comparing occurrences */
 int brute_force_search(const unsigned char *x, int m, const unsigned char *y, int n)
@@ -258,7 +181,7 @@ void run_random_tests(test_results_info_t *test_results, unsigned char *T)
 void init_test_results(test_results_info_t *results, const test_command_opts_t *opts,
                        const char *algo_name, search_function *search_func)
 {
-    results->algo_name = algo_name;
+    set_upper_case_algo_name(results->algo_name, algo_name);
     results->search_func = search_func;
     results->num_tests = 0;
     results->num_passed = 0;
@@ -382,6 +305,7 @@ void run_tests(const smart_config_t *smart_config, const test_command_opts_t *op
     algo_info_t algorithms;
     get_algonames_to_test(&algorithms, opts, smart_config);
     load_algo_shared_libraries(smart_config, &algorithms);
+    print_algorithms_as_list("\tTesting ", &algorithms);
 
     print_time_message("Algorithm correctness tests started at:");
 
@@ -414,169 +338,5 @@ int exec_test(const test_command_opts_t *test_opts, const smart_config_t *smart_
 {
     init_and_run_tests(test_opts, smart_config);
 }
-/*
-int main(int argc, char *argv[])
-{
-
-    // begin testing
-    int rip = 0;
-    int alpha, k, h, m, occur1, occur2, test = 1;
 
 
-    // 1) search for "a" in "aaaaaaaaaa"
-    strcpy((char *)P, "a");
-    strcpy((char *)T, "aaaaaaaaaa");
-    if (!attempt(&rip, count, P, 1, T, 10, algoname, pkey, tkey, rkey, ekey, prekey, alpha, parameter, 1))
-        exit(1);
-
-    // 2) search for "aa" in "aaaaaaaaaa"
-    strcpy((char *)P, "aa");
-    strcpy((char *)T, "aaaaaaaaaa");
-    if (!attempt(&rip, count, P, 2, T, 10, algoname, pkey, tkey, rkey, ekey, prekey, alpha, parameter, 2))
-        exit(1);
-
-    // 3) search for "aaaaaaaaaa" in "aaaaaaaaaa"
-    strcpy((char *)P, "aaaaaaaaaa");
-    strcpy((char *)T, "aaaaaaaaaa");
-    if (!attempt(&rip, count, P, 10, T, 10, algoname, pkey, tkey, rkey, ekey, prekey, alpha, parameter, 3))
-        exit(1);
-
-    // 4) search for "b" in "aaaaaaaaaa"
-    strcpy((char *)P, "b");
-    strcpy((char *)T, "aaaaaaaaaa");
-    if (!attempt(&rip, count, P, 1, T, 10, algoname, pkey, tkey, rkey, ekey, prekey, alpha, parameter, 4))
-        exit(1);
-
-    // 5) search for "abab" in "ababababab"
-    strcpy((char *)P, "ab");
-    strcpy((char *)T, "ababababab");
-    if (!attempt(&rip, count, P, 2, T, 10, algoname, pkey, tkey, rkey, ekey, prekey, alpha, parameter, 5))
-        exit(1);
-
-    // 6) search for "a" in "ababababab"
-    strcpy((char *)P, "a");
-    strcpy((char *)T, "ababababab");
-    if (!attempt(&rip, count, P, 1, T, 10, algoname, pkey, tkey, rkey, ekey, prekey, alpha, parameter, 6))
-        exit(1);
-
-    // 7) search for "aba" in "ababababab"
-    strcpy((char *)P, "aba");
-    strcpy((char *)T, "ababababab");
-    if (!attempt(&rip, count, P, 3, T, 10, algoname, pkey, tkey, rkey, ekey, prekey, alpha, parameter, 7))
-        exit(1);
-
-    // 8) search for "abc" in "ababababab"
-    strcpy((char *)P, "abc");
-    strcpy((char *)T, "ababababab");
-    if (!attempt(&rip, count, P, 3, T, 10, algoname, pkey, tkey, rkey, ekey, prekey, alpha, parameter, 8))
-        exit(1);
-
-    // 9) search for "ba" in "ababababab"
-    strcpy((char *)P, "ba");
-    strcpy((char *)T, "ababababab");
-    if (!attempt(&rip, count, P, 2, T, 10, algoname, pkey, tkey, rkey, ekey, prekey, alpha, parameter, 8))
-        exit(1);
-
-    // 10) search for "babbbbb" in "ababababab"
-    strcpy((char *)P, "babbbbb");
-    strcpy((char *)T, "ababababab");
-    if (!attempt(&rip, count, P, 7, T, 10, algoname, pkey, tkey, rkey, ekey, prekey, alpha, parameter, 10))
-        exit(1);
-
-    // 11) search for "bcdefg" in "bcdefghilm"
-    strcpy((char *)P, "bcdefg");
-    strcpy((char *)T, "bcdefghilm");
-    if (!attempt(&rip, count, P, 6, T, 10, algoname, pkey, tkey, rkey, ekey, prekey, alpha, parameter, 11))
-        exit(1);
-
-    // 12) search for rand in rand
-    for (h = 0; h < 10; h++)
-        T[h] = rand() % 128;
-    for (h = 0; h < 4; h++)
-        P[h] = T[h];
-    T[YSIZE] = P[4] = '\0';
-    if (!attempt(&rip, count, P, 4, T, 10, algoname, pkey, tkey, rkey, ekey, prekey, alpha, parameter, 12))
-        exit(1);
-
-    // 13) search for rand in rand
-    for (h = 0; h < 10; h++)
-        T[h] = rand() % 128;
-    for (h = 0; h < 4; h++)
-        P[h] = T[h];
-    T[10] = P[4] = '\0';
-    if (!attempt(&rip, count, P, 4, T, 10, algoname, pkey, tkey, rkey, ekey, prekey, alpha, parameter, 13))
-        exit(1);
-
-    // 14) search for rand in rand
-    for (h = 0; h < 64; h++)
-        T[h] = rand() % 128;
-    for (h = 0; h < 40; h++)
-        P[h] = T[h];
-    T[64] = P[40] = '\0';
-    if (!attempt(&rip, count, P, 40, T, 64, algoname, pkey, tkey, rkey, ekey, prekey, alpha, parameter, 14))
-        exit(1);
-
-    // 15) search for rand in rand
-    for (h = 0; h < 64; h++)
-        T[h] = rand() % 128;
-    for (h = 0; h < 40; h++)
-        P[h] = T[h];
-    T[64] = P[40] = '\0';
-    if (!attempt(&rip, count, P, 40, T, 64, algoname, pkey, tkey, rkey, ekey, prekey, alpha, parameter, 15))
-        exit(1);
-
-    // 16) search for rand in rand
-    for (h = 0; h < 64; h++)
-        T[h] = 'a';
-    for (h = 0; h < 40; h++)
-        P[h] = 'a';
-    T[64] = P[40] = '\0';
-    if (!attempt(&rip, count, P, 40, T, 64, algoname, pkey, tkey, rkey, ekey, prekey, alpha, parameter, 16))
-        exit(1);
-
-    // 17) search for rand in rand
-    for (h = 0; h < 64; h += 2)
-        T[h] = 'a';
-    for (h = 1; h < 64; h += 2)
-        T[h] = 'b';
-    for (h = 0; h < 40; h += 2)
-        P[h] = 'a';
-    for (h = 1; h < 40; h += 2)
-        P[h] = 'b';
-    T[64] = P[40] = '\0';
-    if (!attempt(&rip, count, P, 40, T, 64, algoname, pkey, tkey, rkey, ekey, prekey, alpha, parameter, 17))
-        exit(1);
-
-    // 18) search for rand in rand
-    for (h = 0; h < 64; h += 2)
-        T[h] = 'a';
-    for (h = 1; h < 64; h += 2)
-        T[h] = 'b';
-    for (h = 0; h < 40; h += 2)
-        P[h] = 'a';
-    for (h = 1; h < 40; h += 2)
-        P[h] = 'b';
-    P[39] = 'c';
-    T[64] = P[40] = '\0';
-    if (!attempt(&rip, count, P, 40, T, 64, algoname, pkey, tkey, rkey, ekey, prekey, alpha, parameter, 18))
-        exit(1);
-
-    // 19) search for "babbbbb" in "abababbbbb"
-    strcpy((char *)P, "babbbbb");
-    strcpy((char *)T, "abababbbbb");
-    if (!attempt(&rip, count, P, 7, T, 10, algoname, pkey, tkey, rkey, ekey, prekey, alpha, parameter, 19))
-        exit(1);
-
-    // 20) search for "bababb" in "abababbbbb"
-    strcpy((char *)P, "bababb");
-    strcpy((char *)T, "abababbbbb");
-    if (!attempt(&rip, count, P, 6, T, 10, algoname, pkey, tkey, rkey, ekey, prekey, alpha, parameter, 20))
-        exit(1);
-
-    if (!VERBOSE)
-        printf("\n\tWell done! Test passed successfully\n\n");
-
-    return 0;
-}
-
- */
