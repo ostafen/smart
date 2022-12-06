@@ -220,8 +220,7 @@ void run_random_tests(test_results_info_t *test_results, unsigned char *T)
     for (int sigma = 1; sigma <= 256; sigma++)
     {
         gen_random_text(sigma, T, TEST_TEXT_SIZE);
-        unsigned char pattern[TEST_PATTERN_MAX_LEN];
-
+        unsigned char pattern[TEST_PATTERN_MAX_LEN] = {0};
         int passed = 1;
 
         // Test random patterns extracted from the text:
@@ -265,6 +264,8 @@ void init_test_results(test_results_info_t *results, const test_command_opts_t *
     results->num_tests = 0;
     results->num_passed = 0;
     results->opts = opts;
+    results->last_expected_count = -1; // initialise to an invalid value.
+    results->last_actual_count = -2;   // initialise to a *different* invalid value.
 }
 
 void print_test_results(test_results_info_t *test_results)
@@ -294,10 +295,13 @@ void print_test_results(test_results_info_t *test_results)
     }
 }
 
-void test_algos(const test_command_opts_t *opts, unsigned char *T, const algo_info_t *algorithms)
+void test_algos(const test_command_opts_t *opts, const algo_info_t *algorithms)
 {
     if (algorithms->num_algos > 0)
     {
+        // Allocate buffer to search in - tests will fill the buffer with different things for each test.
+        unsigned char *T = (unsigned char *)malloc(sizeof(unsigned char) * (TEST_TEXT_SIZE + TEST_PATTERN_MAX_LEN + TEXT_SIZE_PADDING));
+
         for (int algo_no = 0; algo_no < algorithms->num_algos; algo_no++)
         {
             test_results_info_t test_results;
@@ -306,6 +310,8 @@ void test_algos(const test_command_opts_t *opts, unsigned char *T, const algo_in
             run_random_tests(&test_results, T);
             print_test_results(&test_results);
         }
+
+        free(T);
     }
     else
     {
@@ -325,7 +331,7 @@ void merge_regex_algos(const smart_config_t *smart_config, const test_command_op
 
 void get_algonames_to_test(algo_info_t *algorithms, const test_command_opts_t *opts, const smart_config_t *smart_config)
 {
-    algorithms->num_algos = 0;
+    init_algo_info(algorithms);
     switch (opts->algo_source)
     {
         case ALGO_NAMES:
@@ -373,23 +379,17 @@ void get_algonames_to_test(algo_info_t *algorithms, const test_command_opts_t *o
  */
 void run_tests(const smart_config_t *smart_config, const test_command_opts_t *opts)
 {
-    // Load the algorithms to test with:
     algo_info_t algorithms;
     get_algonames_to_test(&algorithms, opts, smart_config);
     load_algo_shared_libraries(smart_config, &algorithms);
 
-    // Allocate buffer to search in - tests will fill the buffer with different things for each test.
-    unsigned char *T = (unsigned char *)malloc(sizeof(unsigned char) * (TEST_TEXT_SIZE + TEST_PATTERN_MAX_LEN + TEXT_SIZE_PADDING));
-
-    // Test the algorithms:
     print_time_message("Algorithm correctness tests started at:");
-    test_algos(opts, T, &algorithms);
 
-    // Free memory and unload search algorithms.
-    free(T);
-    unload_algos(&algorithms);
+    test_algos(opts, &algorithms);
 
     print_time_message("Algorithm correctness tests finished at:");
+
+    unload_algos(&algorithms);
 }
 
 /*

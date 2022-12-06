@@ -335,6 +335,8 @@ void init_test_command_opts(test_command_opts_t *opts)
 {
     opts->algo_source  = ALGO_NAMES;          // default is just user specified algo_names unless a command says different.
     opts->named_set    = NULL;
+    for (int i = 0; i < MAX_SELECT_ALGOS; i++)
+        opts->algo_names[i] = NULL;
     opts->num_algo_names = 0;
     opts->random_seed  = time(NULL);   // default unless -seed option is specified.
     opts->verbose = 0;

@@ -32,6 +32,21 @@ typedef struct algo_info
     long shared_object_handles[MAX_SELECT_ALGOS];
 } algo_info_t;
 
+
+/*
+ * Initialises all fields in the algo_info struct to zero / null.
+ */
+void init_algo_info(algo_info_t *algo_info)
+{
+    algo_info->num_algos = 0;
+    for (int i = 0; i < MAX_SELECT_ALGOS; i++)
+    {
+        memset(algo_info->algo_names[i], STR_END_CHAR, ALGO_NAME_LEN);
+        algo_info->algo_functions[i] = NULL;
+        algo_info->shared_object_handles[i] = 0;
+    }
+}
+
 /*
  * Sorts the names of the algorithms.
  *
@@ -96,23 +111,28 @@ void get_all_algo_names(const smart_config_t *smart_config, algo_info_t *algorit
  * Returns the number of names filtered out.
  */
 int filter_out_names_not_matching_regexes(algo_info_t *algorithms, algo_info_t *filtered_out,
-                                          const char * const algo_regexes[MAX_SELECT_ALGOS], int num_regexes)
+                                          const char * const algo_regexes[MAX_SELECT_ALGOS], const int num_regexes)
 {
     regex_t *algo_name_regexes[num_regexes];
     compile_algo_name_regexes(algo_name_regexes, algo_regexes, num_regexes);
 
+    if (filtered_out != NULL)
+    {
+        init_algo_info(filtered_out);
+    }
+
     int num_filtered = 0;
-    int remove_idx = -1;
+    int copy_back_to_idx = -1;
     for (int idx_to_check = 0; idx_to_check < algorithms->num_algos; idx_to_check++)
     {
         // Check to see if any of the regexes match the current algorithm name.
         if (regexes_match(algo_name_regexes, num_regexes, algorithms->algo_names[idx_to_check]))
         {
             // If we match this one, but a previous one did not match - copy it back to shrink the list.
-            if (remove_idx >= 0)
+            if (copy_back_to_idx >= 0)
             {
-                strncpy(algorithms->algo_names[remove_idx], algorithms->algo_names[idx_to_check], ALGO_NAME_LEN);
-                remove_idx++; // next slot is the one to remove to.
+                strncpy(algorithms->algo_names[copy_back_to_idx], algorithms->algo_names[idx_to_check], ALGO_NAME_LEN);
+                copy_back_to_idx++; // next slot is the one to remove to.
             }
         }
         else
@@ -121,9 +141,10 @@ int filter_out_names_not_matching_regexes(algo_info_t *algorithms, algo_info_t *
             {
                 strncpy(filtered_out->algo_names[num_filtered], algorithms->algo_names[idx_to_check], ALGO_NAME_LEN);
             }
-            if (remove_idx < 0) // If we haven't already starting removing from the list, record the first position to remove from.
+
+            if (copy_back_to_idx < 0) // If we haven't already starting removing from the list, record the first position to remove from.
             {
-                remove_idx = idx_to_check;
+                copy_back_to_idx = idx_to_check;
             }
             num_filtered++;
         }
@@ -137,7 +158,7 @@ int filter_out_names_not_matching_regexes(algo_info_t *algorithms, algo_info_t *
     // If we actually removed any, then the remove_idx is the new size of the algorithms.
     if (num_filtered > 0)
     {
-        algorithms->num_algos = remove_idx;
+        algorithms->num_algos = copy_back_to_idx;
     }
 
     free_regexes(algo_name_regexes, num_regexes);
