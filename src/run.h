@@ -205,9 +205,10 @@ double compute_median_of_sorted_array(const double *T, int n)
     // if the list of doubles  has an even number of elements:
     if (n % 2 == 0)
     {
-        return (T[n / 2] + T[n /2 + 1]) / 2; // return mean of n/2 and n/2+1 elements.
+        return (T[n / 2] + T[n / 2 + 1]) / 2; // return mean of n/2 and n/2+1 elements.
     }
-    else {
+    else
+    {
         return T[(n + 1) / 2]; // return the element in the middle of the sorted array.
     }
 }
@@ -245,7 +246,13 @@ void free_pattern_matrix(unsigned char **M, size_t n)
 /*
  * The various results of attempting to measure benchmark times for an algorithm.
  */
-enum measurement_status {SUCCESS, TIMED_OUT, CANNOT_SEARCH, ERROR};
+enum measurement_status
+{
+    SUCCESS,
+    TIMED_OUT,
+    CANNOT_SEARCH,
+    ERROR
+};
 
 /*
  * The specific measurements taken for each invocation of an algorithm search.
@@ -299,13 +306,13 @@ void allocate_benchmark_results(benchmark_results_t *bench_result, int num_patte
     // For each pattern length we process, allocate space for bench_result for all the algorithms:
     for (int i = 0; i < num_pattern_lengths; i++)
     {
-        bench_result[i].algo_results = malloc(sizeof(algo_results_t) * num_algos);
+        bench_result[i].algo_results = (algo_results_t *)malloc(sizeof(algo_results_t) * num_algos);
 
-        //For each algorithm we process for a pattern length, allocate space for all the measurements it will make:
+        // For each algorithm we process for a pattern length, allocate space for all the measurements it will make:
         for (int j = 0; j < num_algos; j++)
         {
-            bench_result[i].algo_results[j].measurements.search_times = malloc(sizeof(double) * num_runs);
-            bench_result[i].algo_results[j].measurements.pre_times = malloc(sizeof(double) * num_runs);
+            bench_result[i].algo_results[j].measurements.search_times = (double *)malloc(sizeof(double) * num_runs);
+            bench_result[i].algo_results[j].measurements.pre_times = (double *)malloc(sizeof(double) * num_runs);
         }
     }
 }
@@ -377,7 +384,7 @@ void get_results_info(char output_line[MAX_LINE_LEN], const run_command_opts_t *
     }
 
     if (opts->pre)
-        snprintf(output_line, MAX_LINE_LEN,"\tmean: %.2f + [%.2f ± %.2f] ms\tmedian: %.2f + [%.2f] ms\t\t%s",
+        snprintf(output_line, MAX_LINE_LEN, "\tmean: %.2f + [%.2f ± %.2f] ms\tmedian: %.2f + [%.2f] ms\t\t%s",
                  results->statistics.mean_pre_time,
                  results->statistics.mean_search_time,
                  results->statistics.std_search_time,
@@ -385,7 +392,7 @@ void get_results_info(char output_line[MAX_LINE_LEN], const run_command_opts_t *
                  results->statistics.median_search_time,
                  occurence);
     else
-        snprintf(output_line, MAX_LINE_LEN,"\tmean: [%.2f ± %.2f] ms\tmedian: %.2f ms\t%s",
+        snprintf(output_line, MAX_LINE_LEN, "\tmean: [%.2f ± %.2f] ms\tmedian: %.2f ms\t%s",
                  results->statistics.mean_search_time + results->statistics.mean_pre_time,
                  results->statistics.std_search_time,
                  results->statistics.median_search_time + results->statistics.median_pre_time,
@@ -399,28 +406,28 @@ void print_benchmark_res(const run_command_opts_t *opts, algo_results_t *results
 {
     switch (results->success_state)
     {
-        case SUCCESS:
-        {
-            char results_line[MAX_LINE_LEN];
-            get_results_info(results_line, opts, results);
-            printf("\b\b\b\b\b.[OK]  %s\n", results_line);
-            break;
-        }
-        case CANNOT_SEARCH:
-        {
-            printf("\b\b\b\b\b.[--]  \n");
-            break;
-        }
-        case TIMED_OUT:
-        {
-            printf("\b\b\b\b\b\b.[OUT]  \n");
-            break;
-        }
-        case ERROR:
-        {
-            printf("\b\b\b\b\b\b\b\b.[ERROR] \n");
-            break;
-        }
+    case SUCCESS:
+    {
+        char results_line[MAX_LINE_LEN];
+        get_results_info(results_line, opts, results);
+        printf("\b\b\b\b\b.[OK]  %s\n", results_line);
+        break;
+    }
+    case CANNOT_SEARCH:
+    {
+        printf("\b\b\b\b\b.[--]  \n");
+        break;
+    }
+    case TIMED_OUT:
+    {
+        printf("\b\b\b\b\b\b.[OUT]  \n");
+        break;
+    }
+    case ERROR:
+    {
+        printf("\b\b\b\b\b\b\b\b.[ERROR] \n");
+        break;
+    }
     }
 }
 
@@ -431,10 +438,10 @@ void print_benchmark_res(const run_command_opts_t *opts, algo_results_t *results
 void calculate_algo_statistics(algo_results_t *results, int num_measurements)
 {
     // Compute mean pre and search times:
-    results->statistics.mean_pre_time    = compute_average(results->measurements.pre_times, num_measurements);
+    results->statistics.mean_pre_time = compute_average(results->measurements.pre_times, num_measurements);
     results->statistics.mean_search_time = compute_average(results->measurements.search_times, num_measurements);
-    results->statistics.std_search_time  = compute_std(results->statistics.mean_search_time,
-                                                       results->measurements.search_times, num_measurements);
+    results->statistics.std_search_time = compute_std(results->statistics.mean_search_time,
+                                                      results->measurements.search_times, num_measurements);
 
     // Compute median pre and search times:
     // To calculate medians, we need to sort the arrays.   Copy them into a temp array before sorting,
@@ -462,7 +469,7 @@ void print_benchmark_status(const int algo, const algo_info_t *algorithms)
 
     char output_line[MAX_LINE_LEN];
     size_t header_len = strlen(header_line);
-    int num_dots = header_len > BENCHMARK_HEADER_LEN ? 0 : (int) (BENCHMARK_HEADER_LEN - header_len);
+    int num_dots = header_len > BENCHMARK_HEADER_LEN ? 0 : (int)(BENCHMARK_HEADER_LEN - header_len);
     snprintf(output_line, MAX_LINE_LEN, "%s%.*s", header_line, num_dots, DOTS);
 
     printf("%s", output_line);
@@ -574,25 +581,25 @@ int get_text(const smart_config_t *smart_config, run_command_opts_t *opts, unsig
     int size = 0;
     switch (opts->data_source)
     {
-        case DATA_SOURCE_RANDOM:
-        {
-            info("Generating random text with alphabet size of %d", opts->alphabet_size);
-            size = gen_random_text(opts->alphabet_size, T, opts->text_size);
-            break;
-        }
-        case DATA_SOURCE_FILES:
-        {
-            size = gen_search_text(smart_config, opts->data_sources, T, opts->text_size, opts->fill_buffer);
-            break;
-        }
-        case DATA_SOURCE_USER:
-        {
-            size = gen_user_data(opts, T);
-        }
-        default:
-        {
-            error_and_exit("Undefined source for data: %d\n", opts->data_source);
-        }
+    case DATA_SOURCE_RANDOM:
+    {
+        info("Generating random text with alphabet size of %d", opts->alphabet_size);
+        size = gen_random_text(opts->alphabet_size, T, opts->text_size);
+        break;
+    }
+    case DATA_SOURCE_FILES:
+    {
+        size = gen_search_text(smart_config, opts->data_sources, T, opts->text_size, opts->fill_buffer);
+        break;
+    }
+    case DATA_SOURCE_USER:
+    {
+        size = gen_user_data(opts, T);
+    }
+    default:
+    {
+        error_and_exit("Undefined source for data: %d\n", opts->data_source);
+    }
     }
 
     return size;
