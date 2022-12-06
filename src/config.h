@@ -90,6 +90,8 @@ void set_smart_data_search_paths(smart_config_t *config);
  */
 void init_config(smart_config_t *config)
 {
+    config->num_algo_search_paths = 0;     // Initialise to zero - will be set to correct number of search paths.
+    config->num_data_search_paths = 0;     // Initialise to zero - will be set to correct number of search paths.
     set_smart_exe_dir(config);             // This must be processed first as other directories depend on it.
     set_smart_config_dir(config);          // This is just relative to user home directory.
     set_smart_results_dir(config);         // This is just relative to user home directory.

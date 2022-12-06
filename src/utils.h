@@ -210,7 +210,7 @@ void set_random_seed(const long random_seed)
 {
     srand(random_seed);
     info("\n\tSetting random seed to %ld.  Use -rs %ld if you need to rerun identically.\n",
-           random_seed, random_seed);
+         random_seed, random_seed);
 }
 
 /*
@@ -226,7 +226,7 @@ static int double_compare(const void *a, const void *b)
  */
 static int str_compare(const void *str1, const void *str2)
 {
-	return strcmp(str1, str2);
+    return strcmp(str1, str2);
 }
 
 /*
@@ -258,7 +258,7 @@ int strcmpany(const char *s, int n, ...)
  */
 int has_suffix(const char *s, const char *suffix)
 {
-	return !strcmp(s + strlen(s) - strlen(suffix), suffix);
+    return !strcmp(s + strlen(s) - strlen(suffix), suffix);
 }
 
 /*
@@ -266,10 +266,10 @@ int has_suffix(const char *s, const char *suffix)
  */
 int trim_str(char *s)
 {
-	size_t pos = strlen(s);
-	while (pos > 0)
-	{
-		char c = s[pos - 1];
+    size_t pos = strlen(s);
+    while (pos > 0)
+    {
+        char c = s[pos - 1];
         if (c == '\n' || c == '\r' || c == ' ' || c == '\t')
         {
             pos--;
@@ -278,7 +278,7 @@ int trim_str(char *s)
             break;
         }
 
-	}
+    }
     s[pos] = STR_END_CHAR;
 }
 
@@ -288,9 +288,9 @@ int is_int(const char *s)
     size_t len = strlen(s);
     size_t i;
     for (i = 0; i < len; i++)
-		if (s[i] < '0' || s[i] > '9')
-			return 0;
-	return 1;
+        if (s[i] < '0' || s[i] > '9')
+            return 0;
+    return 1;
 }
 
 /*
@@ -298,15 +298,15 @@ int is_int(const char *s)
  */
 char *str2lower(char *s)
 {
-	size_t len = strlen(s);
+    size_t len = strlen(s);
     size_t pos = 0;
-	while (pos < len)
-	{
-		if (s[pos] >= 'A' && s[pos] <= 'Z')
-			s[pos] = s[pos] + CASE_GAP;
-		pos++;
-	}
-	return s;
+    while (pos < len)
+    {
+        if (s[pos] >= 'A' && s[pos] <= 'Z')
+            s[pos] = s[pos] + CASE_GAP;
+        pos++;
+    }
+    return s;
 }
 
 /*
@@ -317,12 +317,12 @@ char *str2upper(char *s)
     size_t len = strlen(s);
     size_t pos = 0;
     while (pos < len)
-	{
-		if (s[pos] >= 'a' && s[pos] <= 'z')
-			s[pos] = s[pos] - CASE_GAP;
-		pos++;
-	}
-	return s;
+    {
+        if (s[pos] >= 'a' && s[pos] <= 'z')
+            s[pos] = s[pos] - CASE_GAP;
+        pos++;
+    }
+    return s;
 }
 
 /*
@@ -680,7 +680,10 @@ void compile_algo_name_regexes(regex_t *expressions[], const char * const algo_n
 void free_regexes(regex_t *expressions[], int num_expressions)
 {
     for (int i = 0; i < num_expressions; i++)
+    {
         regfree(expressions[i]);
+        expressions[i] = NULL;
+    }
 }
 
 /*
@@ -749,6 +752,5 @@ int add_and_trim_filenames_with_suffix_in_paths(char filenames[][ALGO_NAME_LEN],
 
     return num_files;
 }
-
 
 #endif
