@@ -28,7 +28,6 @@
 /* global variables used for computing preprocessing and searching times */
 double _search_time, _pre_time; // searching time and preprocessing time
 
-clock_t start, end;
 TIMER timer;
 
 int search(unsigned char *x, int m, unsigned char *y, int n);
@@ -36,30 +35,28 @@ int search(unsigned char *x, int m, unsigned char *y, int n);
 #define BEGIN_PREPROCESSING  \
 	{                        \
 		timer_start(&timer); \
-		start = clock();     \
 	}
 #define BEGIN_SEARCHING      \
 	{                        \
 		timer_start(&timer); \
-		start = clock();     \
 	}
 #define END_PREPROCESSING                         \
 	{                                             \
 		timer_stop(&timer);                       \
-		end = clock();                            \
 		_pre_time = timer_elapsed(&timer) * 1000; \
 	}
 
 #define END_SEARCHING                                \
 	{                                                \
 		timer_stop(&timer);                          \
-		end = clock();                               \
 		_search_time = timer_elapsed(&timer) * 1000; \
 	}
 
 int internal_search(unsigned char *x, int m, unsigned char *y, int n, double *search_time, double *pre_time)
 {
-	int occ = search(x, m, y, n);
+    _search_time = 0.0;
+    _pre_time = 0.0;
+    int occ = search(x, m, y, n);
 	*search_time = _search_time;
 	*pre_time = _pre_time;
 	return occ;
