@@ -666,7 +666,7 @@ void compile_algo_name_regexes(regex_t *expressions[], const char * const algo_n
         anchored_expression[length + 1] = '$'; //anchor to end of string.
         anchored_expression[length + 2] = STR_END_CHAR; // terminate string.
 
-        expressions[i] = malloc(sizeof(regex_t));
+        expressions[i] = (regex_t *) malloc(sizeof(regex_t));
         if (regcomp(expressions[i], anchored_expression, REG_ICASE | REG_EXTENDED) != 0)
         {
             error_and_exit("Could not compile regular expression %s\n\t\tCheck the POSIX extended regex syntax.", algo_names[i]);
@@ -700,6 +700,15 @@ int regexes_match(regex_t *expressions[], int n_expressions, const char *string)
     }
 
     return 0;
+}
+
+/*
+ * Returns a buffer size big enough to hold the text and additional patterns an algorithm may write at the end,
+ * with a bit of extra padding to guard against bugs.
+ */
+int get_text_buffer_size(int text_size, int max_pat_len)
+{
+    return sizeof(unsigned char) * (text_size + (NUM_PATTERNS_AT_END_OF_TEXT * max_pat_len) + TEXT_SIZE_PADDING);
 }
 
 /*
