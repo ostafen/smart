@@ -76,7 +76,7 @@ void preAdaptedGs(unsigned char *x, int m, int adaptedGs[], pattern *pat) {
       lshift = matchShift(x, m, ploc, lshift, pat);
       adaptedGs[ploc] = lshift;
    }
-   for (ploc = 0; ploc <= m; ++ploc) {
+   for (ploc = 0; ploc < m; ++ploc) {
       lshift = adaptedGs[ploc];
       while (lshift < m) {
          i = pat[ploc].loc - lshift;
