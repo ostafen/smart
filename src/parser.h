@@ -263,12 +263,12 @@ int parse_cpu_pinning(run_command_opts_t *opts, int curr_arg, int argc, const ch
 }
 
 /*
- * Parses a user supplied pattern to benchmark with, up to 100 characters long.
+ * Parses a user supplied pattern to benchmark with.
+ * Returns the number of parameters parsed.
  */
 int parse_pattern(run_command_opts_t *opts, int curr_arg, int argc, const char **argv)
 {
     check_end_of_params(curr_arg + 1, argc, OPTION_LONG_PATTERN);
-    check_string_length(argv[curr_arg + 1], 100, OPTION_LONG_PATTERN);
 
     opts->pattern = argv[curr_arg + 1];
     opts->pattern_min_len = strlen(opts->pattern);
@@ -278,12 +278,12 @@ int parse_pattern(run_command_opts_t *opts, int curr_arg, int argc, const char *
 }
 
 /*
- * Parses a user supplied search data parameter, up to 1000 characters long.
+ * Parses a user supplied search data parameter
+ * Returns the number of parameters parsed.
  */
 int parse_search_data(run_command_opts_t *opts, int curr_arg, int argc, const char **argv)
 {
     check_end_of_params(curr_arg + 1, argc, OPTION_LONG_PATTERN);
-    check_string_length(argv[curr_arg + 1], 1000, OPTION_LONG_PATTERN);
 
     opts->data_source = DATA_SOURCE_USER;
     opts->data_to_search = argv[curr_arg + 1];
@@ -329,6 +329,7 @@ int parse_flag(run_command_opts_t *opts, int curr_arg, int argc, const char **ar
 
 /*
  * Parses the named set test command.
+ * Returns the number of parameters parsed.
  */
 int parse_test_use_named_set(test_command_opts_t *opts, const int curr_arg, const int argc, const char **argv)
 {
@@ -336,13 +337,14 @@ int parse_test_use_named_set(test_command_opts_t *opts, const int curr_arg, cons
     check_is_not_a_command_option(argv[curr_arg + 1], OPTION_LONG_USE_NAMED);
 
     opts->named_set = argv[curr_arg + 1];
-    opts->algo_source = NAMED_SET;
+    opts->algo_source = NAMED_SET_ALGOS;
 
     return 1;
 }
 
 /*
  * Parses the named set test command.
+ * Returns the number of parameters parsed.
  */
 int parse_run_use_named_set(run_command_opts_t *opts, const int curr_arg, const int argc, const char **argv)
 {
@@ -444,15 +446,11 @@ void parse_test_args(int argc, const char **argv, smart_subcommand_t *subcommand
         const char *param = argv[curr_arg];
         if (matches_option(param, OPTION_SHORT_TEST_ALL, OPTION_LONG_TEST_ALL))
         {
-            opts->algo_source = ALL;
+            opts->algo_source = ALL_ALGOS;
         }
         else if (matches_option(param, OPTION_SHORT_TEST_SELECTED, OPTION_LONG_TEST_SELECTED))
         {
-            opts->algo_source = SELECTED;
-        }
-        else if (matches_option(param, OPTION_SHORT_VERBOSE, OPTION_LONG_VERBOSE))
-        {
-            opts->verbose = 1;
+            opts->algo_source = SELECTED_ALGOS;
         }
         else if (matches_option(param, OPTION_SHORT_USE_NAMED, OPTION_LONG_USE_NAMED))
         {
@@ -461,6 +459,14 @@ void parse_test_args(int argc, const char **argv, smart_subcommand_t *subcommand
         else if (matches_option(param, OPTION_SHORT_SEED, OPTION_LONG_SEED))
         {
             curr_arg += parse_seed(&(opts->random_seed), curr_arg, argc, argv);
+        }
+        else if (matches_option(param, OPTION_SHORT_DEBUG, OPTION_LONG_DEBUG))
+        {
+            opts->debug = 1;
+        }
+        else if (matches_option(param, OPTION_SHORT_QUICK_TESTS, OPTION_LONG_QUICK_TESTS))
+        {
+            opts->quick = 1;
         }
         else if (matches_option(param, OPTION_SHORT_HELP, OPTION_LONG_HELP))
         {
@@ -477,7 +483,7 @@ void parse_test_args(int argc, const char **argv, smart_subcommand_t *subcommand
         }
     }
 
-    if (opts->algo_source == ALGO_NAMES && num_algo_names == 0)
+    if (opts->algo_source == ALGO_REGEXES && num_algo_names == 0)
     {
         error_and_exit(ERROR_NO_ALGORITHMS_DEFINED, ERROR_HEADER, ERROR_FOOTER);
     }
