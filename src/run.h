@@ -33,6 +33,10 @@ void print_edge(int len)
     fprintf(stdout, "\n");
 }
 
+
+/*
+ * Prints a percentage on a line which overwrites the previous percentage value using \b back.
+ */
 void print_percentage(int perc)
 {
     if (perc < 10 || perc > 100)
@@ -54,25 +58,32 @@ int merge_text_buffers(const char filenames[][MAX_PATH_LENGTH], int n_files, uns
         info("Loading the file %s", filenames[i]);
         int size = load_text_buffer(filenames[i], T + curr_size, max_text_size - curr_size);
 
-        if (size < 0)
-            return 0;
-
-        curr_size += size;
+        if (size > 0)
+        {
+            curr_size += size;
+        }
+        else
+        {
+            warn("Could not load file: %s", filenames[i]);
+        }
     }
 
     return curr_size;
 }
 
 /*
- * Replicates existing data in a buffer to fill up any remaining space in the buffer.
+ * Replicates existing data of length size in a buffer to fill up any remaining space in the buffer.
  */
 void replicate_buffer(unsigned char *buffer, int size, int target_size)
 {
-    while (size < target_size)
+    if (size > 0)
     {
-        int cpy_size = (target_size - size) < size ? (target_size - size) : size;
-        memcpy(buffer + size, buffer, cpy_size);
-        size += cpy_size;
+        while (size < target_size)
+        {
+            int cpy_size = (target_size - size) < size ? (target_size - size) : size;
+            memcpy(buffer + size, buffer, cpy_size);
+            size += cpy_size;
+        }
     }
 }
 
@@ -371,6 +382,9 @@ enum measurement_status run_algo(unsigned char **pattern_list, int m,
     return SUCCESS;
 }
 
+/*
+ * Gets the results formatted according to the run options.
+ */
 void get_results_info(char output_line[MAX_LINE_LEN], const run_command_opts_t *opts, algo_results_t *results)
 {
     char occurence[MAX_LINE_LEN];
@@ -574,6 +588,7 @@ void print_text_info(const unsigned char *T, int n)
  * If a simple search, and a text was specified, then that will be used.
  * If random text was specified, random text of the buffer size and alphabet will be used.
  * If files were specified, then all files found will be loaded up to the size of the buffer.
+ * If no data can be loaded, it will error and exit.
  * Returns the size of the text loaded.
  */
 int get_text(const smart_config_t *smart_config, run_command_opts_t *opts, unsigned char *T)
@@ -600,6 +615,11 @@ int get_text(const smart_config_t *smart_config, run_command_opts_t *opts, unsig
     {
         error_and_exit("Undefined source for data: %d\n", opts->data_source);
     }
+    }
+
+    if (size <= 0)
+    {
+        error_and_exit("Could not load any data to search with.\n");
     }
 
     return size;
@@ -631,14 +651,32 @@ int benchmark_algorithms_with_text(const run_command_opts_t *opts, unsigned char
     return 0;
 }
 
-void benchmark_algorithms(const smart_config_t *smart_config, run_command_opts_t *opts, algo_info_t *algorithms)
+/*
+ * Prints an information message to explain what the timings reported by the benchmarks mean.
+ */
+void print_timing_information(run_command_opts_t *opts)
+{
+    if (opts->pre)
+    {
+        info("Timings are reported for both pre-processing and search times separately.  Run without the %s option to get the total times.\n", FLAG_PREPROCESSING_TIME_SHORT);
+    }
+    else
+    {
+        info("Timings reported are the sum of pre-processing and search times.  Use the %s option to report separate times.\n", FLAG_PREPROCESSING_TIME_SHORT);
+    }
+}
+
+/*
+ * Loads the text and algorithms to use and then runs benchmarking.
+ */
+void load_and_run_benchmarks(const smart_config_t *smart_config, run_command_opts_t *opts, algo_info_t *algorithms)
 {
     // Get the text to search in.
     // Size of the T buffer is opts->text_size + PATTERN_SIZE_MAX + TEXT_SIZE_PADDING to allow algorithms to place a copy of the pattern
     // at the end of the text if they wish.  This is a special optimisation that allows a search algorithm to omit a length check,
     // as the algorithm is guaranteed to stop when it detects the sentinel pattern past the end of the actual text.
-    // The padding is in case an algorithm has a bug and overflows slightly, avoiding a crash potentially. // TODO: detect overwrites and pattern adding with canary values?
-    unsigned char *T = (unsigned char *)malloc(sizeof(unsigned char) * (opts->text_size + opts->pattern_max_len + TEXT_SIZE_PADDING));
+    // The padding is in case an algorithm has a bug and overflows slightly, avoiding a crash potentially.
+    unsigned char *T = (unsigned char *)malloc(get_text_buffer_size(opts->text_size, opts->pattern_max_len));
     int n = get_text(smart_config, opts, T);
     print_text_info(T, n);
 
@@ -647,8 +685,11 @@ void benchmark_algorithms(const smart_config_t *smart_config, run_command_opts_t
     load_algo_shared_libraries(smart_config, algorithms);
 
     // Benchmark the algorithms:
+    print_timing_information(opts);
+    info("Starting experimental tests with code %s", opts->expcode);
     print_time_message("Experimental tests with code %s started on:");
     benchmark_algorithms_with_text(opts, T, n, algorithms);
+    print_time_message("Experimental tests with code %s finished on:");
 
     // Unload search algorithms and free text.
     unload_algos(algorithms);
@@ -667,12 +708,7 @@ void run_benchmark(const smart_config_t *smart_config, run_command_opts_t *opts)
 
     if (algorithms.num_algos > 0)
     {
-        if (!opts->pre)
-        {
-            info("Timings reported are the sum of pre-processing and search times.  Use the %s option to report separate times.\n", FLAG_PREPROCESSING_TIME_SHORT);
-        }
-        info("Starting experimental tests with code %s", opts->expcode);
-        benchmark_algorithms(smart_config, opts, &algorithms);
+        load_and_run_benchmarks(smart_config, opts, &algorithms);
     }
     else
     {
