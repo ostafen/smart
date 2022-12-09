@@ -119,8 +119,10 @@ int test_algo(unsigned char *pattern, const int m, unsigned char *data, const in
     // Get the reference expected count using a brute force search:
     test_results->last_expected_count = reference_search(pattern, m, data, n);
 
-    // if we have a count, add to test results.  Negative result means algo can't search that pattern, so we ignore the test.
-    if (test_results->last_actual_count >= 0)
+    // if we have a count, add to test results. Zero can be a valid count in test.
+    // -2 means the search encountered an error while running, so we flag that as a failed test.
+    // -1 means algo can't search that pattern, so we ignore the test.7
+    if (test_results->last_actual_count >= 0 || test_results->last_actual_count == ERROR_SEARCHING)
     {
         test_results->num_tests += 1;
         if (test_results->last_actual_count == test_results->last_expected_count)
@@ -165,8 +167,16 @@ void test_fixed_string(char *pattern, char *text, test_results_info_t *test_resu
     // Cast because C strings are char but search function is defined with unsigned char.
     if (!test_algo((unsigned char *)pattern, m, search_data, n, test_results))
     {
-        add_failure_message(test_results, "Found %d of %d occurrences.  Fixed pattern tests searching '%s' in '%s'",
-             test_results->last_actual_count, test_results->last_expected_count, pattern, text);
+        if (test_results->last_actual_count == ERROR_SEARCHING)
+        {
+            add_failure_message(test_results, "Algorithm reported an error while processing. Fixed pattern tests searching '%s' in '%s'",
+                                pattern, text);
+        }
+        else
+        {
+            add_failure_message(test_results, "Found %d of %d occurrences. Fixed pattern tests searching '%s' in '%s'",
+                                test_results->last_actual_count, test_results->last_expected_count, pattern, text);
+        }
 
         debug_search(test_results, (unsigned char *)pattern, m, search_data, n);
     }
@@ -247,8 +257,16 @@ int run_random_test(test_results_info_t *test_results, unsigned char *pattern, i
     int passed = test_algo(pattern, m, T, TEST_TEXT_SIZE, test_results);
     if (!passed)
     {
-        add_failure_message(test_results, "Found %d of %d occurrences. %s tests (alphabet: %d, pattern length: %d, random seed: %ld)",
-             test_results->last_actual_count, test_results->last_expected_count, test_description, sigma, m, test_results->opts->random_seed);
+        if (test_results->last_actual_count == ERROR_SEARCHING)
+        {
+            add_failure_message(test_results, "Algorithm reported an error while processing. %s tests (alphabet: %d, pattern length: %d, random seed: %ld))",
+                                test_description, sigma, m, test_results->opts->random_seed);
+        }
+        else
+        {
+            add_failure_message(test_results, "Found %d of %d occurrences. %s tests (alphabet: %d, pattern length: %d, random seed: %ld)",
+                                test_results->last_actual_count, test_results->last_expected_count, test_description, sigma, m, test_results->opts->random_seed);
+        }
 
         debug_search(test_results, pattern, m, T, TEST_TEXT_SIZE);
     }
@@ -529,7 +547,7 @@ int run_buffer_overflow_tests(test_results_info_t *test_results)
     memcpy(copy_data, search_data, buffer_size);
 
     // Test the algorithm.
-    run_random_test(test_results, pattern, TEST_PATTERN_MAX_LEN, search_data, "fixed pattern", 256);
+    run_random_test(test_results, pattern, TEST_PATTERN_MAX_LEN, search_data, "Mismatched pattern", 256);
 
     // Test that the actual search text is not modified:
     for (int i = 0; i < TEST_TEXT_SIZE; i++)
@@ -730,11 +748,14 @@ void run_tests(const smart_config_t *smart_config, const test_command_opts_t *op
         warn("Running quick tests - these results are not as reliable but give faster feedback.\n");
     }
 
-    print_time_message("Algorithm correctness tests started at:");
+    char time_format[26];
+    set_time_string(time_format, 26, "%Y:%m:%d %H:%M:%S");
+    info("Algorithm correctness tests started at %s", time_format);
 
     test_algos(opts, &algorithms);
 
-    print_time_message("Algorithm correctness tests finished at:");
+    set_time_string(time_format, 26, "%Y:%m:%d %H:%M:%S");
+    info("Algorithm correctness tests finished at %s", time_format);
 
     unload_algos(&algorithms);
 }
