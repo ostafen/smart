@@ -239,18 +239,19 @@ double compute_std(double avg, double *T, int n)
 /*
  * Allocates memory to hold the patterns for benchmarking.
  */
-void allocate_pattern_matrix(unsigned char **M, int n, size_t elementSize)
+void allocate_pattern_matrix(unsigned char **M, const int num_entries, const int pattern_length)
 {
-    for (int i = 0; i < n; i++)
-        M[i] = (unsigned char *)malloc(elementSize);
+    size_t element_size = sizeof(unsigned char) * (pattern_length + 1);
+    for (int i = 0; i < num_entries; i++)
+        M[i] = (unsigned char *)malloc(element_size);
 }
 
 /*
  * Frees memory allocated for benchmarking patterns.
  */
-void free_pattern_matrix(unsigned char **M, size_t n)
+void free_pattern_matrix(unsigned char **M, size_t num_entries)
 {
-    for (int i = 0; i < n; i++)
+    for (int i = 0; i < num_entries; i++)
         free(M[i]);
 }
 
@@ -367,10 +368,12 @@ enum measurement_status run_algo(unsigned char **pattern_list, int m,
 
         int occur = search_func(P, m, T, n, &(results->measurements.search_times[k]), &(results->measurements.pre_times[k]));
 
-        if (occur == 0)
+        if (occur == 0 || occur == ERROR_SEARCHING)
+        {
             return ERROR; // there must be at least one match for each text and pattern (patterns are extracted from text).
+        }
 
-        if (occur < 0)
+        if (occur == INFO_CANNOT_SEARCH)
             return CANNOT_SEARCH; // negative value returned from search means it cannot search this pattern (e.g. it is too short)
 
         results->occurrence_count += occur;
@@ -594,27 +597,24 @@ void print_text_info(const unsigned char *T, int n)
 int get_text(const smart_config_t *smart_config, run_command_opts_t *opts, unsigned char *T)
 {
     int size = 0;
-    switch (opts->data_source)
-    {
-    case DATA_SOURCE_RANDOM:
-    {
-        info("Generating random text with alphabet size of %d", opts->alphabet_size);
-        size = gen_random_text(opts->alphabet_size, T, opts->text_size);
-        break;
-    }
-    case DATA_SOURCE_FILES:
-    {
-        size = gen_search_text(smart_config, opts->data_sources, T, opts->text_size, opts->fill_buffer);
-        break;
-    }
-    case DATA_SOURCE_USER:
-    {
-        size = gen_user_data(opts, T);
-    }
-    default:
-    {
-        error_and_exit("Undefined source for data: %d\n", opts->data_source);
-    }
+    switch (opts->data_source) {
+        case DATA_SOURCE_RANDOM: {
+            info("Generating random text with alphabet size of %d", opts->alphabet_size);
+            size = gen_random_text(opts->alphabet_size, T, opts->text_size);
+            break;
+        }
+        case DATA_SOURCE_FILES: {
+            info("Loading search text from files specified with the %s option.", OPTION_LONG_TEXT_SOURCE);
+            size = gen_search_text(smart_config, opts->data_sources, T, opts->text_size, opts->fill_buffer);
+            break;
+        }
+        case DATA_SOURCE_USER: {
+            info("Using search data supplied on the command line with the %s option.", OPTION_LONG_SEARCH_DATA);
+            size = gen_user_data(opts, T);
+        }
+        default: {
+            error_and_exit("Undefined source for data: %d\n", opts->data_source);
+        }
     }
 
     if (size <= 0)
@@ -636,7 +636,7 @@ int benchmark_algorithms_with_text(const run_command_opts_t *opts, unsigned char
     unsigned char *pattern_list[opts->num_runs];
 
     allocate_benchmark_results(results, num_pattern_lengths, algorithms->num_algos, opts->num_runs);
-    allocate_pattern_matrix(pattern_list, opts->num_runs, sizeof(unsigned char) * (opts->pattern_max_len + 1));
+    allocate_pattern_matrix(pattern_list, opts->num_runs, opts->pattern_max_len);
 
     for (int m = opts->pattern_min_len, pattern_idx = 0; m <= opts->pattern_max_len; m *= 2, pattern_idx++)
     {
@@ -654,15 +654,15 @@ int benchmark_algorithms_with_text(const run_command_opts_t *opts, unsigned char
 /*
  * Prints an information message to explain what the timings reported by the benchmarks mean.
  */
-void print_timing_information(run_command_opts_t *opts)
+void print_search_and_preprocessing_time_info(run_command_opts_t *opts)
 {
     if (opts->pre)
     {
-        info("Timings are reported for both pre-processing and search times separately.  Run without the %s option to get the total times.\n", FLAG_PREPROCESSING_TIME_SHORT);
+        info("Timings are reported for both pre-processing and search times separately.  Run without the %s option to get the total times.\n", FLAG_SHORT_PREPROCESSING_TIME);
     }
     else
     {
-        info("Timings reported are the sum of pre-processing and search times.  Use the %s option to report separate times.\n", FLAG_PREPROCESSING_TIME_SHORT);
+        info("Timings reported are the sum of pre-processing and search times.  Use the %s option to report separate times.\n", FLAG_SHORT_PREPROCESSING_TIME);
     }
 }
 
@@ -672,10 +672,6 @@ void print_timing_information(run_command_opts_t *opts)
 void load_and_run_benchmarks(const smart_config_t *smart_config, run_command_opts_t *opts, algo_info_t *algorithms)
 {
     // Get the text to search in.
-    // Size of the T buffer is opts->text_size + PATTERN_SIZE_MAX + TEXT_SIZE_PADDING to allow algorithms to place a copy of the pattern
-    // at the end of the text if they wish.  This is a special optimisation that allows a search algorithm to omit a length check,
-    // as the algorithm is guaranteed to stop when it detects the sentinel pattern past the end of the actual text.
-    // The padding is in case an algorithm has a bug and overflows slightly, avoiding a crash potentially.
     unsigned char *T = (unsigned char *)malloc(get_text_buffer_size(opts->text_size, opts->pattern_max_len));
     int n = get_text(smart_config, opts, T);
     print_text_info(T, n);
@@ -684,12 +680,17 @@ void load_and_run_benchmarks(const smart_config_t *smart_config, run_command_opt
     sort_algorithm_names(algorithms);
     load_algo_shared_libraries(smart_config, algorithms);
 
+    print_search_and_preprocessing_time_info(opts);
+
     // Benchmark the algorithms:
-    print_timing_information(opts);
-    info("Starting experimental tests with code %s", opts->expcode);
-    print_time_message("Experimental tests with code %s started on:");
+    char time_format[26];
+    set_time_string(time_format, 26, "%Y:%m:%d %H:%M:%S");
+    info("Experimental tests with code %s started on %s", opts->expcode, time_format);
+
     benchmark_algorithms_with_text(opts, T, n, algorithms);
-    print_time_message("Experimental tests with code %s finished on:");
+
+    set_time_string(time_format, 26, "%Y:%m:%d %H:%M:%S");
+    info("Experimental tests with code %s finished on %s", opts->expcode, time_format);
 
     // Unload search algorithms and free text.
     unload_algos(algorithms);
@@ -697,14 +698,61 @@ void load_and_run_benchmarks(const smart_config_t *smart_config, run_command_opt
 }
 
 /*
+ * Loads the algorithms to benchmark given the run options and config.
+ */
+void get_algorithms_to_benchmark(const smart_config_t *smart_config, run_command_opts_t *opts, algo_info_t *algorithms)
+{
+    init_algo_info(algorithms);
+
+    switch (opts->algo_source)
+    {
+        case ALGO_REGEXES:
+        {
+            get_all_algo_names(smart_config, algorithms);
+            filter_out_names_not_matching_regexes(algorithms, NULL, opts->algo_names, opts->num_algo_names);
+            break;
+        }
+        case NAMED_SET_ALGOS:
+        {
+            read_algo_names_from_file(smart_config, algorithms, opts->algo_filename);
+            if (opts->num_algo_names > 0)
+            {
+                algo_info_t regex_algos;
+                init_algo_info(&regex_algos);
+                get_all_algo_names(smart_config, &regex_algos);
+                filter_out_names_not_matching_regexes(&regex_algos, NULL, opts->algo_names, opts->num_algo_names);
+                merge_algorithms(algorithms, &regex_algos, NULL);
+            }
+            break;
+        }
+        case SELECTED_ALGOS:
+        {
+            read_algo_names_from_file(smart_config, algorithms, opts->algo_filename);
+            break;
+        }
+        case ALL_ALGOS:
+        {
+            get_all_algo_names(smart_config, algorithms);
+            break;
+        }
+        default:
+        {
+            error_and_exit("Unknown algorithm source specified: %d", opts->algo_source);
+        }
+    }
+
+    sort_algorithm_names(algorithms);
+    print_algorithms_as_list("\tBenchmarking ", algorithms);
+}
+
+/*
  * Executes the benchmark with the given benchmark options.
  */
 void run_benchmark(const smart_config_t *smart_config, run_command_opts_t *opts)
 {
-    // Load the selected algorithm names to benchmark
+    // Get the selected algorithm names to benchmark
     algo_info_t algorithms;
-    info("Loading algorithms to benchmark from %s/%s", smart_config->smart_config_dir, opts->algo_filename);
-    read_algo_names_from_file(smart_config, &algorithms, opts->algo_filename);
+    get_algorithms_to_benchmark(smart_config, opts, &algorithms);
 
     if (algorithms.num_algos > 0)
     {
