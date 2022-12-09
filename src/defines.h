@@ -9,6 +9,12 @@
 #define MEGA_BYTE (1024 * 1024)           // constant for 1 MB size
 
 /*
+ * Search return codes
+ */
+#define INFO_CANNOT_SEARCH (-1)           // return code for algorithms that cannot search for a given pattern in a text.
+#define ERROR_SEARCHING (-2)              // return code for algorithms that encounter an error while pre-processing or searching.
+
+/*
  * Limits.
  */
 #define MAX_PATH_LENGTH 2048              // Maximum file path length.

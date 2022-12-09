@@ -5,6 +5,10 @@
 #ifndef SMART_COMMANDS_H
 #define SMART_COMMANDS_H
 
+/****************************************************
+ * Commands
+ */
+
 /*
  * Main commands.
  */
@@ -19,11 +23,6 @@ static char *const CONFIG_COMMAND = "config";
  */
 static char *const OPTION_SHORT_HELP = "-h";
 static char *const OPTION_LONG_HELP = "--help";
-
-
-/****************************************************
- * Commands
- */
 
 /*
  * Options for which smart subcommand to process.
@@ -49,10 +48,30 @@ void print_subcommand_usage_and_exit(const char *command)
     printf("\t- select: select one or more algorithms to run or test and manage lists of saved algorithms\n");
     printf("\t- config: prints the run-time configuration of smart.\n");
 
-    printf("\n\n");
+    printf("\n\tRun smart followed by the command to get additional help on run, test and select.\n\n");
 
     exit(0);
 }
+
+
+/************************************
+ * Shared definitions between test and run.
+ */
+
+/*
+ * Which set of algorithms are to be tested or benchmarked.
+ */
+enum algo_sources {ALGO_REGEXES, ALL_ALGOS, SELECTED_ALGOS, NAMED_SET_ALGOS};
+
+/*
+ * Shared commands
+ */
+static char *const OPTION_SHORT_SEED = "-rs";
+static char *const OPTION_LONG_SEED = "--rand-seed";
+static char *const OPTION_SHORT_USE_NAMED = "-use";
+static char *const OPTION_LONG_USE_NAMED = "--use-algos";
+static char *const FLAG_SHORT_ALL_ALGOS = "-all";
+static char *const FLAG_LONG_ALL_ALGOS = "--all-algos";
 
 
 /************************************
@@ -74,15 +93,10 @@ static char *const OPTION_SHORT_RANDOM_TEXT = "-rand";
 static char *const OPTION_LONG_RANDOM_TEXT = "--rand-text";
 static char *const OPTION_SHORT_PATTERN_LEN = "-plen";
 static char *const OPTION_LONG_PATTERN_LEN = "--patt-len";
-static char *const OPTION_SHORT_SEED = "-rs";                   // Also used for test random seed as well as run.
-static char *const OPTION_LONG_SEED = "--rand-seed";           // Also used for test random seed as well as run.
-static char *const OPTION_SHORT_USE_NAMED = "-use";            // Also used for test random seed as well as run.
-static char *const OPTION_LONG_USE_NAMED = "--use-algos";      // Also used for test random seed as well as run.
 static char *const OPTION_SHORT_PATTERN = "-pat";
 static char *const OPTION_LONG_PATTERN = "--pattern";
 static char *const OPTION_SHORT_SEARCH_DATA = "-data";
 static char *const OPTION_LONG_SEARCH_DATA = "--data-to-search";
-
 static char *const OPTION_SHORT_CPU_PIN = "-pin";
 static char *const OPTION_LONG_CPU_PIN = "--pin-cpu";
 static char *const PARAM_CPU_PINNING_OFF = "off";
@@ -91,18 +105,20 @@ static char *const PARAM_CPU_PIN_LAST = "last";
 /*
  * Run command flags.
  */
-static char *const FLAG_OCCURRENCE = "-occ";
-static char *const FLAG_PREPROCESSING_TIME_SHORT = "-pre";
-static char *const FLAG_PREPROCESSING_TIME_LONG = "--pre-time";
-static char *const FLAG_TEXT_OUTPUT = "-txt";
-static char *const FLAG_LATEX_OUTPUT = "-tex";
-static char *const FLAG_PHP_OUTPUT = "-php";
-static char *const FLAG_FILL_BUFFER_SHORT = "-fb";
-static char *const FLAG_FILL_BUFFER_LONG = "--fill-buffer";
-static char *const FLAG_SHORT_PATTERN_LENGTHS_SHORT = "-sh";
-static char *const FLAG_SHORT_PATTERN_LENGTHS_LONG = "--short";
-static char *const FLAG_VERY_SHORT_PATTERN_LENGTHS_SHORT = "-vs";
-static char *const FLAG_VERY_SHORT_PATTERN_LENGTHS_LONG = "--vshort";
+static char *const FLAG_SHORT_OCCURRENCE = "-occ";
+static char *const FLAG_LONG_OCCURRENCE = "--occurrences";
+static char *const FLAG_SHORT_PREPROCESSING_TIME = "-pre";
+static char *const FLAG_LONG_PREPROCESSING_TIME = "--pre-time";
+static char *const FLAG_SHORT_FILL_BUFFER = "-fb";
+static char *const FLAG_LONG_FILL_BUFFER = "--fill-buffer";
+
+static char *const FLAG_SHORT_PATTERN_LENGTHS_SHORT = "-short";                    //TODO: support this command.
+static char *const FLAG_LONG_PATTERN_LENGTHS_SHORT = "--short-patterns";           //TODO: support this command.
+static char *const FLAG_SHORT_PATTERN_LENGTHS_VERY_SHORT = "-vshort";              //TODO: support this command.
+static char *const FLAG_LONG_PATTERN_LENGTHS_VERY_SHORT = "--very-short-patterns"; //TODO: support this command.
+static char *const FLAG_TEXT_OUTPUT = "-txt";                                      //TODO: output of results.
+static char *const FLAG_LATEX_OUTPUT = "-tex";                                     //TODO: output of results.
+static char *const FLAG_PHP_OUTPUT = "-php";                                       //TODO: output of results.
 
 /*
  * Type of data source to use for benchmarking.
@@ -119,7 +135,10 @@ enum cpu_pin_type{PINNING_OFF, PIN_LAST_CPU, PIN_SPECIFIED_CPU};
  */
 typedef struct run_command_opts
 {
+    enum algo_sources algo_source;               // source of algorithms to benchmark.
     char algo_filename[STR_BUF];                 // The filename in the config directory containing the algorithms to benchmark.
+    const char *algo_names[MAX_SELECT_ALGOS];    // algo_names to benchmark, as POSIX regular expressions on the command line.
+    int num_algo_names;                          // Number of algo names recorded.
     enum data_source_type data_source;           // What type of data is to be scanned - files or random.
     const char *data_sources[MAX_DATA_SOURCES];  // A list of files/data_sources to load data from.
     int text_size;                               // Size of the text buffer for benchmarking.
@@ -153,7 +172,13 @@ void gen_experiment_code(char *code, int max_len)
  */
 void init_run_command_opts(run_command_opts_t *opts)
 {
+    opts->algo_source = SELECTED_ALGOS; // by default, we just use selected algos, unless otherwise specified.
     strncpy(opts->algo_filename, SELECTED_ALGOS_FILENAME, STR_BUF);
+    opts->num_algo_names = 0;
+    for (int i = 0; i < MAX_SELECT_ALGOS; i++)
+    {
+        opts->algo_names[i] = NULL;
+    }
     opts->data_source = DATA_SOURCE_NOT_DEFINED;
     for (int i = 0; i < MAX_DATA_SOURCES; i++)
     {
@@ -183,7 +208,10 @@ void print_run_usage_and_exit(const char *command)
 {
     print_logo();
 
-    printf("\n usage: %s [-text | -rand | -data | -plen | -pat | -num | -ts | -fb | -rs | -pre | -occ | -tb | -pin | -h]\n\n", command);
+    printf("\n usage: %s [algo names...] [-text | -rand | -data | -plen | -pat | -use | -all | -runs | -ts | -fb | -rs | -pre | -occ | -tb | -pin | -h]\n\n", command);
+
+    printf("\tYou can specify algorithms to benchmark directly as POSIX regular expressions, e.g. smart run bsdm.* hor ...\n");
+    printf("\tIf you do not specify any algorithms on the command line or by another command, the default selected algorithms will be used.\n\n");
 
     print_help_line("Performs experimental results loading all files F specified into a single buffer for benchmarking.", OPTION_SHORT_TEXT_SOURCE, OPTION_LONG_TEXT_SOURCE, "F ...");
     print_help_line("You can specify several individual files, or directories.  If a directory, all files in it will be loaded,", "", "", "");
@@ -193,14 +221,16 @@ void print_run_usage_and_exit(const char *command)
     print_help_line("Performs experimental results using text specified in parameter T.", OPTION_SHORT_SEARCH_DATA, OPTION_LONG_SEARCH_DATA, "T");
     print_help_line("Set the minimum and maximum length of random patterns to benchmark between L and U (included).", OPTION_SHORT_PATTERN_LEN, OPTION_LONG_PATTERN_LEN, "L U");
     print_help_line("Performs experimental results using a single pattern specified in parameter P.", OPTION_SHORT_PATTERN, OPTION_LONG_PATTERN, "P");
+    print_help_line("Benchmarks a set of algorithms named N.algos in the config folder, in addition to any algorithms specified directly.", OPTION_SHORT_USE_NAMED, OPTION_LONG_USE_NAMED, "N");
+    print_help_line("Benchmarks all the algorithms.", FLAG_SHORT_ALL_ALGOS, FLAG_LONG_ALL_ALGOS, "");
     print_help_line("Computes running times as the mean of N runs (default 500)", OPTION_SHORT_NUM_RUNS, OPTION_LONG_NUM_RUNS, "N");
     print_help_line("Set the upper bound dimension S (in Mb) of the text used for experimental results (default 1Mb).", OPTION_SHORT_TEXT_SIZE, OPTION_LONG_TEXT_SIZE, "S");
-    print_help_line("Fills the text buffer up to its maximum size by copying earlier data until full.", FLAG_FILL_BUFFER_SHORT, FLAG_FILL_BUFFER_LONG, "");
+    print_help_line("Fills the text buffer up to its maximum size by copying earlier data until full.", FLAG_SHORT_FILL_BUFFER, FLAG_LONG_FILL_BUFFER, "");
     //print_help_line("Computes experimental results using short length patterns (from 2 to 32)", FLAG_SHORT_PATTERN_LENGTHS_SHORT, FLAG_SHORT_PATTERN_LENGTHS_LONG, "");
     //print_help_line("Computes experimental results using very short length patterns (from 1 to 16)", FLAG_VERY_SHORT_PATTERN_LENGTHS_SHORT, FLAG_VERY_SHORT_PATTERN_LENGTHS_LONG, "");
     print_help_line("Sets the random seed to integer S, ensuring tests and benchmarks can be precisely repeated.", OPTION_SHORT_SEED, OPTION_LONG_SEED, "S");
-    print_help_line("Reports preprocessing times and searching times separately", FLAG_PREPROCESSING_TIME_SHORT, FLAG_PREPROCESSING_TIME_LONG, "");
-    print_help_line("Prints the total number of occurrences", FLAG_OCCURRENCE, "", "");
+    print_help_line("Reports preprocessing times and searching times separately", FLAG_SHORT_PREPROCESSING_TIME, FLAG_LONG_PREPROCESSING_TIME, "");
+    print_help_line("Prints the total number of occurrences", FLAG_SHORT_OCCURRENCE, FLAG_LONG_OCCURRENCE, "");
     print_help_line("Set to L the upper bound for any worst case running time (in ms). The default value is 300 ms.", OPTION_SHORT_MAX_TIME, OPTION_LONG_MAX_TIME, "L");
     print_help_line("Pin the benchmark process to a single CPU for lower benchmarking variance via parameter C: [off | last | {digits}]", OPTION_SHORT_CPU_PIN, OPTION_LONG_CPU_PIN, "C");
     print_help_line("If set to 'off', no CPU pinning will be performed.", "", """", "off");
@@ -305,8 +335,6 @@ void print_select_usage_and_exit(const char *command)
 /*
  * Test command options
  */
-static char *const OPTION_SHORT_TEST_ALL = "-all";
-static char *const OPTION_LONG_TEST_ALL = "--all-algos";
 static char *const OPTION_SHORT_TEST_SELECTED = "-sel";
 static char *const OPTION_LONG_TEST_SELECTED = "--selected";
 static char *const OPTION_SHORT_DEBUG = "-d";
@@ -315,16 +343,11 @@ static char *const OPTION_SHORT_QUICK_TESTS = "-q";
 static char *const OPTION_LONG_QUICK_TESTS = "--quick";
 
 /*
- * Which set of algorithms are to be tested.
- */
-enum test_algo_source {ALGO_REGEXES, ALL_ALGOS, SELECTED_ALGOS, NAMED_SET_ALGOS};
-
-/*
  * Options for the test subcommand.
  */
 typedef struct test_command_opts
 {
-    enum test_algo_source algo_source;             // source of algorithms to test.
+    enum algo_sources algo_source;                 // source of algorithms to test.
     const char *named_set;                         // name of the named set to load algorithms from, if specified.
     const char *algo_names[MAX_SELECT_ALGOS];      // algo_names to test, as POSIX regular expressions.
     int num_algo_names;                            // Number of algo names recorded.
@@ -361,7 +384,7 @@ void print_test_usage_and_exit(const char *command)
     info("You can specify the algorithms to test directly using POSIX extended regular expressions, e.g. test hor wfr.*");
     info("You can also specify that all algorithms, the currently selected set, or another saved set of algorithms are tested.\n");
 
-    print_help_line("Tests all of the algorithms smart finds in its algo search paths.", OPTION_SHORT_TEST_ALL, OPTION_LONG_TEST_ALL, "");
+    print_help_line("Tests all of the algorithms smart finds in its algo search paths.", FLAG_SHORT_ALL_ALGOS, FLAG_LONG_ALL_ALGOS, "");
     print_help_line("Tests the currently selected algorithms in addition to any algorithms specified directly.", OPTION_SHORT_TEST_SELECTED, OPTION_LONG_TEST_SELECTED, "");
     print_help_line("Tests a set of algorithms named N.algos in the config folder, in addition to any algorithms specified directly.", OPTION_SHORT_USE_NAMED, OPTION_LONG_USE_NAMED, "N");
     print_help_line("Sets the random seed to integer S, ensuring tests can be precisely repeated.", OPTION_SHORT_SEED, OPTION_LONG_SEED, "S");

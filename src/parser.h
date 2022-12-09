@@ -263,6 +263,22 @@ int parse_cpu_pinning(run_command_opts_t *opts, int curr_arg, int argc, const ch
 }
 
 /*
+ * Parses a run option that is not associated with any other parameter as an algo name regex.
+ */
+void parse_run_algo_name(run_command_opts_t *opts, int curr_arg, const char **argv)
+{
+    if (opts->num_algo_names < MAX_SELECT_ALGOS)
+    {
+        opts->algo_names[opts->num_algo_names++] = argv[curr_arg];
+        opts->algo_source = ALGO_REGEXES;
+    }
+    else
+    {
+        error_and_exit("Too many algorithms specified: maxiumum number is %d", MAX_SELECT_ALGOS);
+    }
+}
+
+/*
  * Parses a user supplied pattern to benchmark with.
  * Returns the number of parameters parsed.
  */
@@ -298,33 +314,36 @@ int parse_search_data(run_command_opts_t *opts, int curr_arg, int argc, const ch
  */
 int parse_flag(run_command_opts_t *opts, int curr_arg, int argc, const char **argv)
 {
-    if (!strcmp(FLAG_OCCURRENCE, argv[curr_arg]))
+    if (matches_option(argv[curr_arg], FLAG_SHORT_OCCURRENCE, FLAG_LONG_OCCURRENCE))
     {
         opts->occ = 1;
-        return 1;
     }
-    else if (matches_option(argv[curr_arg], FLAG_PREPROCESSING_TIME_SHORT, FLAG_PREPROCESSING_TIME_LONG))
+    else if (matches_option(argv[curr_arg], FLAG_SHORT_PREPROCESSING_TIME, FLAG_LONG_PREPROCESSING_TIME))
     {
         opts->pre = 1;
-        return 1;
     }
-    if (matches_option(argv[curr_arg], FLAG_SHORT_PATTERN_LENGTHS_SHORT, FLAG_SHORT_PATTERN_LENGTHS_LONG))
+    else if (matches_option(argv[curr_arg], FLAG_SHORT_PATTERN_LENGTHS_SHORT, FLAG_LONG_PATTERN_LENGTHS_SHORT))
     {
         //TODO: PATT_SIZE = PATT_SHORT_SIZE;
-        return 1;
     }
-    if (matches_option(argv[curr_arg], FLAG_VERY_SHORT_PATTERN_LENGTHS_SHORT, FLAG_VERY_SHORT_PATTERN_LENGTHS_LONG))
+    else if (matches_option(argv[curr_arg], FLAG_SHORT_PATTERN_LENGTHS_VERY_SHORT, FLAG_LONG_PATTERN_LENGTHS_VERY_SHORT))
     {
         //TODO: PATT_SIZE = PATT_VERY_SHORT;
-        return 1;
     }
-    if (matches_option(argv[curr_arg], FLAG_FILL_BUFFER_SHORT, FLAG_FILL_BUFFER_LONG))
+    else if (matches_option(argv[curr_arg], FLAG_SHORT_FILL_BUFFER, FLAG_LONG_FILL_BUFFER))
     {
         opts->fill_buffer = 1;
-        return 1;
+    }
+    else if (matches_option(argv[curr_arg], FLAG_SHORT_ALL_ALGOS, FLAG_LONG_ALL_ALGOS))
+    {
+        opts->algo_source = ALL_ALGOS;
+    }
+    else
+    {
+        return 0; // did not match.
     }
 
-    return 0;
+    return 1; // matched a flag argument.
 }
 
 /*
@@ -350,9 +369,10 @@ int parse_run_use_named_set(run_command_opts_t *opts, const int curr_arg, const 
 {
     check_end_of_params(curr_arg + 1, argc, OPTION_LONG_USE_NAMED);
     check_is_not_a_command_option(argv[curr_arg + 1], OPTION_LONG_USE_NAMED);
-    check_string_length(argv[curr_arg + 1], STR_BUF, OPTION_LONG_USE_NAMED);
+    check_string_length(argv[curr_arg + 1], STR_BUF - 8, OPTION_LONG_USE_NAMED);
 
     snprintf(opts->algo_filename, STR_BUF, "%.*s.algos", STR_BUF - 8, argv[curr_arg + 1]);
+    opts->algo_source = NAMED_SET_ALGOS;
 
     return 1;
 }
@@ -419,8 +439,7 @@ void parse_run_args(int argc, const char **argv, smart_subcommand_t *subcommand)
         }
         else if (!parse_flag(opts, curr_arg, argc, argv))
         {
-            error_and_exit(ERROR_UNKNOWN_PARAMETER,
-                           ERROR_HEADER, argv[curr_arg], RUN_COMMAND, ERROR_FOOTER);
+            parse_run_algo_name(opts, curr_arg, argv);
         }
     }
 
@@ -444,7 +463,7 @@ void parse_test_args(int argc, const char **argv, smart_subcommand_t *subcommand
     for (int curr_arg = 2; curr_arg < argc; curr_arg++)
     {
         const char *param = argv[curr_arg];
-        if (matches_option(param, OPTION_SHORT_TEST_ALL, OPTION_LONG_TEST_ALL))
+        if (matches_option(param, FLAG_SHORT_ALL_ALGOS, FLAG_LONG_ALL_ALGOS))
         {
             opts->algo_source = ALL_ALGOS;
         }

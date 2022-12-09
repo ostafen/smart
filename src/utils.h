@@ -372,16 +372,6 @@ void set_time_string(char *time_string, int size, const char * time_format)
 }
 
 /*
- * Prints a message followed by the time.
- */
-void print_time_message(const char *message)
-{
-    char time_format[26];
-    set_time_string(time_format, 26, "%Y:%m:%d %H:%M:%S");
-    info("%s %s", message, time_format);
-}
-
-/*
  * Prints a name and value pair aligned to a column width followed by a newline.
  */
 void print_name_value(const char *name, const char *value, int column_width)
