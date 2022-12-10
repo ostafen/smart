@@ -39,7 +39,7 @@ void TVSBSpreBrBc(unsigned char *x, int m, int brBc[SIGMA][SIGMA]) {
      int l1,l2,l3,l4;
    int BrBcR[SIGMA][SIGMA], BrBcL[SIGMA][SIGMA];
    unsigned char firstch, lastch;
-   unsigned char xr[XSIZE];
+   unsigned char xr[m];
    unsigned char c;
      if(n<m+2) return -1;
      if(m<2) return -1;
