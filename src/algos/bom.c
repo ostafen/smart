@@ -52,7 +52,7 @@ void setTransition(int p, int q, List L[]) {
 
 void oracle(unsigned char *x, int m, char T[], List L[]) {
    int i, p, q;
-   int S[XSIZE + 1];
+   int S[m + 1];
    char c;
    S[m] = m + 1;
    for (i = m; i > 0; --i) {
@@ -75,8 +75,8 @@ void oracle(unsigned char *x, int m, char T[], List L[]) {
 
 
 int search(unsigned char *x, int m, unsigned char *y, int n) {
-   char T[XSIZE + 1];
-   List L[XSIZE + 1];
+   char T[m + 1];
+   List L[m + 1];
    int i, j, r, period, q, shift, count;
 
 	BEGIN_PREPROCESSING
