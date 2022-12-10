@@ -25,8 +25,16 @@
 #include "include/define.h"
 #include "include/main.h"
 
-void PreBFS(unsigned char *x, int m, int bm_gs[XSIZE][SIGMA]) {
-   int i, j, p, c, h, last, suffix_len, temp[XSIZE];
+/*
+ * Issues
+ * ------
+ * - cannot process large patterns because table gs is allocated on stack, and is m * SIGMA.
+ * - for now, just return -1 if pattern size is greater than 4096.
+ * - Proper fix is to allocate this memory dynamically on heap.
+ */
+
+void PreBFS(unsigned char *x, int m, int bm_gs[][SIGMA]) {
+   int i, j, p, c, h, last, suffix_len, temp[m + 1];
    suffix_len = 1;
    last = m-1;
    for(i=0;i<=m;i++) for(j=0; j<SIGMA;j++) bm_gs[i][j] = m;
@@ -63,7 +71,10 @@ void PreBFS(unsigned char *x, int m, int bm_gs[XSIZE][SIGMA]) {
 
 int search(unsigned char *x, int m, unsigned char *y, int n)
 {
-   int i, j, k, s, count, gs[XSIZE][SIGMA], bc[SIGMA];
+    if (m > 4096)
+        return -1; // cannot allocate gs table when m is large = m * SIGMA.
+
+    int i, j, k, s, count, gs[m + 1][SIGMA], bc[SIGMA];
    int *last, first;
    char ch = x[m-1];
 
