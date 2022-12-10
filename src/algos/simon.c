@@ -59,7 +59,8 @@ int preSimon(unsigned char *x, int m, List L[]) {
    int i, k, ell;
    List cell;
  
-   memset(L, 0, (m - 1)*sizeof(List));
+   //memset(L, 0, (m - 1)*sizeof(List));
+    memset(L, 0, m * sizeof(List));
    ell = -1;
    for (i = 1; i < m; ++i) {
       k = ell;
@@ -81,10 +82,9 @@ int preSimon(unsigned char *x, int m, List L[]) {
    return(ell);
 }
 
-
 int search(unsigned char *x, int m, unsigned char *y, int n) {
    int j, ell, state, count;
-   List L[XSIZE];
+   List L[m];
  
    /* Preprocessing */
    BEGIN_PREPROCESSING
