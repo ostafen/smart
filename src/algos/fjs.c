@@ -47,7 +47,7 @@ void preKmp(unsigned char *x, int m, int kmpNexy[]) {
 }
 
 int search( unsigned char *x, int m, unsigned char *y, int n ) {
-   int i, s, count, qsbc[SIGMA], kmp[XSIZE];
+   int i, s, count, qsbc[SIGMA], kmp[m];
 
    /* Preprocessing */
    BEGIN_PREPROCESSING
