@@ -41,7 +41,7 @@ void orderPattern(unsigned char *x, int m, int (*pcmp)(),
                   pattern *pat) {
     int i;
     
-    for (i = 0; i <= m; ++i) {
+    for (i = 0; i <= m; ++i) { // i can == m, so pat needs m + 1 elements.
         pat[i].loc = i;
         pat[i].c = x[i];
     }
@@ -101,7 +101,7 @@ void preAdaptedGs(unsigned char *x, int m, int adaptedGs[],
             ++lshift;
             lshift = matchShift(x, m, ploc, lshift, pat);
         }
-        adaptedGs[ploc] = lshift;
+        adaptedGs[ploc] = lshift; // ploc can == m, so adaptedGS needs m + 1 elements.
     }
 }
 
@@ -109,8 +109,8 @@ void preAdaptedGs(unsigned char *x, int m, int adaptedGs[],
 /* Optimal Mismatch string matching algorithm. */
 int search(unsigned char *x, int m, unsigned char *y, int n) {
 	int count = 0;
-    int i, j, adaptedGs[XSIZE], qsBc[SIGMA];
-    pattern pat[XSIZE];
+    int i, j, adaptedGs[m + 1], qsBc[SIGMA];
+    pattern pat[m + 1];
     
     /* Preprocessing */
    BEGIN_PREPROCESSING
