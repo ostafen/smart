@@ -23,8 +23,8 @@
 #define FT(i,j)  LAMBDA[(i<<8) + j]
 
 int search(unsigned char *x, int m, unsigned char *y, int n) {
-   int S[XSIZE], LAMBDA[SIGMA*SIGMA];
-   int *trans[XSIZE];
+   int S[m + 1], LAMBDA[SIGMA*SIGMA];
+   int *trans[m + 2];
    int i, j, p, q;
    int iMinus1, mMinus1, count;
    unsigned char c;
@@ -33,11 +33,11 @@ int search(unsigned char *x, int m, unsigned char *y, int n) {
     
    // Allocate space for oracle
    BEGIN_PREPROCESSING
-   for(i=0; i<=m+1; i++) trans[i] = (int *)malloc (sizeof(int)*(SIGMA));
+   for(i=0; i<=m+1; i++) trans[i] = (int *)malloc (sizeof(int)*(SIGMA)); // accesses position m + 1, requires m + 2 elements.
 
    // Preprocessing
    for(i=0; i<=m+1; i++) for(j=0; j<SIGMA; j++) trans[i][j]=UNDEFINED;
-   S[m] = m + 1;
+   S[m] = m + 1; // accesses position m, requires m + 1 elements.
    for (i = m; i > 0; --i) {
       iMinus1 = i - 1;
       c = x[iMinus1];
