@@ -33,7 +33,7 @@ void preKmp(unsigned char *x, int m, int kmpNext[]) {
         if (i<m && x[i] == x[j])
             kmpNext[i] = kmpNext[j];
         else
-            kmpNext[i] = j;
+            kmpNext[i] = j; // i == m, requires m + 1 elements in kmpNext.
     }
 }
 
@@ -58,7 +58,7 @@ void preprocessing(unsigned char *x, int m, char *F) {
 
 
 int search(unsigned char *x, int m, unsigned char *y, int n) {
-    int i, j, p, b, lf, count, test, kmpNext[XSIZE];
+    int i, j, p, b, lf, count, test, kmpNext[m + 1];
     int tp, st;
     char F[256*256];
     unsigned short h;
