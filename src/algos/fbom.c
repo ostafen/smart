@@ -26,8 +26,8 @@
 #include "include/main.h"
 
 int search(unsigned char *x, int m, unsigned char *y, int n) {
-   int S[XSIZE], FT[SIGMA][SIGMA];
-   int *trans[XSIZE];
+   int S[m + 2], FT[SIGMA][SIGMA];
+   int *trans[m + 2];
    int i, j, p, q;
    int iMinus1, mMinus1, count;
    unsigned char c;
