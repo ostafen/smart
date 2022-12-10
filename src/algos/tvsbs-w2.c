@@ -38,7 +38,7 @@
    int BrBcR[SIGMA][SIGMA], BrBcL[SIGMA][SIGMA];
    unsigned char firstch, lastch;
    BEGIN_PREPROCESSING
-   unsigned char xr[XSIZE];
+   unsigned char xr[m];
    for(i=0; i<m; i++) xr[i] = x[m-1-i];
    xr[m]='\0';
    count = 0;
