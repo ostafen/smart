@@ -17,9 +17,17 @@
  * download the tool at: http://www.dmi.unict.it/~faro/smart/
  */
 
-
 #include "include/define.h"
 #include "include/main.h"
+
+/*
+ * Issues
+ * ------
+ *
+ * Seg-faults on large strings, e.g. 16000.  The s1, s2, s3, s4, s5 and s6 values get very large or small and
+ * try to access the text outside its bounds.  Seems to be a bug in the algorithm implementation (i.e. not buffer overflow
+ * or something else corrupting values).
+ */
 
 void TVSBSpreBrBc(unsigned char *x, int m, int brBc[SIGMA][SIGMA]) {
    int a, b, i;
@@ -39,14 +47,14 @@ void TVSBSpreBrBc(unsigned char *x, int m, int brBc[SIGMA][SIGMA]) {
      int l1,l2,l3,l4,l5,l6,l7,l8;
    int BrBcR[SIGMA][SIGMA], BrBcL[SIGMA][SIGMA];
    unsigned char firstCh, lastCh;
-   unsigned char xr[XSIZE];
+   unsigned char xr[m + 1];
    unsigned char c;
      if(n<m+2) return -1;
      if(m<2) return -1;
 
    BEGIN_PREPROCESSING
    for(i=0; i<m; i++) xr[i] = x[m-1-i];
-   xr[m]='\0';
+   xr[m]='\0'; // access xr at position m so needs m + 1 elements.
    count = 0;
    int mPlus1 = m+1;
    TVSBSpreBrBc(x, m,  BrBcR);
