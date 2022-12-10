@@ -29,8 +29,7 @@ void preBmBc(unsigned char *x, int m, int bmBc[]) {
     for (i = 0; i < SIGMA; ++i) bmBc[i] = m;
     for (i = 0; i < m - 1; ++i) bmBc[x[i]] = m - i - 1;
 }
- 
- 
+
 void suffixes(unsigned char *x, int m, int *suff) {
     int f, g, i;
     suff[m - 1] = m;
@@ -61,11 +60,9 @@ void preBmGsAG(unsigned char *x, int m, int bmGs[], int suff[]) {
         bmGs[m - 1 - suff[i]] = m - 1 - i;
 }
 
-
-
 int search(unsigned char *x, int m, unsigned char *y, int n) {
     int i, j, k, s, shift, count;
-    int bmGs[XSIZE], skip[XSIZE], suff[XSIZE], bmBc[SIGMA];
+    int bmGs[m], skip[m], suff[m], bmBc[SIGMA];
   
     /* Preprocessing */
     BEGIN_PREPROCESSING
