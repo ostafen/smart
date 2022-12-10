@@ -37,7 +37,7 @@ void preQsBc(unsigned char *P, int m, int qbc[]) {
 
 int search(unsigned char *P, int m, unsigned char *T, int n) {
    int i, s, k, count, qsf[SIGMA], qsb[SIGMA];
-   unsigned char R[XSIZE];
+   unsigned char R[m];
    
    BEGIN_PREPROCESSING
    reverse(P,m,R);
