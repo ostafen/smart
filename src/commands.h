@@ -220,6 +220,7 @@ void print_run_usage_and_exit(const char *command)
     print_help_line("Performs experimental results using random text with an alphabet A between 1 and 256 inclusive.", OPTION_SHORT_RANDOM_TEXT, OPTION_LONG_RANDOM_TEXT, "A");
     print_help_line("Performs experimental results using text specified in parameter T.", OPTION_SHORT_SEARCH_DATA, OPTION_LONG_SEARCH_DATA, "T");
     print_help_line("Set the minimum and maximum length of random patterns to benchmark between L and U (included).", OPTION_SHORT_PATTERN_LEN, OPTION_LONG_PATTERN_LEN, "L U");
+    print_help_line("If you only provide a single parameter L, then only that pattern length will be used.", "", "", "L");
     print_help_line("Performs experimental results using a single pattern specified in parameter P.", OPTION_SHORT_PATTERN, OPTION_LONG_PATTERN, "P");
     print_help_line("Benchmarks a set of algorithms named N.algos in the config folder, in addition to any algorithms specified directly.", OPTION_SHORT_USE_NAMED, OPTION_LONG_USE_NAMED, "N");
     print_help_line("Benchmarks all the algorithms.", FLAG_SHORT_ALL_ALGOS, FLAG_LONG_ALL_ALGOS, "");

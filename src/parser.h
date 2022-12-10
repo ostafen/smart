@@ -22,7 +22,6 @@ static char *const ERROR_MUTUALLY_EXCLUSIVE = "%smutually exclusive options you 
 static char *const ERROR_INTEGER_NOT_IN_RANGE = "%sparameter for option % must be between %d and %d%s";
 static char *const ERROR_MAX_LESS_THAN_MIN = "%smax parameter %d for option %s must not be less than minimum %d%s";
 static char *const ERROR_PARAM_TOO_BIG = "%sparameter for option %s is bigger than maximum length %d%s";
-static char *const ERROR_UNKNOWN_PARAMETER = "%sunknown parameter %s provided for command %s%s";
 static char *const ERROR_CPU_PINNING_PARAMETER = "%sIncorrect parameter %s for option %s.  Must be off | last | {digit}%s";
 static char *const ERROR_MISSING_PARAMETER = "%soption %s needs a parameter, next is a -flag parameter: %s%s";
 static char *const ERROR_NO_DATA_SOURCE_DEFINED = "%sno data source is defined with either %s or %s%s";
@@ -208,14 +207,23 @@ int parse_random_text(run_command_opts_t *opts, int curr_arg, int argc, const ch
 int parse_pattern_len(run_command_opts_t *opts, int curr_arg, int argc, const char **argv)
 {
     parse_next_int_parameter(OPTION_LONG_PATTERN_LEN, &(opts->pattern_min_len), curr_arg, argc, argv);
-    parse_next_int_parameter(OPTION_LONG_PATTERN_LEN, &(opts->pattern_max_len), curr_arg + 1, argc, argv);
-    if (opts->pattern_max_len < opts->pattern_min_len)
-    {
-        error_and_exit(ERROR_MAX_LESS_THAN_MIN, ERROR_HEADER, opts->pattern_max_len,
-                       OPTION_LONG_PATTERN_LEN, opts->pattern_min_len, ERROR_FOOTER);
-    }
 
-    return 2;
+    // If we have a second parameter at curr_arg + 2, this is the maximum
+    if (curr_arg + 2 < argc && !is_command_option(argv[curr_arg + 2]))
+    {
+        parse_next_int_parameter(OPTION_LONG_PATTERN_LEN, &(opts->pattern_max_len), curr_arg + 1, argc, argv);
+        if (opts->pattern_max_len < opts->pattern_min_len)
+        {
+            error_and_exit(ERROR_MAX_LESS_THAN_MIN, ERROR_HEADER, opts->pattern_max_len,
+                           OPTION_LONG_PATTERN_LEN, opts->pattern_min_len, ERROR_FOOTER);
+        }
+        return 2;
+    }
+    else // only one parameter provided - set the max to the min - just a single pattern length.
+    {
+        opts->pattern_max_len = opts->pattern_min_len;
+        return 1;
+    }
 }
 
 /*
