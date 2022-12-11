@@ -38,9 +38,9 @@
    int BrBcR[SIGMA][SIGMA], BrBcL[SIGMA][SIGMA];
    unsigned char firstch, lastch;
    BEGIN_PREPROCESSING
-   unsigned char xr[XSIZE];
+   unsigned char xr[m + 1];
    for(i=0; i<m; i++) xr[i] = x[m-1-i];
-   xr[m]='\0';
+   xr[m]='\0';  // access xr at position m so needs m + 1 elements.
    count = 0;
    TVSBSpreBrBc(x, m,  BrBcR);
    TVSBSpreBrBc(xr, m, BrBcL);

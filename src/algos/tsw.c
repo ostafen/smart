@@ -41,7 +41,7 @@ int search(unsigned char *x, int m, unsigned char *y, int n) {
    int j, brBc_left[SIGMA][SIGMA], brBc_right[SIGMA][SIGMA];
    int i, a,b;
    int count;
-   unsigned char x1[XSIZE];
+   unsigned char x1[m];
    for(i=m-1, j=0; i>=0; i--, j++) x1[j]=x[i];
 
    /* Preprocessing */

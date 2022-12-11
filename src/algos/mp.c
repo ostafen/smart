@@ -30,12 +30,12 @@ void preMp(unsigned char *x, int m, int mpNext[]) {
    while (i < m) {
       while (j > -1 && x[i] != x[j])
          j = mpNext[j];
-      mpNext[++i] = ++j;
+      mpNext[++i] = ++j; // pre-increment of i means that i can be equal to m, mpNext needs m + 1 elements.
    }
 }
 
 int search(unsigned char *x, int m, unsigned char *y, int n) {
-   int i, j, mpNext[XSIZE], count;
+   int i, j, mpNext[m + 1], count;
 
    /* Preprocessing */
    BEGIN_PREPROCESSING
@@ -53,7 +53,7 @@ int search(unsigned char *x, int m, unsigned char *y, int n) {
       j++;
       if (i >= m) {
          OUTPUT(j - i);
-         i = mpNext[i];
+         i = mpNext[i]; // i == m here, mpNext needs m + 1 elements.
       }
    }
    END_SEARCHING

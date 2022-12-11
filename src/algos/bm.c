@@ -31,8 +31,7 @@ void preBmBc(unsigned char *x, int m, int bmBc[]) {
    for (i = 0; i < m - 1; ++i)
       bmBc[x[i]] = m - i - 1;
 }
- 
- 
+
 void suffixes(unsigned char *x, int m, int *suff) {
    int f, g, i;
    suff[m - 1] = m;
@@ -52,7 +51,7 @@ void suffixes(unsigned char *x, int m, int *suff) {
 }
  
 void preBmGs(unsigned char *x, int m, int bmGs[]) {
-   int i, j, suff[XSIZE];
+   int i, j, suff[m];
    suffixes(x, m, suff);
    for (i = 0; i < m; ++i) bmGs[i] = m;
    j = 0;
@@ -64,10 +63,9 @@ void preBmGs(unsigned char *x, int m, int bmGs[]) {
    for (i = 0; i <= m - 2; ++i)
       bmGs[m - 1 - suff[i]] = m - 1 - i;
 }
- 
- 
+
 int search(unsigned char *x, int m, unsigned char *y, int n) {
-   int i, j, bmGs[XSIZE], bmBc[SIGMA], count;
+   int i, j, bmGs[m], bmBc[SIGMA], count;
  
    /* Preprocessing */
    BEGIN_PREPROCESSING

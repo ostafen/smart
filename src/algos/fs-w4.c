@@ -44,9 +44,24 @@
 #include "include/define.h"
 #include "include/main.h"
 
+/*
+ * Issues
+ * ======
+ * - bug in algorithm that references arrays at large positions when searching.
+ *
+ * Algorithm Bug
+ * -------------
+ * During search, the s and k values can get arbitrarily large, or sometimes negative,
+ * causing it to access impossible positions in the text T.
+ * See the warning note in the code below.
+ * I cannot see any buffer overflow; I believe this is caused by faulty algorithm logic.
+ *
+ * Requires much deeper understanding of the algorithm to determine this bug.
+ */
+
 void Pre_GS(unsigned char *x, int m, int bm_gs[]) {
-   int i, j, p, f[XSIZE];
-   for(i=0;i<XSIZE;i++) bm_gs[i]=0;
+   int i, j, p, f[m + 1];
+   for(i=0;i<m + 1;i++) bm_gs[i]=0;
    f[m]=j=m+1;
    for (i=m; i > 0; i--) {
       while (j <= m && x[i-1] != x[j-1]) {
@@ -64,10 +79,10 @@ void Pre_GS(unsigned char *x, int m, int bm_gs[]) {
 
 int search(unsigned char *P, int m, unsigned char *T, int n)
 {
-	int i, j,s1,s2,s3,s4,k1,k2,k3,k4,i1,i2,i3;
+	int i, j,s1,s2,s3,s4,k1,k2,k3,k4;
     int l1,l2,l3,l4;
-	int h, count, hbcr[SIGMA], hbcl[SIGMA], gsR[XSIZE], gsL[XSIZE];
-   unsigned char c, Pr[XSIZE];
+	int count, hbcr[SIGMA], hbcl[SIGMA], gsR[m + 1], gsL[m + 1];
+   unsigned char Pr[m + 1];
     if(n<6) return -1;
     
 	/* proprocessing */
@@ -100,7 +115,7 @@ int search(unsigned char *P, int m, unsigned char *T, int n)
     l2 = s2;
     l4 = s4;
    while(s1<=s2+mm1 || s3<=s4+mm1) {
-      if(!k1) { 
+      if(!k1) {
          j = mm1; k1=s1-mm1;
          while(j>=0 && P[j]==T[k1+j]) j--;
           if(j<0 && k1<l2) {
@@ -109,8 +124,8 @@ int search(unsigned char *P, int m, unsigned char *T, int n)
           }
          s1+=gsR[j+1];
       }
-      if(!k2) { 
-         i = 0; 
+      if(!k2) {
+         i = 0;
          while(i<m && P[i]==T[s2+i]) i++;
           if(i==m && s2>l1) {
               l2 = s2;
@@ -136,14 +151,17 @@ int search(unsigned char *P, int m, unsigned char *T, int n)
           }
          s4-=gsL[m-i];
       }
+
+      //WARN: the s and k values can get arbitrarily large which causes a seg fault when it tries to access the text
+      //      some of them become negative, not sure if this ever becomes a problem.
+
       while( (k1=hbcr[T[s1]]) && (k2=hbcl[T[s2]])  && (k3=hbcr[T[s3]]) && (k4=hbcl[T[s4]]) ) {
          s1+=k1; 
          s2-=k2; 
          s3+=k3; 
-         s4-=k4; 
+         s4-=k4;
       }
    }
    END_SEARCHING
-   T[n] = '\0';
    return count;
 }

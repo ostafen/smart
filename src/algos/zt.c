@@ -45,7 +45,7 @@ void suffixes(unsigned char *x, int m, int *suff) {
 }
  
 void preBmGs(unsigned char *x, int m, int bmGs[]) {
-   int i, j, suff[XSIZE];
+   int i, j, suff[m];
  
    suffixes(x, m, suff);
  
@@ -74,7 +74,7 @@ void preBmGs(unsigned char *x, int m, int bmGs[]) {
 }
 
 int search(unsigned char *x, int m, unsigned char *y, int n) {
-   int i, j, ztBc[SIGMA][SIGMA], bmGs[XSIZE], count;
+   int i, j, ztBc[SIGMA][SIGMA], bmGs[m], count;
 
    /* Preprocessing */
    BEGIN_PREPROCESSING

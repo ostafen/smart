@@ -28,7 +28,7 @@
 
 int search(unsigned char *x, int m, unsigned char *y, int n)
 {
-   int i, j, s, tmp, count, hbc[SIGMA], v[XSIZE], FREQ[SIGMA];
+   int i, j, s, tmp, count, hbc[SIGMA], v[m], FREQ[SIGMA];
    /* Computing the frequency of characters */
    for(i=0; i<SIGMA; i++)	FREQ[i] = 0;
    for(i=0; i<100; i++) FREQ[y[i]]++;

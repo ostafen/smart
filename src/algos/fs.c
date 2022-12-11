@@ -26,8 +26,8 @@
 #include "include/main.h"
 
 void Pre_GS(unsigned char *x, int m, int bm_gs[]) {
-   int i, j, p, f[XSIZE];
-   for(i=0;i<XSIZE;i++) bm_gs[i]=0;
+   int i, j, p, f[m + 1];
+   for(i=0;i<m + 1;i++) bm_gs[i]=0;
    f[m]=j=m+1;
    for (i=m; i > 0; i--) {
       while (j <= m && x[i-1] != x[j-1]) {
@@ -44,7 +44,7 @@ void Pre_GS(unsigned char *x, int m, int bm_gs[]) {
 }
 
 int search(unsigned char *x, int m, unsigned char *y, int n) {
-   int a,i, j, k, s, count, bc[SIGMA], gs[XSIZE];
+   int a,i, j, k, s, count, bc[SIGMA], gs[m + 1];
    char ch = x[m-1];
 
    /* Preprocessing */

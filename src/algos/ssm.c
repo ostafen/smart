@@ -10,7 +10,7 @@
 void Horspool_Distance(int Horspool[], int Dist[], unsigned char *x, int m, int *dMax)
 {
     int i;
-    Dist[m]=0;
+    Dist[m]=0; // allocates to position m of Dist, so requires m + 1 elements.
     for (i = 0; i < SIGMA; i++) Horspool[i] = m;
     for (i = 0; i < m-1; i++)
     {
@@ -64,7 +64,7 @@ void PreProc(int Dist[], int Shift[], unsigned char *x, int m)
     /*----Compute the max shift of all shifts----*/
 
     for (i = 0; i < m; i++)
-        if (Shift[i] < Dist[m])
+        if (Shift[i] < Dist[m]) // accesses Dist at m, requires m + 1 elements.
             Shift[i] = Dist[m];
 }
 
@@ -73,7 +73,7 @@ int search(unsigned char *x, int m, unsigned char *y, int n)
 {
 
     int count, q, j, Max, jMax, Pos;
-    int Hors[SIGMA], Sht[XSIZE], Dis[XSIZE];
+    int Hors[SIGMA], Sht[m], Dis[m + 1];
     unsigned char xMax;
 
     /*Preprocessing phase-----------*/

@@ -28,7 +28,7 @@ typedef struct patternScanOrder {
    char c;
 } pattern;
 
-int minShift[XSIZE];
+int *minShift;  // pointer to int array to allow comparison function to access it.
 
 void computeMinShift(unsigned char *x, int m) {
    int i, j;
@@ -74,7 +74,7 @@ void preAdaptedGs(unsigned char *x, int m, int adaptedGs[], pattern *pat) {
    adaptedGs[0] = lshift = 1;
    for (ploc = 1; ploc <= m; ++ploc) {
       lshift = matchShift(x, m, ploc, lshift, pat);
-      adaptedGs[ploc] = lshift;
+      adaptedGs[ploc] = lshift; // ploc can == m, so adaptedGS requires m + 1 elements.
    }
    for (ploc = 0; ploc < m; ++ploc) {
       lshift = adaptedGs[ploc];
@@ -89,7 +89,6 @@ void preAdaptedGs(unsigned char *x, int m, int adaptedGs[], pattern *pat) {
    }
 }
 
-
 int maxShiftPcmp(pattern *pat1, pattern *pat2) {
    int dsh;
    dsh = minShift[pat2->loc] - minShift[pat1->loc];
@@ -97,9 +96,9 @@ int maxShiftPcmp(pattern *pat1, pattern *pat2) {
 }
 
 int search(unsigned char *x, int m, unsigned char *y, int n) {
-   int i, j, qsBc[SIGMA], adaptedGs[XSIZE], count;
-   pattern pat[XSIZE];
-
+   int i, j, qsBc[SIGMA], adaptedGs[m + 1], count;
+   pattern pat[m + 1];
+   minShift = (int *)malloc(sizeof(int) * m);
    /* Preprocessing */
    BEGIN_PREPROCESSING
    computeMinShift(x ,m);
@@ -119,6 +118,7 @@ int search(unsigned char *x, int m, unsigned char *y, int n) {
          OUTPUT(j);
       j += MAX(adaptedGs[i], qsBc[y[j + m]]);
    }
+   free(minShift);
    END_SEARCHING
    return count;
 }

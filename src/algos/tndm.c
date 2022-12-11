@@ -25,8 +25,10 @@
 #include "include/define.h"
 #include "include/main.h"
 
+int search_large(unsigned char *x, int m, unsigned char *y, int n);
+
 int search(unsigned char *x, int m, unsigned char *y, int n) {
-   int i,j,s,last, restore[XSIZE+1];
+   int i,j,s,last, restore[m+1];
    unsigned int d, B[SIGMA];
    int count = 0;
    if(m>32) return search_large(x,m,y,n);
@@ -97,7 +99,7 @@ int search(unsigned char *x, int m, unsigned char *y, int n) {
 
 int search_large(unsigned char *x, int m, unsigned char *y, int n)
 {
-   int i,j,s,last, restore[XSIZE+1], p_len, k;
+   int i,j,s,last, restore[m+1], p_len, k;
    unsigned int D, B[SIGMA];
    int count = 0;
    p_len = m;
@@ -118,7 +120,7 @@ int search_large(unsigned char *x, int m, unsigned char *y, int n)
       if (s & ((unsigned int)1<<(m-1))) {
          if(i > 0)  last = i; 
       }
-      restore[m-i] = last;
+      restore[m-i] = last; // restore array can be accessed at position m, so needs m + 1 elements.
       s <<= 1;
    }
    END_PREPROCESSING

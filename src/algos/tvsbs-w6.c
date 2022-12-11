@@ -21,6 +21,15 @@
 #include "include/define.h"
 #include "include/main.h"
 
+/*
+ * Issues
+ * ------
+ *
+ * Seg-faults on large strings, e.g. 16000.  The s1, s2, s3, s4, s5 and s6 values get very large or small and
+ * try to access the text outside its bounds.  Seems to be a bug in the algorithm implementation (i.e. not buffer overflow
+ * or something else corrupting values).
+ */
+
 void TVSBSpreBrBc(unsigned char *x, int m, int brBc[SIGMA][SIGMA]) {
    int a, b, i;
    for (a = 0; a < SIGMA; ++a)
@@ -43,10 +52,10 @@ void TVSBSpreBrBc(unsigned char *x, int m, int brBc[SIGMA][SIGMA]) {
      if(m<2) return -1;
      
    BEGIN_PREPROCESSING
-   unsigned char xr[XSIZE];
+   unsigned char xr[m + 1];
    unsigned char c, lastch, firstch;
    for(i=0; i<m; i++) xr[i] = x[m-1-i];
-   xr[m]='\0';
+   xr[m]='\0'; // access xr at position m so needs m + 1 elements.
    count = 0;
    int mp1 = m+1, mm1=m-1;
    TVSBSpreBrBc(x, m,  BrBcR);

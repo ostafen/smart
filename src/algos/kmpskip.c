@@ -38,7 +38,7 @@ void preKmp(unsigned char *x, int m, int kmpNext[]) {
       if (i<m && x[i] == x[j])
          kmpNext[i] = kmpNext[j];
       else
-         kmpNext[i] = j;
+         kmpNext[i] = j;  // i == m here, so kmpNext needs m + 1 elements.
    }
 }
 
@@ -64,7 +64,7 @@ int attempt(char *y, char *x, int m, int start, int wall) {
 
 int search(unsigned char *x, int m, unsigned char *y, int n) {
    int i, j, k, kmpStart, per, start, wall, count;
-   int kmpNext[XSIZE], list[XSIZE], mpNext[XSIZE], z[SIGMA];
+   int kmpNext[m + 1], list[m], mpNext[m], z[SIGMA];
 
    /* Preprocessing */
    BEGIN_PREPROCESSING

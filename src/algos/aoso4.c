@@ -39,6 +39,9 @@ void verify(unsigned char *y, int j, int n, unsigned char *x, int m, int q, unsi
     }
 }
 
+// Forward declaration:
+int search_large(unsigned char *x, int m, unsigned char *y, int n, int q);
+
 int search(unsigned char *x, int m, unsigned char *y, int n) {
     unsigned int B[SIGMA], D, h, mm, tmp, not_mm;
     int i, j, count;

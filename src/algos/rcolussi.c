@@ -23,23 +23,35 @@
 #include "include/define.h"
 #include "include/main.h"
 
-void preRc(unsigned char *x, int m, int h[], int rcBc[SIGMA][XSIZE], int rcGs[]) {
+/*
+ * Issues
+ * ======
+*  - memory allocation failure when m > 4096, too much memory for gs[m][SIGMA] on stack.
+ *
+ *  Memory allocation failure
+ *  -------------------------
+ *  Allocating the table rcBc[m + 1][SIGMA] creates 256 elements for each pattern position.  When m > 4096, this
+ *  tries to allocate too much memory on the stack, and we get a seg fault.  The proper fix is to allocate
+ *  the memory for this table dynamically instead of on the stack.  For now, just return -1 if m > 4096.
+ */
+
+void preRc(unsigned char *x, int m, int h[], int rcBc[][SIGMA], int rcGs[]) {
    int a, i, j, k, q, r, s,
-   hmin[XSIZE], kmin[XSIZE], link[XSIZE],
-   locc[SIGMA], rmin[XSIZE];
+   hmin[m + 1], kmin[m + 1], link[m + 1],
+   locc[SIGMA], rmin[m + 1];
  
    for (a = 0; a < SIGMA; ++a)
       locc[a] = -1;
    link[0] = -1;
    for (i = 0; i < m - 1; ++i) {
-      link[i + 1] = locc[x[i]];
+      link[i + 1] = locc[x[i]];          // link can be accessed at position m, needs m + 1 elements.
       locc[x[i]] = i;
    }
 
    for (a = 0; a < SIGMA; ++a)
       for (s = 1; s <= m; ++s) {
          i = locc[a];
-         j = link[m - s];
+         j = link[m - s];               // from m - 1 down to 0.
          while (i - j != s && j >= 0)
             if (i - j > s)
                i = link[i + 1];
@@ -47,7 +59,7 @@ void preRc(unsigned char *x, int m, int h[], int rcBc[SIGMA][XSIZE], int rcGs[])
                j = link[j + 1];
          while (i - j > s)
             i = link[i + 1];
-         rcBc[a][s] = m - i - 1;
+         rcBc[s][a] = m - i - 1;
       }
  
    k = 1;
@@ -55,7 +67,7 @@ void preRc(unsigned char *x, int m, int h[], int rcBc[SIGMA][XSIZE], int rcGs[])
    while (k <= m) {
       while (i - k >= 0 && x[i - k] == x[i])
          --i;
-      hmin[k] = i;
+      hmin[k] = i;  // k can be m, so hmin requires m + 1 elements.
       q = k + 1;
       while (hmin[q - k] - (q - k) > i) {
          hmin[q] = hmin[q - k];
@@ -94,7 +106,11 @@ void preRc(unsigned char *x, int m, int h[], int rcBc[SIGMA][XSIZE], int rcGs[])
  
  
 int search(unsigned char *x, int m, unsigned char *y, int n) {
-   int i, j, s, rcBc[SIGMA][XSIZE], rcGs[XSIZE], h[XSIZE], count;
+
+    if (m > 4096)
+        return -1; // allocation of rcBc is too big for stack when m > 4096, with SIGMA = 256.
+
+    int i, j, s, rcBc[m + 1][SIGMA], rcGs[m + 1], h[m + 1], count;
  
    /* Preprocessing */
    BEGIN_PREPROCESSING
@@ -108,7 +124,7 @@ int search(unsigned char *x, int m, unsigned char *y, int n) {
    s = m;
    while (j <= n - m) {
       while (j <= n - m && x[m - 1] != y[j + m - 1]) {
-         s = rcBc[y[j + m - 1]][s];
+         s = rcBc[s][y[j + m - 1]];
          j += s;
       }
       for (i = 1; i < m && x[h[i]] == y[j + h[i]]; ++i);

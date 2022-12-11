@@ -40,9 +40,8 @@ void preKmp(unsigned char *x, int m, int kmpNext[]) {
    }
 }
 
-
 int search(unsigned char *x, int m, unsigned char *y, int n) {
-    int i, j, k, ell, kmpNext[XSIZE], count;
+    int i, j, k, ell, kmpNext[m], count;
 
     /* Preprocessing */
     BEGIN_PREPROCESSING
