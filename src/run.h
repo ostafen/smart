@@ -520,52 +520,6 @@ int benchmark_algos_with_patterns(algo_results_t *results, const run_command_opt
 }
 
 /*
- * Returns the next pattern length given the pattern length increment options and the current length.
- * Guarantees that the next pattern length will be at least one greater than the current length.
- */
-int next_pattern_length(const run_command_opts_t *opts, int current_length)
-{
-    int next_length = current_length;
-    if (opts->increment_operator == '*')
-    {
-        next_length *= opts->increment_by;
-    }
-    else if (opts->increment_operator == '+')
-    {
-        next_length += opts->increment_by;
-    }
-    else
-    {
-        error_and_exit("Unknown pattern length increment operator was set: %c", opts->increment_operator);
-    }
-
-    if (next_length <= current_length)
-    {
-        next_length = current_length + 1;
-    }
-
-    return next_length;
-}
-
-/*
- * Returns the number of different pattern lengths to be benchmarked.
- */
-int get_num_pattern_lengths(const run_command_opts_t *opts)
-{
-    if (opts->pattern != NULL) // If the pattern was supplied by the user, we only have one pattern to use.
-        return 1;
-
-    int num_patterns = 0;
-    int value = opts->pattern_min_len;
-    while (value <= opts->pattern_max_len && num_patterns <= NUM_PATTERNS_MAX)
-    {
-        value = next_pattern_length(opts, value);
-        num_patterns++;
-    }
-    return num_patterns;
-}
-
-/*
  * Computes information about the size of the alphabet contained in character frequency table freq, and gives
  * both the number of unique characters, and the maximum character code it contains.
  */
@@ -654,22 +608,46 @@ int get_text(const smart_config_t *smart_config, run_command_opts_t *opts, unsig
 }
 
 /*
+ * Returns the number of different pattern lengths to benchmark.
+ * If the user has supplied a pattern, there is only one.
+ * Otherwise, the pattern lengths are defined by the pattern length info.
+ */
+int get_num_patterns(const run_command_opts_t *opts)
+{
+    int num_pattern_lengths = 0;
+
+    // If the user supplies a pattern, we just have one, otherwise get the pattern lengths to use.
+    if (opts->pattern == NULL)
+    {
+        num_pattern_lengths = 1;
+        info("Benchmarking with a user supplied pattern of length %d.", opts->pattern_info.pattern_min_len);
+    }
+    else
+    {
+        num_pattern_lengths = get_num_pattern_lengths(&(opts->pattern_info));
+        info("Benchmarking with %d pattern lengths, from %d to %d, incrementing by %c %d.", num_pattern_lengths,
+             opts->pattern_info.pattern_min_len, opts->pattern_info.pattern_max_len,
+             opts->pattern_info.increment_operator, opts->pattern_info.increment_by);
+    }
+
+    return num_pattern_lengths;
+}
+
+/*
  * Benchmarks all algorithms over a text T for all pattern lengths.
  */
 int benchmark_algorithms_with_text(const run_command_opts_t *opts, unsigned char *T, int n, const algo_info_t *algorithms)
 {
-
-    int num_pattern_lengths = get_num_pattern_lengths(opts);
-    info("Benchmarking with %d pattern lengths, from %d to %d, incrementing by %c %d.", num_pattern_lengths,
-         opts->pattern_min_len, opts->pattern_max_len, opts->increment_operator, opts->increment_by);
+    int num_pattern_lengths = get_num_patterns(opts);
 
     benchmark_results_t results[num_pattern_lengths];
     unsigned char *pattern_list[opts->num_runs];
 
     allocate_benchmark_results(results, num_pattern_lengths, algorithms->num_algos, opts->num_runs);
-    allocate_pattern_matrix(pattern_list, opts->num_runs, opts->pattern_max_len);
+    allocate_pattern_matrix(pattern_list, opts->num_runs, opts->pattern_info.pattern_max_len);
 
-    for (int m = opts->pattern_min_len, pattern_idx = 0; m <= opts->pattern_max_len; m = next_pattern_length(opts, m), pattern_idx++)
+    for (int m = opts->pattern_info.pattern_min_len, pattern_idx = 0; m <= opts->pattern_info.pattern_max_len;
+             m = next_pattern_length(&(opts->pattern_info), m), pattern_idx++)
     {
         gen_patterns(opts, pattern_list, m, T, n, opts->num_runs);
         results[pattern_idx].pattern_length = m;
@@ -703,7 +681,7 @@ void print_search_and_preprocessing_time_info(run_command_opts_t *opts)
 void load_and_run_benchmarks(const smart_config_t *smart_config, run_command_opts_t *opts, algo_info_t *algorithms)
 {
     // Get the text to search in.
-    unsigned char *T = (unsigned char *)malloc(get_text_buffer_size(opts->text_size, opts->pattern_max_len));
+    unsigned char *T = (unsigned char *)malloc(get_text_buffer_size(opts->text_size, opts->pattern_info.pattern_max_len));
     int n = get_text(smart_config, opts, T);
     print_text_info(T, n);
 
@@ -777,6 +755,34 @@ void get_algorithms_to_benchmark(const smart_config_t *smart_config, run_command
 }
 
 /*
+ * Prints an appropriate error message if no algorithms can be found to run with.
+ */
+void print_algorithm_missing_error_and_exit(const smart_config_t *smart_config, run_command_opts_t *opts)
+{
+    switch (opts->algo_source)
+    {
+        case ALGO_REGEXES:
+        {
+            error_and_exit("No algorithms matched the ones specified on the command line.");
+        }
+        case ALL_ALGOS:
+        {
+            error_and_exit("No algorithms could be located on the algorithm search paths.");
+        }
+        case NAMED_SET_ALGOS:
+        case SELECTED_ALGOS:
+        {
+            error_and_exit("No algorithms were found to benchmark in %s/%s", smart_config->smart_config_dir,
+                           opts->algo_filename);
+        }
+        default:
+        {
+            error_and_exit("Unknown algorithm source %d", opts->algo_source);
+        }
+    }
+}
+
+/*
  * Executes the benchmark with the given benchmark options.
  */
 void run_benchmark(const smart_config_t *smart_config, run_command_opts_t *opts)
@@ -791,9 +797,7 @@ void run_benchmark(const smart_config_t *smart_config, run_command_opts_t *opts)
     }
     else
     {
-        // TODO: fix - we can load algorithms from command line now as well as named sets - this error message is not always true anymore.
-        error_and_exit("No algorithms were found to benchmark in %s/%s", smart_config->smart_config_dir,
-                       opts->algo_filename);
+        print_algorithm_missing_error_and_exit(smart_config, opts);
     }
 }
 
