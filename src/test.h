@@ -184,7 +184,6 @@ void test_fixed_string(char *pattern, char *text, test_results_info_t *test_resu
 
 /*
  * Short fixed length string tests.
- *
  */
 void run_fixed_tests(test_results_info_t *test_results)
 {
@@ -205,16 +204,25 @@ void run_fixed_tests(test_results_info_t *test_results)
 }
 
 /*
- * Gets a random pattern from the text T.
+ * Gets a random pattern from the text T, with a specified length within the bounds of TEST_PATTERN_MIN_LEN to TEST_PATTERN_MAX_LEN.
+ * Returns the actual length of the pattern obtained.
+ */
+int get_random_pattern_from_text_with_length(unsigned char pattern[TEST_PATTERN_MAX_LEN], unsigned char *T, int pat_len)
+{
+    pat_len = pat_len < TEST_PATTERN_MIN_LEN ? TEST_PATTERN_MIN_LEN : pat_len > TEST_PATTERN_MAX_LEN ? TEST_PATTERN_MAX_LEN : pat_len;
+    int start = pat_len == TEST_PATTERN_MAX_LEN ? 0 : rand() % (TEST_PATTERN_MAX_LEN - pat_len);
+    memcpy(pattern + start, T, pat_len);
+    return pat_len;
+}
+
+/*
+ * Gets a pattern of random length and random position from the text T.
  * Returns the length of the pattern.
  */
 int get_random_pattern_from_text(unsigned char pattern[TEST_PATTERN_MAX_LEN], unsigned char *T)
 {
     int pat_len = (rand() % (TEST_PATTERN_MAX_LEN - 1)) + 1;
-    pat_len = pat_len < 1 ? 1 : pat_len;
-    int start = rand() % (TEST_PATTERN_MAX_LEN - pat_len);
-    memcpy(pattern + start, T, pat_len);
-    return pat_len;
+    return get_random_pattern_from_text_with_length(pattern, T, pat_len);
 }
 
 /*
@@ -275,25 +283,68 @@ int run_random_test(test_results_info_t *test_results, unsigned char *pattern, i
 }
 
 /*
- * Tests several random patterns selected from the text.
+ * Tests random patterns with specified lengths from the text.
+ * Returns True if passed.
  */
-int test_random_patterns(test_results_info_t *test_results, unsigned char *T, int sigma)
+int test_random_patterns_with_specific_lengths(test_results_info_t *test_results, unsigned char *T, int sigma)
 {
-    int passed = 1;
     unsigned char pattern[TEST_PATTERN_MAX_LEN];
+    int passed = 1;
 
-    // Test random patterns extracted from the text:
-    for (int test_no = 1; test_no <= 8; test_no++)
+    const pattern_len_info_t *pattern_info = &(test_results->opts->pattern_info);
+    for (int pattern_length = pattern_info->pattern_min_len; pattern_length < pattern_info->pattern_max_len;
+         pattern_length = next_pattern_length(pattern_info, pattern_length))
     {
-        // Test pattern which exists in the text:
-        int m = get_random_pattern_from_text(pattern, T);
-        passed &= run_random_test(test_results, pattern, m, T, "Random position", sigma);
+        // Test pattern which exists in the text with the current length:
+        int m = get_random_pattern_from_text_with_length(pattern, T, pattern_length);
+        passed &= run_random_test(test_results, pattern, m, T, "Specified lengths", sigma);
 
         if (!passed)
             break;
     }
 
     return passed;
+}
+
+/*
+ * Tests randomly selected patterns with random lengths from the text.
+ * Returns True if passed.
+ */
+int test_random_patterns_with_random_lengths(test_results_info_t *test_results, unsigned char *T, int sigma)
+{
+    unsigned char pattern[TEST_PATTERN_MAX_LEN];
+    int passed = 1;
+
+    for (int test_no = 1; test_no <= 8; test_no++)
+    {
+        // Test pattern which exists in the text with a random length.
+        int m = get_random_pattern_from_text(pattern, T);
+        passed &= run_random_test(test_results, pattern, m, T, "Random lengths", sigma);
+
+        if (!passed)
+            break;
+    }
+
+    return passed;
+}
+
+/*
+ * Tests several random patterns selected from the text.
+ * If pattern length control was provided with -inc or -plen, then use those pattern lengths,
+ * otherwise select the pattern lengths randomly.  The pattern_min_len will be greater than zero if there
+ * are specified pattern lengths.
+ *
+ * Returns True if passed.
+ */
+int test_random_patterns(test_results_info_t *test_results, unsigned char *T, int sigma)
+{
+    if (test_results->opts->pattern_info.pattern_min_len > 0)
+    {
+        return test_random_patterns_with_specific_lengths(test_results, T, sigma);
+    }
+    else {
+        return test_random_patterns_with_random_lengths(test_results, T, sigma);
+    }
 }
 
 /*
@@ -498,7 +549,6 @@ void run_random_tests(test_results_info_t *test_results, unsigned char *T)
         percent_done = update_random_test_percentage(test_results, done, start_percent, percent_done);
 
         gen_random_text(sigma, T, TEST_TEXT_SIZE);
-        unsigned char pattern[TEST_PATTERN_MAX_LEN] = {0};
 
         int passed = 1;
         passed &= test_random_patterns(test_results, T, sigma);
@@ -733,30 +783,47 @@ void get_algonames_to_test(algo_info_t *algorithms, const test_command_opts_t *o
 }
 
 /*
- * Runs tests against the algorithms selected by the test command.
+ * Prints info and warning messages about the test options selected.
  */
-void run_tests(const smart_config_t *smart_config, const test_command_opts_t *opts)
+void print_test_option_messages(const test_command_opts_t *opts)
 {
-    algo_info_t algorithms;
-    get_algonames_to_test(&algorithms, opts, smart_config);
-    load_algo_shared_libraries(smart_config, &algorithms);
-    print_algorithms_as_list("\tTesting ", &algorithms);
-    printf("\n");
-
     if (opts->quick)
     {
         warn("Running quick tests - these results are not as reliable but give faster feedback.\n");
     }
 
+    if (opts->pattern_info.pattern_min_len > 0)
+    {
+        info("Testing random patterns with pattern lengths from %d to %d, incrementing by %c %d.\n",
+             opts->pattern_info.pattern_min_len, opts->pattern_info.pattern_max_len,
+             opts->pattern_info.increment_operator, opts->pattern_info.increment_by);
+    }
+}
+
+/*
+ * Runs tests against the algorithms selected by the test command.
+ */
+void run_tests(const smart_config_t *smart_config, const test_command_opts_t *opts)
+{
+    // Get algos to test.
+    algo_info_t algorithms;
+    get_algonames_to_test(&algorithms, opts, smart_config);
+    load_algo_shared_libraries(smart_config, &algorithms);
+
+    // Print test info:
+    print_algorithms_as_list("\tTesting ", &algorithms);
+    printf("\n");
+    print_test_option_messages(opts);
     char time_format[26];
     set_time_string(time_format, 26, "%Y:%m:%d %H:%M:%S");
     info("Algorithm correctness tests started at %s", time_format);
 
+    // Test
     test_algos(opts, &algorithms);
 
+    // Finish testing.
     set_time_string(time_format, 26, "%Y:%m:%d %H:%M:%S");
     info("Algorithm correctness tests finished at %s", time_format);
-
     unload_algos(&algorithms);
 }
 

@@ -64,6 +64,16 @@ void print_subcommand_usage_and_exit(const char *command)
 enum algo_sources {ALGO_REGEXES, ALL_ALGOS, SELECTED_ALGOS, NAMED_SET_ALGOS};
 
 /*
+ * A struct to hold information about what pattern lengths to benchmark or test with.
+ */
+typedef struct pattern_len_info {
+    int pattern_min_len;
+    int pattern_max_len;
+    char increment_operator;
+    int increment_by;
+} pattern_len_info_t;
+
+/*
  * Shared commands
  */
 static char *const OPTION_SHORT_SEED = "-rs";
@@ -72,6 +82,53 @@ static char *const OPTION_SHORT_USE_NAMED = "-use";
 static char *const OPTION_LONG_USE_NAMED = "--use-algos";
 static char *const FLAG_SHORT_ALL_ALGOS = "-all";
 static char *const FLAG_LONG_ALL_ALGOS = "--all-algos";
+static char *const OPTION_SHORT_PATTERN_LEN = "-plen";
+static char *const OPTION_LONG_PATTERN_LEN = "--patt-len";
+static char *const OPTION_SHORT_INCREMENT= "-inc";
+static char *const OPTION_LONG_INCREMENT = "--increment";
+
+/*
+ * Returns the next pattern length given the pattern length increment options and the current length.
+ * Guarantees that the next pattern length will be at least one greater than the current length.
+ */
+int next_pattern_length(const pattern_len_info_t *pattern_info, int current_length)
+{
+    int next_length = current_length;
+    if (pattern_info->increment_operator == '*')
+    {
+        next_length *= pattern_info->increment_by;
+    }
+    else if (pattern_info->increment_operator == '+')
+    {
+        next_length += pattern_info->increment_by;
+    }
+    else
+    {
+        error_and_exit("Unknown pattern length increment operator was set: %c", pattern_info->increment_operator);
+    }
+
+    if (next_length <= current_length)
+    {
+        next_length = current_length + 1;
+    }
+
+    return next_length;
+}
+
+/*
+ * Returns the number of different pattern lengths to be tested or benchmarked.
+ */
+int get_num_pattern_lengths(const pattern_len_info_t *pattern_info)
+{
+    int num_patterns = 0;
+    int value = pattern_info->pattern_min_len;
+    while (value <= pattern_info->pattern_max_len)
+    {
+        value = next_pattern_length(pattern_info, value);
+        num_patterns++;
+    }
+    return num_patterns;
+}
 
 
 /************************************
@@ -91,8 +148,6 @@ static char *const OPTION_SHORT_TEXT_SOURCE = "-text";
 static char *const OPTION_LONG_TEXT_SOURCE = "--text-files";
 static char *const OPTION_SHORT_RANDOM_TEXT = "-rand";
 static char *const OPTION_LONG_RANDOM_TEXT = "--rand-text";
-static char *const OPTION_SHORT_PATTERN_LEN = "-plen";
-static char *const OPTION_LONG_PATTERN_LEN = "--patt-len";
 static char *const OPTION_SHORT_PATTERN = "-pat";
 static char *const OPTION_LONG_PATTERN = "--pattern";
 static char *const OPTION_SHORT_SEARCH_DATA = "-data";
@@ -111,14 +166,14 @@ static char *const FLAG_SHORT_PREPROCESSING_TIME = "-pre";
 static char *const FLAG_LONG_PREPROCESSING_TIME = "--pre-time";
 static char *const FLAG_SHORT_FILL_BUFFER = "-fb";
 static char *const FLAG_LONG_FILL_BUFFER = "--fill-buffer";
+static char *const FLAG_SHORT_PATTERN_LENGTHS_SHORT = "-short";
+static char *const FLAG_LONG_PATTERN_LENGTHS_SHORT = "--short-patterns";
+static char *const FLAG_SHORT_PATTERN_LENGTHS_VERY_SHORT = "-vshort";
+static char *const FLAG_LONG_PATTERN_LENGTHS_VERY_SHORT = "--very-short";
 
-static char *const FLAG_SHORT_PATTERN_LENGTHS_SHORT = "-short";                    //TODO: support this command.
-static char *const FLAG_LONG_PATTERN_LENGTHS_SHORT = "--short-patterns";           //TODO: support this command.
-static char *const FLAG_SHORT_PATTERN_LENGTHS_VERY_SHORT = "-vshort";              //TODO: support this command.
-static char *const FLAG_LONG_PATTERN_LENGTHS_VERY_SHORT = "--very-short-patterns"; //TODO: support this command.
-static char *const FLAG_TEXT_OUTPUT = "-txt";                                      //TODO: output of results.
-static char *const FLAG_LATEX_OUTPUT = "-tex";                                     //TODO: output of results.
-static char *const FLAG_PHP_OUTPUT = "-php";                                       //TODO: output of results.
+static char *const FLAG_TEXT_OUTPUT = "-txt";     //TODO: output of results.
+static char *const FLAG_LATEX_OUTPUT = "-tex";    //TODO: output of results.
+static char *const FLAG_PHP_OUTPUT = "-php";      //TODO: output of results.
 
 /*
  * Type of data source to use for benchmarking.
@@ -144,8 +199,7 @@ typedef struct run_command_opts
     int text_size;                               // Size of the text buffer for benchmarking.
     int fill_buffer;                             // Boolean flag - whether to replicate data to fill up a buffer.
     int alphabet_size;                           // Size of the alphabet to use when creating random texts.
-    int pattern_min_len;                         // minimum length of pattern to be benchmarked.
-    int pattern_max_len;                         // maximum length of pattern to be benchmarked.
+    pattern_len_info_t pattern_info;             // Information about what pattern lengths to benchmark.
     int num_runs;                                // Number of patterns of a given length to benchmark.
     int time_limit_millis;                       // Number of milliseconds before an algorithm has timed out.
     long random_seed;                            // Random seed used to generate text or patterns.
@@ -188,8 +242,10 @@ void init_run_command_opts(run_command_opts_t *opts)
     opts->cpu_to_pin  = -1;
     opts->alphabet_size = SIGMA;
     opts->text_size = TEXT_SIZE_DEFAULT;
-    opts->pattern_min_len = PATTERN_MIN_LEN_DEFAULT;
-    opts->pattern_max_len = PATTERN_MAX_LEN_DEFAULT;
+    opts->pattern_info.pattern_min_len = PATTERN_MIN_LEN_DEFAULT;
+    opts->pattern_info.pattern_max_len = PATTERN_MAX_LEN_DEFAULT;
+    opts->pattern_info.increment_operator = INCREMENT_MULTIPLY_OPERATOR;
+    opts->pattern_info.increment_by = INCREMENT_BY;
     opts->num_runs = NUM_RUNS_DEFAULT;
     opts->time_limit_millis = TIME_LIMIT_MILLIS_DEFAULT;
     opts->random_seed = time(NULL);
@@ -208,7 +264,7 @@ void print_run_usage_and_exit(const char *command)
 {
     print_logo();
 
-    printf("\n usage: %s [algo names...] [-text | -rand | -data | -plen | -pat | -use | -all | -runs | -ts | -fb | -rs | -pre | -occ | -tb | -pin | -h]\n\n", command);
+    printf("\n usage: %s [algo names...] [-text | -rand | -data | -plen | -inc | -short | -vshort | -pat | -use | -all | -runs | -ts | -fb | -rs | -pre | -occ | -tb | -pin | -h]\n\n", command);
 
     printf("\tYou can specify algorithms to benchmark directly as POSIX regular expressions, e.g. smart run bsdm.* hor ...\n");
     printf("\tIf you do not specify any algorithms on the command line or by another command, the default selected algorithms will be used.\n\n");
@@ -220,14 +276,18 @@ void print_run_usage_and_exit(const char *command)
     print_help_line("Performs experimental results using random text with an alphabet A between 1 and 256 inclusive.", OPTION_SHORT_RANDOM_TEXT, OPTION_LONG_RANDOM_TEXT, "A");
     print_help_line("Performs experimental results using text specified in parameter T.", OPTION_SHORT_SEARCH_DATA, OPTION_LONG_SEARCH_DATA, "T");
     print_help_line("Set the minimum and maximum length of random patterns to benchmark between L and U (included).", OPTION_SHORT_PATTERN_LEN, OPTION_LONG_PATTERN_LEN, "L U");
+    print_help_line("If you only provide a single parameter L, then only that pattern length will be used.", "", "", "L");
+    print_help_line("Increments the pattern lengths with operator O and value V, e.g. '+1'. Default is '*2'.", OPTION_SHORT_INCREMENT, OPTION_LONG_INCREMENT, "O V");
+    print_help_line("To add by a fixed amount V, use operator +", "", "", "+ V");
+    print_help_line("To multiply by a fixed amount V, use operator *", "", "", "* V");
+    print_help_line("Performs experimental results using short length patterns (from 2 to 32 incrementing by 2)", FLAG_SHORT_PATTERN_LENGTHS_SHORT, FLAG_LONG_PATTERN_LENGTHS_SHORT, "");
+    print_help_line("Performs experimental results using very short length patterns (from 1 to 16 incrementing by 1)", FLAG_SHORT_PATTERN_LENGTHS_VERY_SHORT, FLAG_LONG_PATTERN_LENGTHS_VERY_SHORT, "");
     print_help_line("Performs experimental results using a single pattern specified in parameter P.", OPTION_SHORT_PATTERN, OPTION_LONG_PATTERN, "P");
     print_help_line("Benchmarks a set of algorithms named N.algos in the config folder, in addition to any algorithms specified directly.", OPTION_SHORT_USE_NAMED, OPTION_LONG_USE_NAMED, "N");
     print_help_line("Benchmarks all the algorithms.", FLAG_SHORT_ALL_ALGOS, FLAG_LONG_ALL_ALGOS, "");
     print_help_line("Computes running times as the mean of N runs (default 500)", OPTION_SHORT_NUM_RUNS, OPTION_LONG_NUM_RUNS, "N");
     print_help_line("Set the upper bound dimension S (in Mb) of the text used for experimental results (default 1Mb).", OPTION_SHORT_TEXT_SIZE, OPTION_LONG_TEXT_SIZE, "S");
     print_help_line("Fills the text buffer up to its maximum size by copying earlier data until full.", FLAG_SHORT_FILL_BUFFER, FLAG_LONG_FILL_BUFFER, "");
-    //print_help_line("Computes experimental results using short length patterns (from 2 to 32)", FLAG_SHORT_PATTERN_LENGTHS_SHORT, FLAG_SHORT_PATTERN_LENGTHS_LONG, "");
-    //print_help_line("Computes experimental results using very short length patterns (from 1 to 16)", FLAG_VERY_SHORT_PATTERN_LENGTHS_SHORT, FLAG_VERY_SHORT_PATTERN_LENGTHS_LONG, "");
     print_help_line("Sets the random seed to integer S, ensuring tests and benchmarks can be precisely repeated.", OPTION_SHORT_SEED, OPTION_LONG_SEED, "S");
     print_help_line("Reports preprocessing times and searching times separately", FLAG_SHORT_PREPROCESSING_TIME, FLAG_LONG_PREPROCESSING_TIME, "");
     print_help_line("Prints the total number of occurrences", FLAG_SHORT_OCCURRENCE, FLAG_LONG_OCCURRENCE, "");
@@ -352,6 +412,7 @@ typedef struct test_command_opts
     const char *algo_names[MAX_SELECT_ALGOS];      // algo_names to test, as POSIX regular expressions.
     int num_algo_names;                            // Number of algo names recorded.
     long random_seed;                              // Random seed used to generate text or patterns.
+    pattern_len_info_t pattern_info;               // Info about what pattern sizes to test random patterns with.
     int debug;                                     // If set will re-call a failing search function with the failing parameters.
     int quick;                                     // Whether to run quick tests.
 } test_command_opts_t;
@@ -361,14 +422,18 @@ typedef struct test_command_opts
  */
 void init_test_command_opts(test_command_opts_t *opts)
 {
-    opts->algo_source  = ALGO_REGEXES;          // default is just user specified algo_names unless a command says different.
+    opts->algo_source  = ALGO_REGEXES;       // default is just user specified algo_names unless a command says different.
     opts->named_set    = NULL;
     for (int i = 0; i < MAX_SELECT_ALGOS; i++)
         opts->algo_names[i] = NULL;
     opts->num_algo_names = 0;
-    opts->random_seed  = time(NULL);   // default unless -seed option is specified.
+    opts->random_seed  = time(NULL);   // default is random seed set by the current time, unless -seed option is specified.
     opts->debug = 0;
     opts->quick = 0;
+    opts->pattern_info.pattern_min_len = 0;            // Only set to a real operator if we are specifying pattern lengths for test.
+    opts->pattern_info.pattern_max_len = 0;            // Only set to a real operator if we are specifying pattern lengths for test.
+    opts->pattern_info.increment_operator = INCREMENT_MULTIPLY_OPERATOR;
+    opts->pattern_info.increment_by = INCREMENT_BY;
 }
 
 /*
@@ -378,7 +443,7 @@ void print_test_usage_and_exit(const char *command)
 {
     print_logo();
 
-    printf("\n usage: %s test [algo1, algo2, ...] | -all | -sel | -use {name} | -rs | -q | -d | -h\n\n", command);
+    printf("\n usage: %s test [algo1, algo2, ...] | -all | -sel | -use | -plen |-inc | -rs | -q | -d | -h\n\n", command);
 
     info("Tests a set of smart algorithms for correctness with a variety of fixed and randomized tests.");
     info("You can specify the algorithms to test directly using POSIX extended regular expressions, e.g. test hor wfr.*");
@@ -387,6 +452,11 @@ void print_test_usage_and_exit(const char *command)
     print_help_line("Tests all of the algorithms smart finds in its algo search paths.", FLAG_SHORT_ALL_ALGOS, FLAG_LONG_ALL_ALGOS, "");
     print_help_line("Tests the currently selected algorithms in addition to any algorithms specified directly.", OPTION_SHORT_TEST_SELECTED, OPTION_LONG_TEST_SELECTED, "");
     print_help_line("Tests a set of algorithms named N.algos in the config folder, in addition to any algorithms specified directly.", OPTION_SHORT_USE_NAMED, OPTION_LONG_USE_NAMED, "N");
+    print_help_line("Set the minimum and maximum length of random patterns to test between L and U (included).", OPTION_SHORT_PATTERN_LEN, OPTION_LONG_PATTERN_LEN, "L U");
+    print_help_line("If you only provide a single parameter L, then only that pattern length will be used.", "", "", "L");
+    print_help_line("Increments the pattern lengths with operator O and value V, e.g. +1 or *2", OPTION_SHORT_INCREMENT, OPTION_LONG_INCREMENT, "O V");
+    print_help_line("To add by a fixed amount V, use operator +", "", "", "+ V");
+    print_help_line("To multiply by a fixed amount V, use operator *", "", "", "* V");
     print_help_line("Sets the random seed to integer S, ensuring tests can be precisely repeated.", OPTION_SHORT_SEED, OPTION_LONG_SEED, "S");
     print_help_line("Runs tests faster by testing less exhaustively.", OPTION_SHORT_QUICK_TESTS, OPTION_LONG_QUICK_TESTS, "");
     print_help_line("Useful to get fast feedback, but all tests should pass before benchmarking against other algorithms.", "", "", "");

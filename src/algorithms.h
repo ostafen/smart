@@ -10,8 +10,8 @@
 #include "config.h"
 #include "utils.h"
 
-static const char *ALGO_COLUMN_FORMAT = "%-18s ";
-static const int ALGO_NUM_COLUMNS = 6; //TODO: calculate from algo name len?  Max algo name lens?
+static const char *ALGO_COLUMN_FORMAT = "%-*s ";
+static const int ALGO_NUM_COLUMNS = (MAX_LINE_LEN / ALGO_NAME_LEN);
 
 /*
  * Function signature typedef of the internal search function called to benchmark algorithms.
@@ -373,7 +373,7 @@ void print_algorithms_in_tabular_format(const algo_info_t *algorithms)
             for (int j = i; j < i + ALGO_NUM_COLUMNS; j++)
             {
                 set_upper_case_algo_name(upper_case_algo_name, algorithms->algo_names[j]);
-                printf(ALGO_COLUMN_FORMAT, upper_case_algo_name);
+                printf(ALGO_COLUMN_FORMAT, ALGO_NAME_LEN, upper_case_algo_name);
             }
             printf("\n");
         }
@@ -384,7 +384,7 @@ void print_algorithms_in_tabular_format(const algo_info_t *algorithms)
             for (int i = algorithms->num_algos - remaining_columns; i < algorithms->num_algos; i++)
             {
                 set_upper_case_algo_name(upper_case_algo_name, algorithms->algo_names[i]);
-                printf(ALGO_COLUMN_FORMAT, upper_case_algo_name);
+                printf(ALGO_COLUMN_FORMAT, ALGO_NAME_LEN, upper_case_algo_name);
             }
             printf("\n");
         }
