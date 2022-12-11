@@ -93,6 +93,8 @@ static char *const OPTION_SHORT_RANDOM_TEXT = "-rand";
 static char *const OPTION_LONG_RANDOM_TEXT = "--rand-text";
 static char *const OPTION_SHORT_PATTERN_LEN = "-plen";
 static char *const OPTION_LONG_PATTERN_LEN = "--patt-len";
+static char *const OPTION_SHORT_INCREMENT= "-inc";
+static char *const OPTION_LONG_INCREMENT = "--increment";
 static char *const OPTION_SHORT_PATTERN = "-pat";
 static char *const OPTION_LONG_PATTERN = "--pattern";
 static char *const OPTION_SHORT_SEARCH_DATA = "-data";
@@ -112,10 +114,10 @@ static char *const FLAG_LONG_PREPROCESSING_TIME = "--pre-time";
 static char *const FLAG_SHORT_FILL_BUFFER = "-fb";
 static char *const FLAG_LONG_FILL_BUFFER = "--fill-buffer";
 
-static char *const FLAG_SHORT_PATTERN_LENGTHS_SHORT = "-short";                    //TODO: support this command.
-static char *const FLAG_LONG_PATTERN_LENGTHS_SHORT = "--short-patterns";           //TODO: support this command.
-static char *const FLAG_SHORT_PATTERN_LENGTHS_VERY_SHORT = "-vshort";              //TODO: support this command.
-static char *const FLAG_LONG_PATTERN_LENGTHS_VERY_SHORT = "--very-short-patterns"; //TODO: support this command.
+static char *const FLAG_SHORT_PATTERN_LENGTHS_SHORT = "-short";
+static char *const FLAG_LONG_PATTERN_LENGTHS_SHORT = "--short-patterns";
+static char *const FLAG_SHORT_PATTERN_LENGTHS_VERY_SHORT = "-vshort";
+static char *const FLAG_LONG_PATTERN_LENGTHS_VERY_SHORT = "--very-short";
 static char *const FLAG_TEXT_OUTPUT = "-txt";                                      //TODO: output of results.
 static char *const FLAG_LATEX_OUTPUT = "-tex";                                     //TODO: output of results.
 static char *const FLAG_PHP_OUTPUT = "-php";                                       //TODO: output of results.
@@ -146,6 +148,8 @@ typedef struct run_command_opts
     int alphabet_size;                           // Size of the alphabet to use when creating random texts.
     int pattern_min_len;                         // minimum length of pattern to be benchmarked.
     int pattern_max_len;                         // maximum length of pattern to be benchmarked.
+    char increment_operator;                     // + or * to indicate the increment operator to use.
+    int increment_by;                            // amount to increment the pattern length by, with either addition or multiplication.
     int num_runs;                                // Number of patterns of a given length to benchmark.
     int time_limit_millis;                       // Number of milliseconds before an algorithm has timed out.
     long random_seed;                            // Random seed used to generate text or patterns.
@@ -190,6 +194,8 @@ void init_run_command_opts(run_command_opts_t *opts)
     opts->text_size = TEXT_SIZE_DEFAULT;
     opts->pattern_min_len = PATTERN_MIN_LEN_DEFAULT;
     opts->pattern_max_len = PATTERN_MAX_LEN_DEFAULT;
+    opts->increment_operator = INCREMENT_OPERATOR;
+    opts->increment_by = INCREMENT_BY;
     opts->num_runs = NUM_RUNS_DEFAULT;
     opts->time_limit_millis = TIME_LIMIT_MILLIS_DEFAULT;
     opts->random_seed = time(NULL);
@@ -227,8 +233,8 @@ void print_run_usage_and_exit(const char *command)
     print_help_line("Computes running times as the mean of N runs (default 500)", OPTION_SHORT_NUM_RUNS, OPTION_LONG_NUM_RUNS, "N");
     print_help_line("Set the upper bound dimension S (in Mb) of the text used for experimental results (default 1Mb).", OPTION_SHORT_TEXT_SIZE, OPTION_LONG_TEXT_SIZE, "S");
     print_help_line("Fills the text buffer up to its maximum size by copying earlier data until full.", FLAG_SHORT_FILL_BUFFER, FLAG_LONG_FILL_BUFFER, "");
-    //print_help_line("Computes experimental results using short length patterns (from 2 to 32)", FLAG_SHORT_PATTERN_LENGTHS_SHORT, FLAG_SHORT_PATTERN_LENGTHS_LONG, "");
-    //print_help_line("Computes experimental results using very short length patterns (from 1 to 16)", FLAG_VERY_SHORT_PATTERN_LENGTHS_SHORT, FLAG_VERY_SHORT_PATTERN_LENGTHS_LONG, "");
+    print_help_line("Computes experimental results using short length patterns (from 2 to 32 incrementing by 2)", FLAG_SHORT_PATTERN_LENGTHS_SHORT, FLAG_LONG_PATTERN_LENGTHS_SHORT, "");
+    print_help_line("Computes experimental results using very short length patterns (from 1 to 16 incrementing by 1)", FLAG_SHORT_PATTERN_LENGTHS_VERY_SHORT, FLAG_LONG_PATTERN_LENGTHS_VERY_SHORT, "");
     print_help_line("Sets the random seed to integer S, ensuring tests and benchmarks can be precisely repeated.", OPTION_SHORT_SEED, OPTION_LONG_SEED, "S");
     print_help_line("Reports preprocessing times and searching times separately", FLAG_SHORT_PREPROCESSING_TIME, FLAG_LONG_PREPROCESSING_TIME, "");
     print_help_line("Prints the total number of occurrences", FLAG_SHORT_OCCURRENCE, FLAG_LONG_OCCURRENCE, "");
