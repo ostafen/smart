@@ -57,6 +57,8 @@
 #define TEXT_SIZE_DEFAULT 1048576         // default size of text buffer for benchmarking
 #define PATTERN_MIN_LEN_DEFAULT 2         // default minimum size of pattern to benchmark.
 #define PATTERN_MAX_LEN_DEFAULT 4096      // default maximum size of pattern to benchmark.
+#define INCREMENT_OPERATOR '*'            // default pattern increment is to multiply by 2
+#define INCREMENT_BY 2                    // default pattern increment is to multiply by 2
 #define NUM_RUNS_DEFAULT 500              // default number of patterns of a given size to benchmark with.
 #define TIME_LIMIT_MILLIS_DEFAULT 300     // default time limit in milliseconds for a search to pass benchmarking.
 #define CPU_PIN_DEFAULT PIN_LAST_CPU      // default CPU pinning - can be [off | last | {digit}]
