@@ -428,7 +428,7 @@ void print_file_and_access(const char *header, const char *path, const char *fil
  */
 void print_help_line(const char *description, const char *short_option, const char *long_option, const char *params)
 {
-    info("%-6s %-18s %-8s %s", short_option, long_option, params, description);
+    info("%-8s %-18s %-8s %s", short_option, long_option, params, description);
 }
 
 /*
