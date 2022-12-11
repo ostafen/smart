@@ -520,6 +520,34 @@ int benchmark_algos_with_patterns(algo_results_t *results, const run_command_opt
 }
 
 /*
+ * Returns the next pattern length given the pattern length increment options and the current length.
+ * Guarantees that the next pattern length will be at least one greater than the current length.
+ */
+int next_pattern_length(const run_command_opts_t *opts, int current_length)
+{
+    int next_length = current_length;
+    if (opts->increment_operator == '*')
+    {
+        next_length *= opts->increment_by;
+    }
+    else if (opts->increment_operator == '+')
+    {
+        next_length += opts->increment_by;
+    }
+    else
+    {
+        error_and_exit("Unknown pattern length increment operator was set: %c", opts->increment_operator);
+    }
+
+    if (next_length <= current_length)
+    {
+        next_length = current_length + 1;
+    }
+
+    return next_length;
+}
+
+/*
  * Returns the number of different pattern lengths to be benchmarked.
  */
 int get_num_pattern_lengths(const run_command_opts_t *opts)
@@ -531,7 +559,7 @@ int get_num_pattern_lengths(const run_command_opts_t *opts)
     int value = opts->pattern_min_len;
     while (value <= opts->pattern_max_len && num_patterns <= NUM_PATTERNS_MAX)
     {
-        value *= 2; // we can change this calculation to support arithmetic progressions as well as geometric.
+        value = next_pattern_length(opts, value);
         num_patterns++;
     }
     return num_patterns;
@@ -632,13 +660,16 @@ int benchmark_algorithms_with_text(const run_command_opts_t *opts, unsigned char
 {
 
     int num_pattern_lengths = get_num_pattern_lengths(opts);
+    info("Benchmarking with %d pattern lengths, from %d to %d, incrementing by %c %d.", num_pattern_lengths,
+         opts->pattern_min_len, opts->pattern_max_len, opts->increment_operator, opts->increment_by);
+
     benchmark_results_t results[num_pattern_lengths];
     unsigned char *pattern_list[opts->num_runs];
 
     allocate_benchmark_results(results, num_pattern_lengths, algorithms->num_algos, opts->num_runs);
     allocate_pattern_matrix(pattern_list, opts->num_runs, opts->pattern_max_len);
 
-    for (int m = opts->pattern_min_len, pattern_idx = 0; m <= opts->pattern_max_len; m *= 2, pattern_idx++)
+    for (int m = opts->pattern_min_len, pattern_idx = 0; m <= opts->pattern_max_len; m = next_pattern_length(opts, m), pattern_idx++)
     {
         gen_patterns(opts, pattern_list, m, T, n, opts->num_runs);
         results[pattern_idx].pattern_length = m;
@@ -760,6 +791,7 @@ void run_benchmark(const smart_config_t *smart_config, run_command_opts_t *opts)
     }
     else
     {
+        // TODO: fix - we can load algorithms from command line now as well as named sets - this error message is not always true anymore.
         error_and_exit("No algorithms were found to benchmark in %s/%s", smart_config->smart_config_dir,
                        opts->algo_filename);
     }
