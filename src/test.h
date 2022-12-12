@@ -211,7 +211,7 @@ int get_random_pattern_from_text_with_length(unsigned char pattern[TEST_PATTERN_
 {
     pat_len = pat_len < TEST_PATTERN_MIN_LEN ? TEST_PATTERN_MIN_LEN : pat_len > TEST_PATTERN_MAX_LEN ? TEST_PATTERN_MAX_LEN : pat_len;
     int start = pat_len == TEST_PATTERN_MAX_LEN ? 0 : rand() % (TEST_PATTERN_MAX_LEN - pat_len);
-    memcpy(pattern + start, T, pat_len);
+    memcpy(pattern , T + start, pat_len);
     return pat_len;
 }
 
