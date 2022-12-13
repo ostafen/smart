@@ -90,15 +90,16 @@ static char *const OPTION_LONG_INCREMENT = "--increment";
 /*
  * Returns the next pattern length given the pattern length increment options and the current length.
  * Guarantees that the next pattern length will be at least one greater than the current length.
+ * Does not enforce any maximum size on what the next pattern length can be.
  */
 int next_pattern_length(const pattern_len_info_t *pattern_info, int current_length)
 {
     int next_length = current_length;
-    if (pattern_info->increment_operator == '*')
+    if (pattern_info->increment_operator == INCREMENT_MULTIPLY_OPERATOR)
     {
         next_length *= pattern_info->increment_by;
     }
-    else if (pattern_info->increment_operator == '+')
+    else if (pattern_info->increment_operator == INCREMENT_ADD_OPERATOR)
     {
         next_length += pattern_info->increment_by;
     }
@@ -116,20 +117,41 @@ int next_pattern_length(const pattern_len_info_t *pattern_info, int current_leng
 }
 
 /*
- * Returns the number of different pattern lengths to be tested or benchmarked.
+ * Returns the number of different pattern lengths to be tested or benchmarked, given the pattern length info and a maximum size.
  */
-int get_num_pattern_lengths(const pattern_len_info_t *pattern_info)
+int get_num_pattern_lengths(const pattern_len_info_t *pattern_info, int text_size)
 {
     int num_patterns = 0;
     int value = pattern_info->pattern_min_len;
-    while (value <= pattern_info->pattern_max_len)
+    int max_size = MIN(text_size, pattern_info->pattern_max_len); // max len guaranteed to be >= min len by parser stage.
+    while (value <= max_size)
     {
         value = next_pattern_length(pattern_info, value);
         num_patterns++;
     }
+
     return num_patterns;
 }
 
+/*
+ * Returns the maximum pattern length to be tested or benchmarked, given the pattern length info and the text size.
+ */
+int get_max_pattern_length(const pattern_len_info_t *pattern_info, int text_size)
+{
+    int current_length = pattern_info->pattern_min_len;      // guaranteed to be within the text size by the parser stage.
+    int max_size = MIN(text_size, pattern_info->pattern_max_len); // max len guaranteed to be >= min len by parser stage.
+    while (current_length <= max_size)
+    {
+        int next_length = next_pattern_length(pattern_info, current_length);
+        if (next_length > max_size)
+        {
+            break;
+        }
+        current_length = next_length;
+    }
+
+    return current_length;
+}
 
 /************************************
  * Run command
