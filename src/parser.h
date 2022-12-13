@@ -28,11 +28,12 @@ static char *const ERROR_MISSING_PARAMETER = "%soption %s needs a parameter, nex
 static char *const ERROR_NO_DATA_SOURCE_DEFINED = "%sno data source is defined with either %s or %s%s";
 static char *const ERROR_TOO_MANY_DATA_SOURCES_DEFINED = "%sToo many data source are defined with either %s.  Max is %d.%s";
 static char *const ERROR_UNRECOGNISED_OPTION = "%s%s: unrecognized option %s%s";
+static char *const ERROR_MIN_PATTERN_BIGGER_THAN_TEXT = "%sMinimum pattern length %d is bigger than the text size of %d.%s";
 static char *const ERROR_NO_ALGORITHMS_DEFINED = "%sno algorithms specified for test.%s";
 static char *const ERROR_TOO_MANY_PATTERN_LENGTHS = "%sToo many patterns lengths specified: %d, from %d to %d, incrementing %c %d.  Max = %d%s";
 static char *const ERROR_PARAM_TOO_SHORT = "%sParameter '%s' value for option %s must be at least %d long.%s";
 static char *const ERROR_INCREMENT_PLUS_OR_TIMES = "%sIncrement option %s parameter '%s' must start with + or *%s";
-static char *const ERROR_HEADER = "Error in input parameters: ";
+static char *const ERROR_HEADER = "incorrect input parameters: ";
 static char *const ERROR_FOOTER = "\n\nUse -h for help.\n\n";
 
 /*
@@ -91,23 +92,29 @@ void check_string_too_short(const char *param, int minlen, const char *option)
     if (strlen(param) < minlen)
     {
         error_and_exit(ERROR_PARAM_TOO_SHORT, ERROR_HEADER, param, option, minlen, ERROR_FOOTER);
-
     }
 }
 
 /*
- * Checks that the num pattern lengths defined (if they are) do not exceed the maximum number of pattern lengths.
+ * Checks that the num pattern lengths defined (if they are) do not exceed the maximum number of pattern lengths,
+ * that the minimum pattern length is not greater than the text size.
  */
-void check_num_pattern_lengths(pattern_len_info_t *pattern_info)
+void check_num_pattern_lengths(pattern_len_info_t *pattern_info, int text_size)
 {
     if (pattern_info->pattern_min_len > 0) // if set to 0, no pattern lengths are defined.
     {
-        int num_pattern_lengths = get_num_pattern_lengths(pattern_info);
+        int num_pattern_lengths = get_num_pattern_lengths(pattern_info, text_size);
         if (num_pattern_lengths > NUM_PATTERNS_MAX)
         {
             error_and_exit(ERROR_TOO_MANY_PATTERN_LENGTHS, ERROR_HEADER, num_pattern_lengths,
                            pattern_info->pattern_min_len, pattern_info->pattern_max_len, pattern_info->increment_operator,
                            pattern_info->increment_by, NUM_PATTERNS_MAX, ERROR_FOOTER);
+        }
+
+        if (pattern_info->pattern_min_len > text_size)
+        {
+            error_and_exit(ERROR_MIN_PATTERN_BIGGER_THAN_TEXT, ERROR_HEADER, pattern_info->pattern_min_len,
+                           text_size, ERROR_FOOTER);
         }
     }
 }
@@ -243,6 +250,8 @@ int parse_random_text(run_command_opts_t *opts, int curr_arg, int argc, const ch
  */
 int parse_pattern_len(pattern_len_info_t *plen_info, int curr_arg, int argc, const char **argv)
 {
+    int num_params;
+
     parse_next_int_parameter(OPTION_LONG_PATTERN_LEN, &(plen_info->pattern_min_len), curr_arg, argc, argv);
 
     // If we have a second parameter at curr_arg + 2, this is the maximum
@@ -254,13 +263,19 @@ int parse_pattern_len(pattern_len_info_t *plen_info, int curr_arg, int argc, con
             error_and_exit(ERROR_MAX_LESS_THAN_MIN, ERROR_HEADER, plen_info->pattern_max_len,
                            OPTION_LONG_PATTERN_LEN, plen_info->pattern_min_len, ERROR_FOOTER);
         }
-        return 2;
+        num_params = 2;
     }
     else // only one parameter provided - set the max to the min - just a single pattern length.
     {
         plen_info->pattern_max_len = plen_info->pattern_min_len;
-        return 1;
+        num_params = 1;
     }
+
+    // Check we have a viable min pattern length.
+    if (plen_info->pattern_min_len < 1)
+        error_and_exit(ERROR_INTEGER_TOO_SMALL, ERROR_HEADER, argv[curr_arg + 1], OPTION_LONG_PATTERN_LEN, 1, ERROR_FOOTER);
+
+    return num_params;
 }
 
 /*
@@ -283,7 +298,7 @@ int parse_increment(pattern_len_info_t *opts, int curr_arg, int argc, const char
 
     int num_params_parsed = 1;
     char itype = param[0];
-    if (itype == '+' || itype == '*')
+    if (itype == INCREMENT_ADD_OPERATOR || itype == INCREMENT_MULTIPLY_OPERATOR)
     {
         opts->increment_operator = itype;
         size_t length = strlen(param);
@@ -303,7 +318,7 @@ int parse_increment(pattern_len_info_t *opts, int curr_arg, int argc, const char
         error_and_exit(ERROR_INCREMENT_PLUS_OR_TIMES, ERROR_HEADER, OPTION_LONG_INCREMENT, param, ERROR_FOOTER);
     }
 
-    int min_len = opts->increment_operator == '+' ? 1 : 2;
+    int min_len = opts->increment_operator == INCREMENT_ADD_OPERATOR ? 1 : 2;
     if (opts->increment_by < min_len)
         error_and_exit(ERROR_INTEGER_TOO_SMALL, ERROR_HEADER, param, OPTION_LONG_INCREMENT, min_len, ERROR_FOOTER);
 
@@ -563,7 +578,7 @@ void parse_run_args(int argc, const char **argv, smart_subcommand_t *subcommand)
         }
     }
 
-    check_num_pattern_lengths(&(opts->pattern_info));
+    check_num_pattern_lengths(&(opts->pattern_info), opts->text_size);
 
     if (opts->data_source == DATA_SOURCE_NOT_DEFINED)
         error_and_exit(ERROR_NO_DATA_SOURCE_DEFINED,
@@ -637,7 +652,13 @@ void parse_test_args(int argc, const char **argv, smart_subcommand_t *subcommand
         error_and_exit(ERROR_NO_ALGORITHMS_DEFINED, ERROR_HEADER, ERROR_FOOTER);
     }
 
-    check_num_pattern_lengths(&(opts->pattern_info));
+    if (opts->pattern_info.pattern_min_len > TEST_TEXT_SIZE)
+    {
+        error_and_exit(ERROR_MIN_PATTERN_BIGGER_THAN_TEXT, ERROR_HEADER, opts->pattern_info.pattern_min_len,
+                       TEST_TEXT_SIZE, ERROR_FOOTER);
+    }
+
+    check_num_pattern_lengths(&(opts->pattern_info), TEST_TEXT_SIZE);
 
     opts->num_algo_names = num_algo_names;
 
