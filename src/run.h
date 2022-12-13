@@ -313,7 +313,7 @@ typedef struct benchmark_results
  * Allocates memory for all benchmark results given the number of different patern lengths, the number of algorithms,
  * and the number of runs per pattern length for each algorithm.
  */
-void allocate_benchmark_results(benchmark_results_t *bench_result, int num_pattern_lengths, int num_algos, int num_runs)
+void allocate_benchmark_results(benchmark_results_t bench_result[], int num_pattern_lengths, int num_algos, int num_runs)
 {
     // For each pattern length we process, allocate space for bench_result for all the algorithms:
     for (int i = 0; i < num_pattern_lengths; i++)
@@ -332,7 +332,7 @@ void allocate_benchmark_results(benchmark_results_t *bench_result, int num_patte
 /*
  * Frees memory allocated for benchmark results.
  */
-void free_benchmark_results(benchmark_results_t *bench_result, int num_pattern_lengths, int num_algos)
+void free_benchmark_results(benchmark_results_t bench_result[], int num_pattern_lengths, int num_algos)
 {
     // For each pattern length we process, allocate space for bench_result for all the algorithms:
     for (int i = 0; i < num_pattern_lengths; i++)
@@ -619,15 +619,15 @@ int get_num_patterns(const run_command_opts_t *opts)
     // If the user supplies a pattern, we just have one, otherwise get the pattern lengths to use.
     if (opts->pattern == NULL)
     {
-        num_pattern_lengths = 1;
-        info("Benchmarking with a user supplied pattern of length %d.", opts->pattern_info.pattern_min_len);
-    }
-    else
-    {
         num_pattern_lengths = get_num_pattern_lengths(&(opts->pattern_info));
         info("Benchmarking with %d pattern lengths, from %d to %d, incrementing by %c %d.", num_pattern_lengths,
              opts->pattern_info.pattern_min_len, opts->pattern_info.pattern_max_len,
              opts->pattern_info.increment_operator, opts->pattern_info.increment_by);
+    }
+    else
+    {
+        num_pattern_lengths = 1;
+        info("Benchmarking with a user supplied pattern of length %d.", opts->pattern_info.pattern_min_len);
     }
 
     return num_pattern_lengths;
