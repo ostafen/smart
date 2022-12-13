@@ -178,20 +178,19 @@ int gen_user_data(const run_command_opts_t *opts, unsigned char *buffer)
  * If a pattern was supplied by the user, all the runs use the same pattern specified on the command line.
  * Otherwise, it builds a list of random patterns of size m by randomly extracting them from a text T of size n.
  */
-void gen_patterns(const run_command_opts_t *opts, unsigned char **patterns, int m, const unsigned char *T, int n, int num_patterns)
+void gen_patterns(const run_command_opts_t *opts, unsigned char *patterns[], int m, const unsigned char *T, int n, int num_patterns)
 {
     if (opts->pattern != NULL)
     {
         for (int i = 0; i < num_patterns; i++)
-            memcpy(patterns[i * m], opts->pattern, m);
+            memcpy(patterns[i], opts->pattern, m);
     }
     else
     {
         for (int i = 0; i < num_patterns; i++)
         {
-            int k = rand() % (n - m);
-            for (int j = 0; j < m; j++)
-                patterns[i][j] = T[k + j];
+            int k = n == m ? 0 : rand() % (n - m);
+            memcpy(patterns[i], T + k, m);
         }
     }
 }
