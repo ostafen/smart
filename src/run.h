@@ -608,24 +608,34 @@ int get_text(const smart_config_t *smart_config, run_command_opts_t *opts, unsig
 
 /*
  * Returns the number of different pattern lengths to benchmark.
+ * Sets the maximum pattern length which will be benchmarked in max_pattern_lengths;
  * If the user has supplied a pattern, there is only one.
  * Otherwise, the pattern lengths are defined by the pattern length info.
  */
-int get_num_patterns(const run_command_opts_t *opts)
+int get_num_pattern_lengths_to_run(const run_command_opts_t *opts, int *max_pattern_length)
 {
-    int num_pattern_lengths = 0;
+    int num_pattern_lengths;
 
     // If the user supplies a pattern, we just have one, otherwise get the pattern lengths to use.
     if (opts->pattern == NULL)
     {
-        num_pattern_lengths = get_num_pattern_lengths(&(opts->pattern_info));
-        info("Benchmarking with %d pattern lengths, from %d to %d, incrementing by %c %d.", num_pattern_lengths,
-             opts->pattern_info.pattern_min_len, opts->pattern_info.pattern_max_len,
-             opts->pattern_info.increment_operator, opts->pattern_info.increment_by);
+        *max_pattern_length = get_max_pattern_length(&(opts->pattern_info), opts->text_size);
+        num_pattern_lengths = get_num_pattern_lengths(&(opts->pattern_info), opts->text_size);
+        if (num_pattern_lengths == 1)
+        {
+            info("Benchmarking with 1 pattern length of %d.", opts->pattern_info.pattern_min_len);
+        }
+        else
+        {
+            info("Benchmarking with %d pattern lengths, from %d to %d, incrementing by %c %d.", num_pattern_lengths,
+                 opts->pattern_info.pattern_min_len, *max_pattern_length,
+                 opts->pattern_info.increment_operator, opts->pattern_info.increment_by);
+        }
     }
     else
     {
         num_pattern_lengths = 1;
+        *max_pattern_length = opts->pattern_info.pattern_min_len;
         info("Benchmarking with a user supplied pattern of length %d.", opts->pattern_info.pattern_min_len);
     }
 
@@ -635,9 +645,10 @@ int get_num_patterns(const run_command_opts_t *opts)
 /*
  * Benchmarks all algorithms over a text T for all pattern lengths.
  */
-int benchmark_algorithms_with_text(const run_command_opts_t *opts, unsigned char *T, int n, const algo_info_t *algorithms)
+void benchmark_algorithms_with_text(const run_command_opts_t *opts, unsigned char *T, int n, const algo_info_t *algorithms)
 {
-    int num_pattern_lengths = get_num_patterns(opts);
+    int max_pattern_length;
+    int num_pattern_lengths = get_num_pattern_lengths_to_run(opts, &max_pattern_length);
 
     benchmark_results_t results[num_pattern_lengths];
     unsigned char *pattern_list[opts->num_runs];
@@ -645,18 +656,16 @@ int benchmark_algorithms_with_text(const run_command_opts_t *opts, unsigned char
     allocate_benchmark_results(results, num_pattern_lengths, algorithms->num_algos, opts->num_runs);
     allocate_pattern_matrix(pattern_list, opts->num_runs, opts->pattern_info.pattern_max_len);
 
-    for (int m = opts->pattern_info.pattern_min_len, pattern_idx = 0; m <= opts->pattern_info.pattern_max_len;
-             m = next_pattern_length(&(opts->pattern_info), m), pattern_idx++)
+    for (int m = opts->pattern_info.pattern_min_len, patt_len_idx = 0; m <= max_pattern_length;
+             m = next_pattern_length(&(opts->pattern_info), m), patt_len_idx++)
     {
         gen_patterns(opts, pattern_list, m, T, n, opts->num_runs);
-        results[pattern_idx].pattern_length = m;
-        benchmark_algos_with_patterns(results[pattern_idx].algo_results, opts, T, n, pattern_list, m, algorithms);
+        results[patt_len_idx].pattern_length = m;
+        benchmark_algos_with_patterns(results[patt_len_idx].algo_results, opts, T, n, pattern_list, m, algorithms);
     }
 
     free_pattern_matrix(pattern_list, opts->num_runs);
     free_benchmark_results(results, num_pattern_lengths, algorithms->num_algos);
-
-    return 0;
 }
 
 /*
