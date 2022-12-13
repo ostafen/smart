@@ -292,7 +292,10 @@ int test_random_patterns_with_specific_lengths(test_results_info_t *test_results
     int passed = 1;
 
     const pattern_len_info_t *pattern_info = &(test_results->opts->pattern_info);
-    for (int pattern_length = pattern_info->pattern_min_len; pattern_length < pattern_info->pattern_max_len;
+
+    int max_pattern_length = get_max_pattern_length(pattern_info, TEST_TEXT_SIZE);
+
+    for (int pattern_length = pattern_info->pattern_min_len; pattern_length <= max_pattern_length;
          pattern_length = next_pattern_length(pattern_info, pattern_length))
     {
         // Test pattern which exists in the text with the current length:
