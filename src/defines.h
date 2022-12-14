@@ -77,6 +77,10 @@
 #define TEST_PATTERN_MIN_LEN 1            // min length of random pattern to use when testing.
 #define TEST_PATTERN_MAX_LEN 2048         // max length of random patterns to use when testing.
 #define MAX_FAILURE_MESSAGES 32           // max number of failure messages to record.
+#define TEST_ITERATIONS 12                // number of iterations of each test for standard tests.
+#define TEST_QUICK_ITERATIONS 2           // number of iterations of each test for quick tests.
+#define TEST_SHORT_PAT_LEN 16             // max length X of 1..X short pattern lengths tested at end and start.
+
 /*
  * Console output formatting defines.
  */
