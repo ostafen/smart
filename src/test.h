@@ -168,7 +168,7 @@ void test_fixed_string(char *pattern, char *text, test_results_info_t *test_resu
     // Copy pattern and search text to heap memory, and zero out remaining text.
     memcpy(pattern_data, pattern, m);
     memcpy(text_data, text, n);
-    memset(text_data + m, 0, buffer_size - m);
+    memset(text_data + n, 0, buffer_size - n);
 
     if (!test_algo(pattern_data, m, text_data, n, test_results))
     {
