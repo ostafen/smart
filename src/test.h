@@ -159,13 +159,18 @@ void test_fixed_string(char *pattern, char *text, test_results_info_t *test_resu
 {
     int m = strlen(pattern);
     int n = strlen(text);
+    int buffer_size = get_text_buffer_size(n, m);
 
-    unsigned char search_data[get_text_buffer_size(n, m)];
-    memcpy(search_data, text, n);
-    memset(search_data + n, 0, m * 2);
+    // Try to avoid stack corruption due to buggy algorithms - take a copy of the data to test and allocate on the heap:
+    unsigned char *pattern_data = (unsigned char *)malloc(sizeof(unsigned char) * (m + 1));
+    unsigned char *text_data = (unsigned char *)malloc(sizeof(unsigned char) * buffer_size);
 
-    // Cast because C strings are char but search function is defined with unsigned char.
-    if (!test_algo((unsigned char *)pattern, m, search_data, n, test_results))
+    // Copy pattern and search text to heap memory, and zero out remaining text.
+    memcpy(pattern_data, pattern, m);
+    memcpy(text_data, text, n);
+    memset(text_data + m, 0, buffer_size - m);
+
+    if (!test_algo(pattern_data, m, text_data, n, test_results))
     {
         if (test_results->last_actual_count == ERROR_SEARCHING)
         {
@@ -178,8 +183,11 @@ void test_fixed_string(char *pattern, char *text, test_results_info_t *test_resu
                                 test_results->last_actual_count, test_results->last_expected_count, pattern, text);
         }
 
-        debug_search(test_results, (unsigned char *)pattern, m, search_data, n);
+        debug_search(test_results, pattern_data, m, text_data, n);
     }
+
+    free(pattern_data);
+    free(text_data);
 }
 
 /*
@@ -207,10 +215,11 @@ void run_fixed_tests(test_results_info_t *test_results)
  * Gets a random pattern from the text T, with a specified length within the bounds of TEST_PATTERN_MIN_LEN to TEST_PATTERN_MAX_LEN.
  * Returns the actual length of the pattern obtained.
  */
-int get_random_pattern_from_text_with_length(unsigned char pattern[TEST_PATTERN_MAX_LEN], unsigned char *T, int pat_len)
+int get_random_pattern_from_text_with_length(unsigned char *pattern, unsigned char *T, int pat_len)
 {
-    pat_len = pat_len < TEST_PATTERN_MIN_LEN ? TEST_PATTERN_MIN_LEN : pat_len > TEST_PATTERN_MAX_LEN ? TEST_PATTERN_MAX_LEN : pat_len;
-    int start = pat_len == TEST_PATTERN_MAX_LEN ? 0 : rand() % (TEST_PATTERN_MAX_LEN - pat_len);
+    pat_len = MAX(TEST_PATTERN_MIN_LEN, pat_len);
+    pat_len = MIN(TEST_PATTERN_MAX_LEN, pat_len);
+    int start = pat_len == TEST_PATTERN_MAX_LEN ? 0 : rand() % (TEST_TEXT_SIZE - pat_len);
     memcpy(pattern , T + start, pat_len);
     return pat_len;
 }
@@ -219,7 +228,7 @@ int get_random_pattern_from_text_with_length(unsigned char pattern[TEST_PATTERN_
  * Gets a pattern of random length and random position from the text T.
  * Returns the length of the pattern.
  */
-int get_random_pattern_from_text(unsigned char pattern[TEST_PATTERN_MAX_LEN], unsigned char *T)
+int get_random_pattern_from_text(unsigned char *pattern, unsigned char *T)
 {
     int pat_len = (rand() % (TEST_PATTERN_MAX_LEN - 1)) + 1;
     return get_random_pattern_from_text_with_length(pattern, T, pat_len);
@@ -230,13 +239,17 @@ int get_random_pattern_from_text(unsigned char pattern[TEST_PATTERN_MAX_LEN], un
  * duplicating it immediately after the original pattern.
  * Returns the length of the pattern.
  */
-int gen_consecutive_pattern_in_text(unsigned char pattern[TEST_PATTERN_MAX_LEN], unsigned char *T)
+int gen_consecutive_pattern_in_text(unsigned char *pattern, unsigned char *T)
 {
     int pat_len = rand() % (TEST_PATTERN_MAX_LEN - 1);
-    pat_len = pat_len < 1 ? 1 : pat_len;
-    int start = rand() % (TEST_TEXT_SIZE - (pat_len * 2));
-    memcpy(pattern, T + start, pat_len); // grab a pattern from the text.
-    memcpy(T + start + pat_len, pattern, pat_len); // put a copy of the pattern after the one we just found.
+    pat_len = MAX(1, pat_len);
+    int available_text = TEST_TEXT_SIZE - (pat_len * 2);
+    if (available_text > 0)
+    {
+        int start = rand() % available_text;
+        memcpy(pattern, T + start, pat_len); // grab a pattern from the text.
+        memcpy(T + start + pat_len, pattern, pat_len); // put a copy of the pattern after the one we just found.
+    }
     return pat_len;
 }
 
@@ -245,13 +258,17 @@ int gen_consecutive_pattern_in_text(unsigned char pattern[TEST_PATTERN_MAX_LEN],
  * duplicating it immediately after the original pattern, but with the first char missing of the second pattern.
  * Returns the length of the pattern.
  */
-int gen_partial_overlapping_pattern_in_text(unsigned char pattern[TEST_PATTERN_MAX_LEN], unsigned char *T)
+int gen_partial_overlapping_pattern_in_text(unsigned char *pattern, unsigned char *T)
 {
     int pat_len = rand() % (TEST_PATTERN_MAX_LEN - 1);
-    pat_len = pat_len < 1 ? 1 : pat_len;
-    int start = rand() % (TEST_TEXT_SIZE - (pat_len * 2));
-    memcpy(pattern, T + start, pat_len); // grab a pattern from the text.
-    memcpy(T + start + pat_len, pattern + 1, pat_len - 1); // put a partial copy of the pattern after the one we just found.
+    pat_len = MAX(2, pat_len);
+    int available_text = TEST_TEXT_SIZE - (pat_len * 2);
+    if (available_text > 0)
+    {
+        int start = rand() % available_text;
+        memcpy(pattern, T + start, pat_len); // grab a pattern from the text.
+        memcpy(T + start + pat_len, pattern + 1, pat_len - 1); // put a partial copy of the pattern after the one we just found.
+    }
     return pat_len;
 }
 
@@ -288,7 +305,7 @@ int run_random_test(test_results_info_t *test_results, unsigned char *pattern, i
  */
 int test_random_patterns_with_specific_lengths(test_results_info_t *test_results, unsigned char *T, int sigma)
 {
-    unsigned char pattern[TEST_PATTERN_MAX_LEN];
+    unsigned char *pattern = (unsigned char *)malloc(sizeof(unsigned char) * (TEST_PATTERN_MAX_LEN + 1));
     int passed = 1;
 
     const pattern_len_info_t *pattern_info = &(test_results->opts->pattern_info);
@@ -306,6 +323,7 @@ int test_random_patterns_with_specific_lengths(test_results_info_t *test_results
             break;
     }
 
+    free(pattern);
     return passed;
 }
 
@@ -315,10 +333,11 @@ int test_random_patterns_with_specific_lengths(test_results_info_t *test_results
  */
 int test_random_patterns_with_random_lengths(test_results_info_t *test_results, unsigned char *T, int sigma)
 {
-    unsigned char pattern[TEST_PATTERN_MAX_LEN];
+    unsigned char *pattern = (unsigned char *)malloc(sizeof(unsigned char) * (TEST_PATTERN_MAX_LEN + 1));
     int passed = 1;
 
-    for (int test_no = 1; test_no <= 8; test_no++)
+    int num_tests = test_results->opts->quick ? TEST_QUICK_ITERATIONS : TEST_ITERATIONS;
+    for (int test_no = 1; test_no <= num_tests; test_no++)
     {
         // Test pattern which exists in the text with a random length.
         int m = get_random_pattern_from_text(pattern, T);
@@ -328,6 +347,7 @@ int test_random_patterns_with_random_lengths(test_results_info_t *test_results, 
             break;
     }
 
+    free(pattern);
     return passed;
 }
 
@@ -359,10 +379,11 @@ int test_random_patterns(test_results_info_t *test_results, unsigned char *T, in
 int test_bad_first_char_patterns(test_results_info_t *test_results, unsigned char *T, int sigma)
 {
     int passed = 1;
-    unsigned char pattern[TEST_PATTERN_MAX_LEN];
+    unsigned char *pattern = (unsigned char *)malloc(sizeof(unsigned char) * (TEST_PATTERN_MAX_LEN + 1));
 
     // Test pattern which may not exist in the text that modifies the first character:
-    for (int test_no = 1; test_no <= 8; test_no++)
+    int num_tests = test_results->opts->quick ? TEST_QUICK_ITERATIONS : TEST_ITERATIONS;
+    for (int test_no = 1; test_no <= num_tests; test_no++)
     {
         int m = get_random_pattern_from_text(pattern, T);
         pattern[0] ^= pattern[0];
@@ -372,6 +393,7 @@ int test_bad_first_char_patterns(test_results_info_t *test_results, unsigned cha
             break;
     }
 
+    free(pattern);
     return passed;
 }
 
@@ -383,17 +405,21 @@ int test_bad_first_char_patterns(test_results_info_t *test_results, unsigned cha
 int test_patterns_at_start(test_results_info_t *test_results, unsigned char *T, int sigma)
 {
     int passed = 1;
-    unsigned char pattern[TEST_PATTERN_MAX_LEN];
+
+    int max_pat_len = MIN(TEST_PATTERN_MAX_LEN, TEST_SHORT_PAT_LEN);
+    unsigned char *pattern = (unsigned char *)malloc(sizeof(unsigned char) * (max_pat_len + 1));
 
     // Test short patterns from start of text:
-    for (int pat_len = 1; pat_len < 12; pat_len++)
+    for (int pat_len = 1; pat_len < max_pat_len; pat_len++)
     {
         memcpy(pattern, T, pat_len);
         passed &= run_random_test(test_results, pattern, pat_len, T, "Patterns at the start", sigma);
+
         if (!passed)
             break;
     }
 
+    free(pattern);
     return passed;
 }
 
@@ -406,17 +432,21 @@ int test_patterns_at_start(test_results_info_t *test_results, unsigned char *T, 
 int test_patterns_near_start(test_results_info_t *test_results, unsigned char *T, int sigma)
 {
     int passed = 1;
-    unsigned char pattern[TEST_PATTERN_MAX_LEN];
+
+    int max_pat_len = MIN(TEST_PATTERN_MAX_LEN, TEST_SHORT_PAT_LEN);
+    unsigned char *pattern = (unsigned char *)malloc(sizeof(unsigned char) * (max_pat_len + 1));
 
     // Test short patterns near start of text:
-    for (int pat_len = 1; pat_len < 12; pat_len++)
+    for (int pat_len = 1; pat_len < max_pat_len; pat_len++)
     {
         memcpy(pattern, T + pat_len, pat_len);
         passed &= run_random_test(test_results, pattern, pat_len, T, "Patterns near start", sigma);
+
         if (!passed)
             break;
     }
 
+    free(pattern);
     return passed;
 }
 
@@ -428,17 +458,21 @@ int test_patterns_near_start(test_results_info_t *test_results, unsigned char *T
 int test_patterns_at_end(test_results_info_t *test_results, unsigned char *T, int sigma)
 {
     int passed = 1;
-    unsigned char pattern[TEST_PATTERN_MAX_LEN];
+
+    int max_pat_len = MIN(TEST_PATTERN_MAX_LEN, TEST_SHORT_PAT_LEN);
+    unsigned char *pattern = (unsigned char *)malloc(sizeof(unsigned char) * (max_pat_len + 1));
 
     // Test short patterns at end of text:
-    for (int pat_len = 1; pat_len < 12; pat_len++)
+    for (int pat_len = 1; pat_len < max_pat_len; pat_len++)
     {
         memcpy(pattern, T + TEST_TEXT_SIZE - pat_len, pat_len);
         passed &= run_random_test(test_results, pattern, pat_len, T, "Patterns at the end", sigma);
+
         if (!passed)
             break;
     }
 
+    free(pattern);
     return passed;
 }
 
@@ -451,17 +485,21 @@ int test_patterns_at_end(test_results_info_t *test_results, unsigned char *T, in
 int test_patterns_near_end(test_results_info_t *test_results, unsigned char *T, int sigma)
 {
     int passed = 1;
-    unsigned char pattern[TEST_PATTERN_MAX_LEN];
+
+    int max_pat_len = MIN(TEST_PATTERN_MAX_LEN, TEST_SHORT_PAT_LEN);
+    unsigned char *pattern = (unsigned char *)malloc(sizeof(unsigned char) * (max_pat_len + 1));
 
     // Test short patterns near end of text:
-    for (int pat_len = 1; pat_len < 12; pat_len++)
+    for (int pat_len = 1; pat_len < max_pat_len; pat_len++)
     {
         memcpy(pattern, T + TEST_TEXT_SIZE - (pat_len * 2), pat_len);
         passed &= run_random_test(test_results, pattern, pat_len, T, "Patterns near end", sigma);
+
         if (!passed)
             break;
     }
 
+    free(pattern);
     return passed;
 }
 
@@ -475,17 +513,21 @@ int test_patterns_near_end(test_results_info_t *test_results, unsigned char *T, 
 int test_consecutive_patterns(test_results_info_t *test_results, unsigned char *T, int sigma)
 {
     int passed = 1;
-    unsigned char pattern[TEST_PATTERN_MAX_LEN];
+
+    unsigned char *pattern = (unsigned char *)malloc(sizeof(unsigned char) * (TEST_PATTERN_MAX_LEN + 1));
 
     // Test consecutive pattern matches (modifies the text)
-    for (int num_to_test = 0; num_to_test < 8; num_to_test++)
+    int num_tests = test_results->opts->quick ? TEST_QUICK_ITERATIONS : TEST_ITERATIONS;
+    for (int num_to_test = 0; num_to_test < num_tests; num_to_test++)
     {
         int m = gen_consecutive_pattern_in_text(pattern, T);
         passed &= run_random_test(test_results, pattern, m, T, "Consecutive pattern", sigma);
+
         if (!passed)
             break;
     }
 
+    free(pattern);
     return passed;
 }
 
@@ -499,17 +541,74 @@ int test_consecutive_patterns(test_results_info_t *test_results, unsigned char *
 int test_consecutive_partial_patterns(test_results_info_t *test_results, unsigned char *T, int sigma)
 {
     int passed = 1;
-    unsigned char pattern[TEST_PATTERN_MAX_LEN];
+
+    unsigned char *pattern = (unsigned char *)malloc(sizeof(unsigned char) * (TEST_PATTERN_MAX_LEN + 1));
 
     // Test partial consecutive pattern (only a partial pattern after the first one, missing the first char of the pattern).
-    for (int num_to_test = 0; num_to_test < 8; num_to_test++) // (modifies the text)
+    int num_tests = test_results->opts->quick ? TEST_QUICK_ITERATIONS : TEST_ITERATIONS;
+    for (int num_to_test = 0; num_to_test < num_tests; num_to_test++)
     {
         int m = gen_partial_overlapping_pattern_in_text(pattern, T);
         passed &= run_random_test(test_results, pattern, m, T, "Partial consecutive pattern", sigma);
+
         if (!passed)
             break;
     }
 
+    free(pattern);
+    return passed;
+}
+
+/*
+ * Find a random pattern, and copy it to the text so the pattern ends one char past the end of the actual text.
+ * This helps to find algorithms that don't respect the text boundary correctly.
+ * Returns true if passed.
+ */
+int test_pattern_past_end(test_results_info_t *test_results, unsigned char *T, int sigma)
+{
+    int passed = 1;
+
+    unsigned char *pattern = (unsigned char *)malloc(sizeof(unsigned char) * (TEST_PATTERN_MAX_LEN + 1));
+
+    // Test partial consecutive pattern (only a partial pattern after the first one, missing the first char of the pattern).
+    int num_tests = test_results->opts->quick ? TEST_QUICK_ITERATIONS : TEST_ITERATIONS;
+    for (int num_to_test = 0; num_to_test < num_tests; num_to_test++)
+    {
+        int m = get_random_pattern_from_text(pattern, T);
+        memcpy(T + TEST_TEXT_SIZE - m + 1, pattern, m);
+        passed &= run_random_test(test_results, pattern, m, T, "Pattern past end", sigma);
+
+        if (!passed)
+            break;
+    }
+
+    free(pattern);
+    return passed;
+}
+
+
+/*
+ * Takes a pattern from the text, and copies everything but the first char into the first position of the text.
+ */
+int test_partial_pattern_at_start(test_results_info_t *test_results, unsigned char *T, int sigma)
+{
+    int passed = 1;
+
+    unsigned char *pattern = (unsigned char *)malloc(sizeof(unsigned char) * (TEST_PATTERN_MAX_LEN + 1));
+
+    // Test partial consecutive pattern (only a partial pattern after the first one, missing the first char of the pattern).
+    int num_tests = test_results->opts->quick ? TEST_QUICK_ITERATIONS : TEST_ITERATIONS;
+    for (int num_to_test = 0; num_to_test < num_tests; num_to_test++)
+    {
+        int m = get_random_pattern_from_text(pattern, T);
+        memcpy(T, pattern + 1, m - 1);
+        passed &= run_random_test(test_results, pattern, m, T, "Partial pattern at start", sigma);
+
+        if (!passed)
+            break;
+    }
+
+    free(pattern);
     return passed;
 }
 
@@ -540,6 +639,7 @@ void run_random_tests(test_results_info_t *test_results, unsigned char *T)
     // Ensures that different sets of algorithms will not affect the test results for each algorithm.
     srand(test_results->opts->random_seed);
 
+    // Set the alphabet sizes to test for either quick or standard tests:
     int start_alphabet = test_results->opts->quick ? 64 : 1;
     int end_alphabet   = test_results->opts->quick ? 128 : 256;
     int range = end_alphabet - start_alphabet;
@@ -562,6 +662,8 @@ void run_random_tests(test_results_info_t *test_results, unsigned char *T)
         passed &= test_patterns_near_end(test_results, T, sigma);
         passed &= test_consecutive_patterns(test_results, T, sigma);
         passed &= test_consecutive_partial_patterns(test_results, T, sigma);
+        passed &= test_pattern_past_end(test_results, T, sigma);
+        passed &= test_partial_pattern_at_start(test_results, T, sigma);
 
         if (!passed)
         {
@@ -576,31 +678,30 @@ void run_random_tests(test_results_info_t *test_results, unsigned char *T)
  */
 int run_buffer_overflow_tests(test_results_info_t *test_results)
 {
-    test_results->num_tests++;
-
     print_test_status(test_results, 1, "Buffer overflow tests");
-    int passed = 1;
+    int overflow_test_passed = 1;
+
+    // Get the largest buffer size smart supports:
+    int supported_buffer_size = get_text_buffer_size(TEST_TEXT_SIZE, TEST_PATTERN_MAX_LEN);
 
     // Allocate a larger buffer than normal, so we have some room to detect overflows without crashing ourselves...
-    int buffer_size = TEST_TEXT_SIZE * 4;
-    unsigned char search_data[buffer_size];
-    unsigned char copy_data[buffer_size];
+    int buffer_size = supported_buffer_size * 2;
+    unsigned char *search_data = (unsigned char *)malloc(sizeof(unsigned char) * buffer_size);
+    unsigned char *copy_data = (unsigned char *)malloc(sizeof(unsigned char) * buffer_size);
 
-    // Set a pattern
-    unsigned char pattern[TEST_PATTERN_MAX_LEN];
+    // Allocate heap memory for the pattern:
+    unsigned char *pattern = (unsigned char *)malloc(sizeof(unsigned char) * (TEST_PATTERN_MAX_LEN + 1));
+
+    // all ones in the pattern, all zeros in the search data.
     memset(pattern, 1, TEST_PATTERN_MAX_LEN);
-
-    // all zeros in the search data.
     memset(search_data, 0, TEST_TEXT_SIZE);
 
-    // random data past the search data.
+    // set random data past the search data, and take a copy of the whole search data buffer to check later.
     gen_random_text(256, search_data + TEST_TEXT_SIZE, buffer_size - TEST_TEXT_SIZE);
-
-    // take a copy of the search data to check later:
     memcpy(copy_data, search_data, buffer_size);
 
     // Test the algorithm.
-    run_random_test(test_results, pattern, TEST_PATTERN_MAX_LEN, search_data, "Mismatched pattern", 256);
+    int test_count_passed = run_random_test(test_results, pattern, TEST_PATTERN_MAX_LEN, search_data, "Mismatched pattern", 256);
 
     // Test that the actual search text is not modified:
     for (int i = 0; i < TEST_TEXT_SIZE; i++)
@@ -610,7 +711,7 @@ int run_buffer_overflow_tests(test_results_info_t *test_results)
             add_failure_message(test_results, "Overwrote the search text at position %s in a text of size %d",
                                 i, TEST_TEXT_SIZE);
             test_results->overwrites_text = 1;
-            passed = 0; // overwriting the text itself is a major failure.
+            overflow_test_passed = 0; // overwriting the text itself is a major failure.
 
             debug_search(test_results, pattern, TEST_PATTERN_MAX_LEN, search_data, TEST_TEXT_SIZE);
             break;
@@ -618,26 +719,37 @@ int run_buffer_overflow_tests(test_results_info_t *test_results)
     }
 
     // Test whether data after the supported buffer size has been modified.
-    int supported_buffer_size = get_text_buffer_size(TEST_TEXT_SIZE, TEST_PATTERN_MAX_LEN);
     for (int i = buffer_size - 1; i >= supported_buffer_size; i--)
     {
         if (copy_data[i] != search_data[i])
         {
             add_failure_message(test_results, "Overwrote the buffer beyond the supported buffer size.");
             test_results->buffer_overflow = 1;
-            passed = 0; // overwriting text beyond the max buffer size supported is a major failure.
+            overflow_test_passed = 0; // overwriting text beyond the max buffer size supported is a major failure.
 
             debug_search(test_results, pattern, TEST_PATTERN_MAX_LEN, search_data, TEST_TEXT_SIZE);
             break;
        }
     }
 
-    if (passed)
+    // the test_algo method will say it passed if it gets the correct count, but we don't care about whether the
+    // search count is correct here; we're looking to see if it overflows the text buffer or modifies the text itself.
+    if (test_count_passed)
+    {
+        test_results->num_passed--;  // adjust the passing test count down - we don't care about that pass.
+    }
+
+    // If we passed the actual overflow buffer test, add a passed result.
+    if (overflow_test_passed)
     {
         test_results->num_passed++;
     }
 
-    return passed;
+    free(pattern);
+    free(search_data);
+    free(copy_data);
+
+    return overflow_test_passed;
 }
 
 /*
@@ -753,6 +865,8 @@ void get_algonames_to_test(algo_info_t *algorithms, const test_command_opts_t *o
     }
     case SELECTED_ALGOS:
     {
+        // This is basically the same as the load algos for run now.  Refactor to be a single method?
+        // method in algorithms.h - get_valid_algorithm_names(algorithms, algo source, names, num names, smart config).
         read_algo_names_from_file(smart_config, algorithms, SELECTED_ALGOS_FILENAME);
         merge_regex_algos(smart_config, opts, algorithms);
         break;
@@ -760,7 +874,7 @@ void get_algonames_to_test(algo_info_t *algorithms, const test_command_opts_t *o
     case NAMED_SET_ALGOS:
     {
         char set_filename[STR_BUF];
-        snprintf(set_filename, STR_BUF, "%s.algos", opts->named_set);
+        snprintf(set_filename, STR_BUF, "%s.algos", opts->named_set); //TODO: should we put the file name in here like the run command does?  make parser do the work.
         read_algo_names_from_file(smart_config, algorithms, set_filename);
         merge_regex_algos(smart_config, opts, algorithms);
         break;
@@ -802,6 +916,7 @@ void print_test_option_messages(const test_command_opts_t *opts)
              opts->pattern_info.increment_operator, opts->pattern_info.increment_by);
     }
 }
+
 
 /*
  * Runs tests against the algorithms selected by the test command.
