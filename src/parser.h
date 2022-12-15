@@ -632,6 +632,10 @@ void parse_test_args(int argc, const char **argv, smart_subcommand_t *subcommand
         {
             opts->quick = 1;
         }
+        else if (matches_option(param, OPTION_SHORT_FAIL_ONLY, OPTION_LONG_FAIL_ONLY))
+        {
+            opts->fail_only = 1;
+        }
         else if (matches_option(param, OPTION_SHORT_HELP, OPTION_LONG_HELP))
         {
             print_test_usage_and_exit(argv[0]);
