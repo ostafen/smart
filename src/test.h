@@ -21,8 +21,6 @@ typedef struct test_results_info
     int num_passed;
     int last_expected_count;
     int last_actual_count;
-    int buffer_overflow;
-    int overwrites_text;
     int num_failure_messages;
     char failure_messages[MAX_FAILURE_MESSAGES][STR_BUF];
 } test_results_info_t;
@@ -40,8 +38,6 @@ void init_test_results(test_results_info_t *results, const test_command_opts_t *
     results->opts = opts;
     results->last_expected_count = -1; // initialise to an invalid value.
     results->last_actual_count = -2;   // initialise to a *different* invalid value.
-    results->buffer_overflow = 0;
-    results->overwrites_text = 0;
     results->num_failure_messages = 0;
     memset(results->failure_messages, 0, MAX_FAILURE_MESSAGES * STR_BUF);
     memset(results->test_message, 0, STR_BUF);
@@ -727,7 +723,6 @@ int run_buffer_overflow_tests(test_results_info_t *test_results)
         {
             add_failure_message(test_results, "Overwrote the search text at position %s in a text of size %d",
                                 i, TEST_TEXT_SIZE);
-            test_results->overwrites_text = 1;
             overflow_test_passed = 0; // overwriting the text itself is a major failure.
 
             debug_search(test_results, pattern, TEST_PATTERN_MAX_LEN, search_data, TEST_TEXT_SIZE);
@@ -741,7 +736,6 @@ int run_buffer_overflow_tests(test_results_info_t *test_results)
         if (copy_data[i] != search_data[i])
         {
             add_failure_message(test_results, "Overwrote the buffer beyond the supported buffer size.");
-            test_results->buffer_overflow = 1;
             overflow_test_passed = 0; // overwriting text beyond the max buffer size supported is a major failure.
 
             debug_search(test_results, pattern, TEST_PATTERN_MAX_LEN, search_data, TEST_TEXT_SIZE);
@@ -779,29 +773,15 @@ void print_failure_result(test_results_info_t *test_results)
         printf("\r\tTested  %-*s [--]      No tests executed.        (%d/%d)    \n", ALGO_NAME_LEN, test_results->algo_name,
                test_results->num_passed, test_results->num_tests);
     }
-    else if (test_results->overwrites_text)
-    {
-        printf("\r\tTested  %-*s [ERROR]   Overwrote text.          (%d/%d)    \n", ALGO_NAME_LEN, test_results->algo_name,
-               test_results->num_passed, test_results->num_tests);
-    }
-    else if (test_results->buffer_overflow)
-    {
-        printf("\r\tTested  %-*s [ERROR]   Buffer overflow.          (%d/%d)    \n", ALGO_NAME_LEN, test_results->algo_name,
-               test_results->num_passed, test_results->num_tests);
-    }
     else if (test_results->num_passed == 0)
     {
-        printf("\r\tTested  %-*s [FAIL]    None passed               (%d/%d)    \n", ALGO_NAME_LEN, test_results->algo_name,
+        printf("\r\tTested  %-*s [FAIL]    All failed                (%d/%d)    \n", ALGO_NAME_LEN, test_results->algo_name,
                test_results->num_passed, test_results->num_tests);
     }
     else if (test_results->num_passed < test_results->num_tests)
     {
         printf("\r\tTested  %-*s [FAIL]    Some failed               (%d/%d)    \n", ALGO_NAME_LEN, test_results->algo_name,
                test_results->num_passed, test_results->num_tests);
-    }
-    else
-    {
-        printf("\n");
     }
 }
 
