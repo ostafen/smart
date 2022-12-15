@@ -7,6 +7,7 @@
  */
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
+#define WITHIN(v, l, u) (MAX((l), MIN((u), (v))))  // Returns a value between a lower bound l and upper bound u inclusive, given value v.
 
 /*
  * Basic constants.
@@ -32,7 +33,7 @@
 #define NUM_PATTERNS_MAX 100              // maximum number of different pattern lengths to benchmark at one time.
 #define MAX_LINE_LEN 128                  // max length of line to output to console.
 #define STR_BUF 256                       // general strings with a bit of space to spare - parameters, filenames, etc.
-#define NUM_PATTERNS_AT_END_OF_TEXT 3     // Number of pattern-lengths to add to the text buffer so algorithms that write
+#define NUM_PATTERNS_AT_END_OF_TEXT 2     // Number of pattern-lengths to add to the text buffer so algorithms that write
                                           // to the end of the text (e.g. sentinel guard) do not cause buffer overflows.
 #define TEXT_SIZE_PADDING 256             // extra memory allocated to end of text buffer for safety in case algorithms modify too much text.
 
@@ -58,14 +59,18 @@
 #define SEARCH_PATH_DELIMITER ":"                              // delimiter used to separate search paths specified in environment variables.
 
 /*
+ * Pattern length increment control
+ */
+#define INCREMENT_MULTIPLY_OPERATOR '*'   // operator for multiply (default)
+#define INCREMENT_ADD_OPERATOR '+'        // operator for add.
+#define INCREMENT_BY 2                    // default pattern increment is to multiply by 2
+
+/*
  * Benchmarking defaults
  */
 #define TEXT_SIZE_DEFAULT MEGA_BYTE       // default size of text buffer for benchmarking
 #define PATTERN_MIN_LEN_DEFAULT 2         // default minimum size of pattern to benchmark.
 #define PATTERN_MAX_LEN_DEFAULT 4096      // default maximum size of pattern to benchmark.
-#define INCREMENT_MULTIPLY_OPERATOR '*'   // operator for multiply.
-#define INCREMENT_ADD_OPERATOR '+'        // operator for add.
-#define INCREMENT_BY 2                    // default pattern increment is to multiply by 2
 #define NUM_RUNS_DEFAULT 500              // default number of patterns of a given size to benchmark with.
 #define TIME_LIMIT_MILLIS_DEFAULT 300     // default time limit in milliseconds for a search to pass benchmarking.
 #define CPU_PIN_DEFAULT PIN_LAST_CPU      // default CPU pinning - can be [off | last | {digit}]
@@ -74,9 +79,15 @@
  * Test settings
  */
 #define TEST_TEXT_SIZE 8192               // size of text buffer for testing.
+#define TEST_TEXT_PRE_BUFFER 64           // space to allocate at the start of the test text buffer to prevent seg faults if algorithms read before start of text.
+                                          // IMPORTANT: this value must be word-aligned.  Some search algorithms require the text to start at a word boundary (e.g. SSEF).
 #define TEST_PATTERN_MIN_LEN 1            // min length of random pattern to use when testing.
 #define TEST_PATTERN_MAX_LEN 2048         // max length of random patterns to use when testing.
 #define MAX_FAILURE_MESSAGES 32           // max number of failure messages to record.
+#define TEST_ITERATIONS 12                // number of iterations of each test for standard tests.
+#define TEST_QUICK_ITERATIONS 2           // number of iterations of each test for quick tests.
+#define TEST_SHORT_PAT_LEN 16             // max length X of 1..X short pattern lengths tested at end and start.
+
 /*
  * Console output formatting defines.
  */

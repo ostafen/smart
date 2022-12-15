@@ -423,6 +423,8 @@ static char *const OPTION_SHORT_DEBUG = "-d";
 static char *const OPTION_LONG_DEBUG = "--debug";
 static char *const OPTION_SHORT_QUICK_TESTS = "-q";
 static char *const OPTION_LONG_QUICK_TESTS = "--quick";
+static char *const OPTION_SHORT_FAIL_ONLY = "-fo";
+static char *const OPTION_LONG_FAIL_ONLY = "--fail-only";
 
 /*
  * Options for the test subcommand.
@@ -437,6 +439,7 @@ typedef struct test_command_opts
     pattern_len_info_t pattern_info;               // Info about what pattern sizes to test random patterns with.
     int debug;                                     // If set will re-call a failing search function with the failing parameters.
     int quick;                                     // Whether to run quick tests.
+    int fail_only;                                 // Whether to only report failures in the test output.
 } test_command_opts_t;
 
 /*
@@ -452,6 +455,7 @@ void init_test_command_opts(test_command_opts_t *opts)
     opts->random_seed  = time(NULL);   // default is random seed set by the current time, unless -seed option is specified.
     opts->debug = 0;
     opts->quick = 0;
+    opts->fail_only = 0;
     opts->pattern_info.pattern_min_len = 0;            // Only set to a real operator if we are specifying pattern lengths for test.
     opts->pattern_info.pattern_max_len = 0;            // Only set to a real operator if we are specifying pattern lengths for test.
     opts->pattern_info.increment_operator = INCREMENT_MULTIPLY_OPERATOR;
@@ -481,6 +485,7 @@ void print_test_usage_and_exit(const char *command)
     print_help_line("To multiply by a fixed amount V, use operator *", "", "", "* V");
     print_help_line("Sets the random seed to integer S, ensuring tests can be precisely repeated.", OPTION_SHORT_SEED, OPTION_LONG_SEED, "S");
     print_help_line("Runs tests faster by testing less exhaustively.", OPTION_SHORT_QUICK_TESTS, OPTION_LONG_QUICK_TESTS, "");
+    print_help_line("Report only failures in the test output.", OPTION_SHORT_FAIL_ONLY, OPTION_LONG_FAIL_ONLY, "");
     print_help_line("Useful to get fast feedback, but all tests should pass before benchmarking against other algorithms.", "", "", "");
     print_help_line("Re-runs a failing search - put a breakpoint on debug_search() in test.h", OPTION_SHORT_DEBUG, OPTION_LONG_DEBUG, "");
     print_help_line("Gives this help list.", OPTION_SHORT_HELP, OPTION_LONG_HELP, "");
