@@ -806,6 +806,16 @@ void print_failure_result(test_results_info_t *test_results)
 }
 
 /*
+ * Erases anything on the current line by issuing a CR, printing a line length of spaces and then issuing a CR again.
+ */
+void clear_line()
+{
+    printf("\r");
+    for (int i = 0; i < MAX_LINE_LEN; i++) printf("%s", " ");
+    printf("\r");
+}
+
+/*
  * Prints the final results of testing an algo.
  */
 void print_test_results(test_results_info_t *test_results)
@@ -818,7 +828,7 @@ void print_test_results(test_results_info_t *test_results)
         }
         else
         {
-            printf("\r"); // continue on the same line for the next test - we passed.
+            clear_line();
         }
     }
     else if (test_results->num_passed == test_results->num_tests)
@@ -855,6 +865,7 @@ void test_algos(const test_command_opts_t *opts, const algo_info_t *algorithms)
         unsigned char *T = (unsigned char *)malloc(buffer_size);
         memset(T, 0, buffer_size);
 
+        int num_failed = 0;
         for (int algo_no = 0; algo_no < algorithms->num_algos; algo_no++)
         {
             test_results_info_t test_results;
@@ -870,8 +881,11 @@ void test_algos(const test_command_opts_t *opts, const algo_info_t *algorithms)
             }
 
             print_test_results(&test_results);
+            if (test_results.num_failure_messages > 0) num_failed++;
         }
 
+        info("");
+        info("Tested %d algorithms with %d failures.\n", algorithms->num_algos, num_failed);
         free(T);
     }
     else
