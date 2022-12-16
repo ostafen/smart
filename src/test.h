@@ -182,7 +182,7 @@ void test_fixed_string(char *pattern, char *text, test_results_info_t *test_resu
                                 test_results->last_actual_count, test_results->last_expected_count, pattern, text);
         }
 
-        debug_search(test_results, pattern_data, m, text_data, n);
+        debug_search(test_results, pattern_data, m, text_data + TEST_TEXT_PRE_BUFFER, n);
     }
 
     free(pattern_data);
@@ -707,7 +707,7 @@ int run_buffer_overflow_tests(test_results_info_t *test_results)
 
     // all ones in the pattern, all zeros in the search data.
     memset(pattern, 1, TEST_PATTERN_MAX_LEN);
-    memset(search_data, 0, TEST_TEXT_SIZE);
+    memset(search_data, 0, buffer_size);
 
     // set random data past the search data, and take a copy of the whole search data buffer to check later.
     gen_random_text(256, search_data + TEST_TEXT_SIZE, buffer_size - TEST_TEXT_SIZE);
