@@ -24,6 +24,8 @@
 #include "include/define.h"
 #include "include/main.h"
 
+int search_large(unsigned char *x, int m, unsigned char *y, int n);
+
 int search(unsigned char *x, int m, unsigned char *y, int n) {
    int B[SIGMA];
    int i, j, s, D, last, count;
@@ -87,7 +89,7 @@ int search_large(unsigned char *x, int m, unsigned char *y, int n) {
    /* Searching */
     BEGIN_SEARCHING
    j=0; count=0;
-   while (j <= n-m) {
+    while (j <= n-p_len) {
       i=m-1; last=m;
       D = ~0;
       while (i>=0 && D!=0) {
@@ -98,7 +100,7 @@ int search_large(unsigned char *x, int m, unsigned char *y, int n) {
                last = i+1;
             else {
                k = m;
-               while(k<p_len && x[k]==y[j+k]) k++;            
+               while(k<p_len && x[k]==y[j+k]) k++;
                if (k==p_len) count ++;
             }
          }
