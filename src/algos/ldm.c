@@ -63,7 +63,7 @@ int search(unsigned char *x, int m, unsigned char *y, int n) {
       while (R > r-k*m) {
          if (R == m) OUTPUT(k*m+r-m);
          ++r;
-         if (r == m) break;
+         if (r == m || k * m - 1 + r >= n) break; // if k * m - 1 + r is n or bigger, we are at end of text.
          R = getSMA(R, y[k*m-1+r]);
       }
    }
