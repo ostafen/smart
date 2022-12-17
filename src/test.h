@@ -706,7 +706,7 @@ int run_buffer_overflow_tests(test_results_info_t *test_results)
     unsigned char *pattern = (unsigned char *)calloc(TEST_PATTERN_MAX_LEN + 1, sizeof(unsigned char));
 
     // all ones in the pattern, all zeros in the search data.
-    memset(pattern, 1, TEST_PATTERN_MAX_LEN);
+    memset(pattern, 1, TEST_PATTERN_MAX_LEN + 1);
     memset(search_data, 0, buffer_size);
 
     // set random data past the search data, and take a copy of the whole search data buffer to check later.
@@ -843,7 +843,6 @@ void test_algos(const test_command_opts_t *opts, const algo_info_t *algorithms)
     {
         unsigned long buffer_size = (TEST_TEXT_PRE_BUFFER * sizeof(unsigned char)) + get_text_buffer_size(TEST_TEXT_SIZE, TEST_PATTERN_MAX_LEN);
         unsigned char *T = (unsigned char *)malloc(buffer_size);
-        memset(T, 0, buffer_size);
 
         int num_failed = 0;
         for (int algo_no = 0; algo_no < algorithms->num_algos; algo_no++)
@@ -857,6 +856,7 @@ void test_algos(const test_command_opts_t *opts, const algo_info_t *algorithms)
             if (run_buffer_overflow_tests(&test_results))
             {
                 run_fixed_tests(&test_results);
+                memset(T, 0, buffer_size); // zero out memory, including pre-buffer before each algo run.
                 run_random_tests(&test_results, T + TEST_TEXT_PRE_BUFFER);
             }
 
