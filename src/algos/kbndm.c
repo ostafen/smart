@@ -32,7 +32,7 @@
 int search(unsigned char *x, int m, unsigned char *y, int n)
 {
    int i, j, k, m1;
-   int beg, end;
+   int beg, end, p_rest;
    WORD_TYPE M;
    WORD_TYPE B[SIGMA][SIGMA] = {{0}};
    WORD_TYPE L[SIGMA] = {0};
@@ -76,9 +76,10 @@ int search(unsigned char *x, int m, unsigned char *y, int n)
    END_PREPROCESSING
 
    BEGIN_SEARCHING
+   p_rest = m - m1;
    j = m1-1;
-   while (j < n) {
-      int k = 1;
+   while (j < n - p_rest) {
+      k = 1;
       int l = y[j] == x[0];
       unsigned char c = y[j];
       WORD_TYPE D = ~0;
@@ -91,7 +92,7 @@ int search(unsigned char *x, int m, unsigned char *y, int n)
          k++;
          if (D & M) {
             if (k == m1) {
-               if (!strncmp(x+m1, y+j+1, m-m1)) {
+               if (!memcmp(x+m1, y+j+1, m-m1)) {
                   count++;
                }
                break;
