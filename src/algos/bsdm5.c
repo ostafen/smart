@@ -81,7 +81,7 @@ int search(unsigned char *x, int m, unsigned char *y, int n) {
 	    while(k<=i && xst[i-k]==y[j-k]) k++;
 	    if(k>i) {
 	    	if(k==len) {
-	    		if(!memcmp(x,y+j-offset,m)) if(j-offset<=n-m) count++;
+	    		if(j-offset<=n-m && j-offset >= 0 && !memcmp(x,y+j-offset,m)) count++;
 	    	}
 	    	else j-=k;
 	    }
