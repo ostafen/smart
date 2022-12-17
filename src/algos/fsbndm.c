@@ -25,6 +25,8 @@
 #include "include/define.h"
 #include "include/main.h"
 
+int search_large(unsigned char *x, int m, unsigned char *y, int n);
+
 int search(unsigned char *x, int m, unsigned char *y, int n) {
    unsigned int B[SIGMA], D, set;
    int i, j, pos, mMinus1, count;
@@ -69,10 +71,11 @@ int search(unsigned char *x, int m, unsigned char *y, int n) {
 
 int search_large(unsigned char *x, int m, unsigned char *y, int n) {
    unsigned int B[SIGMA], D, set;
-   int i, j, pos, mMinus1, count, p_len, k,s;
+   int i, j, pos, mMinus1, count, p_len, p_rest, k,s;
    
    p_len = m;
    m = 30;
+   p_rest = p_len - m;
 
    /* Preprocessing */
    BEGIN_PREPROCESSING
@@ -87,7 +90,7 @@ int search_large(unsigned char *x, int m, unsigned char *y, int n) {
    /* Searching */
    if(!memcmp(x,y,m)) OUTPUT(0);
    j = m;
-   while (j < n) {
+   while (j < n - p_rest) {
       D = (B[y[j+1]]<<1) & B[y[j]];
       if (D != 0) {
          pos = j;
