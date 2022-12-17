@@ -51,9 +51,8 @@ int search(unsigned char *x, int m, unsigned char *y, int n) {
    int plen = m;
    if(m>32) m=32;
    int m1 = m-1;
-   int mp1 =  m+1;   
 
-   /* Pre processing*/ 
+   /* Pre processing*/
    BEGIN_PREPROCESSING
    for(i=0; i<SIGMA; i++) B[i]=W[i]=0;
    j=1;
@@ -65,7 +64,7 @@ int search(unsigned char *x, int m, unsigned char *y, int n) {
       f >>= 1;
    }
 
-	for (i=0;i<SIGMA;i++)   hbcr[i]=hbcl[i]=2*m;
+   for (i=0;i<SIGMA;i++)   hbcr[i]=hbcl[i]=2*m;
    for (i=0;i<m;i++) {
        hbcr[x[i]]=(2*m)-i-1;
        hbcl[x[m-1-i]]=(2*m)-i-1;
@@ -74,7 +73,7 @@ int search(unsigned char *x, int m, unsigned char *y, int n) {
 
    /* Searching phase */
    BEGIN_SEARCHING
-   s1=m1; s2=n-m; count=0;
+   s1=m1; s2=n-plen; count=0;
    while (s1 <= s2+m1){
          while ((d = (B[y[s1]]|W[y[s2]])) == 0) {
          s1 += hbcr[y[s1+m]];

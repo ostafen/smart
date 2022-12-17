@@ -75,7 +75,7 @@ int search(unsigned char *x, int m, unsigned char *y, int n) {
    /* Searching phase */
    BEGIN_SEARCHING
    int q = n/3;
-   s1=m-1; s2=q-m; s3 = q; s4=2*q-m; s5=2*q; s6=n-m; count=0;
+   s1=m-1; s2=q-m; s3 = q; s4=2*q-m; s5=2*q; s6=n-plen; count=0;
    while (s1<=s2+m1 || s3<=s4+m1 || s5<=s6+m1){
          while ((d = (B[y[s1]]|W[y[s2]]|B[y[s3]]|W[y[s4]]|B[y[s5]]|W[y[s6]])) == 0) {
          s1 += hbcr[y[s1+m]];
