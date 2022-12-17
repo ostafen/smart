@@ -25,6 +25,8 @@
 #include "include/main.h"
 #define neg(K) (~K)
 
+int search_large(unsigned char *x, int m, unsigned char *y, int n);
+
 int search(unsigned char *x, int m, unsigned char *y, int n) {
    unsigned int D, B[SIGMA], NEG0, NEG0m1;
    int i,j,k,count, first;
@@ -67,10 +69,11 @@ int search(unsigned char *x, int m, unsigned char *y, int n) {
 
 int search_large(unsigned char *x, int m, unsigned char *y, int n) {
    unsigned int D, B[SIGMA], NEG0, NEG0m1;
-   int i,j,k,count, first, p_len;
+   int i,j,k,count, first, p_len, p_rest;
 
    p_len = m;
    m = 32;
+   p_rest = p_len - m;
 
    /* Preprocessing */
    BEGIN_PREPROCESSING
@@ -84,13 +87,13 @@ int search_large(unsigned char *x, int m, unsigned char *y, int n) {
    BEGIN_SEARCHING
    count = 0;
    i = m-1;
-   while( i < n ) {
+   while (i < n - p_rest) { // last position we can have a match is n minus the rest of the large part of the pattern to verify.
       D = B[y[i]];
       while (D != NEG0) {
          if (D < NEG0m1) {
             k = 0; first=i-m+1;
             while(k<p_len && x[k]==y[first+k]) k++;
-            if (k==p_len && i<n) count++;
+            if (k==p_len && i < n - p_rest) count++;
          }
          i = i+1;
          D = (D<<1) | B[y[i]];
