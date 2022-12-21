@@ -27,9 +27,11 @@ typedef int search_function(unsigned char *, int, unsigned char *, int, double *
 typedef struct algo_info
 {
     int num_algos;
+    int passed_tests[MAX_SELECT_ALGOS];
     char algo_names[MAX_SELECT_ALGOS][ALGO_NAME_LEN];
     search_function *algo_functions[MAX_SELECT_ALGOS];
     long shared_object_handles[MAX_SELECT_ALGOS];
+    unsigned long long algo_hash_digest[MAX_SELECT_ALGOS];
 } algo_info_t;
 
 
@@ -44,7 +46,118 @@ void init_algo_info(algo_info_t *algo_info)
         memset(algo_info->algo_names[i], STR_END_CHAR, ALGO_NAME_LEN);
         algo_info->algo_functions[i] = NULL;
         algo_info->shared_object_handles[i] = 0;
+        algo_info->algo_hash_digest[i] = 0;
+        algo_info->passed_tests[i] = 0;
     }
+}
+
+/*
+ * Struct to hold information on which compiled algo shared object files have passed testing.
+ */
+typedef struct tested_algo_info
+{
+    str_set_t passed_algo_hashes;
+    str_set_t passed_algo_names;
+} tested_algo_info_t;
+
+/*
+ * Initializes a tested_algo_info set.
+ */
+void init_tested_algo_info(tested_algo_info_t *tested_algo_info)
+{
+    str_set_init(&(tested_algo_info->passed_algo_hashes));
+    str_set_init(&(tested_algo_info->passed_algo_names));
+}
+
+/*
+ * Initializes and loads the current state of tested algorithms from the tested_algos file.
+ * Remember to free the tested_algo struct once it is no longer needed.
+ */
+void init_and_load_tested_algorithms(const smart_config_t *smart_config, tested_algo_info_t *tested_algos)
+{
+    init_tested_algo_info(tested_algos);
+
+    char fullpath[MAX_PATH_LENGTH];
+    set_full_path_or_exit(fullpath, smart_config->smart_config_dir, TESTED_ALGOS_FILENAME);
+
+    FILE *tested_algo_file = fopen(fullpath, "r");
+    if (tested_algo_file != NULL)
+    {
+        char * line = NULL;
+        size_t len = 0;
+        while ((getline(&line, &len, tested_algo_file)) != -1)
+        {
+            char algo_name[ALGO_NAME_LEN];
+            char algo_hash[ALGO_HASH_LEN];
+
+            if (get_tab_field(line, 0, algo_name, ALGO_NAME_LEN) &&
+                get_tab_field(line, 1, algo_hash, ALGO_HASH_LEN)
+            {
+                // Add the algo name and hash to our tested algos struct.
+                str_set_add_copy(&(tested_algos->passed_algo_names), str2upper(algo_name));
+                str_set_add_copy(&(tested_algos->passed_algo_hashes), algo_hash);
+            }
+        }
+
+        if (line != NULL) free(line);
+        fclose(tested_algo_file);
+    }
+    else
+    {
+        warn("Could not open a tested algorithms file at %s/%s", smart_config->smart_config_dir, TESTED_ALGOS_FILENAME);
+    }
+}
+
+/*
+ * Returns true if the algorithm hash is in the set of passed algorithm hashes
+ * and its name is present in the set of passed algorithm names.
+ */
+int algorithm_has_pass_record(const algo_info_t *algo_info, int algo_no, tested_algo_info_t *tested_algo_info)
+{
+    if (algo_no >= 0 && algo_no < algo_info->num_algos)
+    {
+        char str_hash[ALGO_HASH_LEN];
+        snprintf(str_hash, ALGO_HASH_LEN, "%llu", algo_info->algo_hash_digest[algo_no]);
+        char uppercase_algoname[ALGO_NAME_LEN];
+        set_upper_case_algo_name(uppercase_algoname, algo_info->algo_names[algo_no]);
+
+        return str_set_contains(&(tested_algo_info->passed_algo_hashes), str_hash) &&
+               str_set_contains(&(tested_algo_info->passed_algo_names), uppercase_algoname);
+    }
+
+    return 0;
+}
+
+/*
+ * Frees memory allocated to the tested_algo_info struct.
+ */
+void free_tested_algo_info(tested_algo_info_t *tested_algo_info)
+{
+    str_set_free(&(tested_algo_info->passed_algo_hashes));
+    str_set_free(&(tested_algo_info->passed_algo_names));
+}
+
+/*
+ * Loads the current test status and flags which algorithms in the algorithm set have passed.
+ * Returns true if all the algorithms have a passing test record.
+ */
+int set_passing_test_status(const smart_config_t *smart_config, algo_info_t *algorithms)
+{
+    int all_passed = 1;
+
+    tested_algo_info_t test_status;
+    init_and_load_tested_algorithms(smart_config, &test_status);
+
+    for (int algo_no = 0; algo_no < algorithms->num_algos; algo_no++)
+    {
+        int pass_record = algorithm_has_pass_record(algorithms, algo_no, &test_status);
+        algorithms->passed_tests[algo_no] = pass_record;
+        all_passed &= pass_record;
+    }
+
+    free_tested_algo_info(&test_status);
+
+    return all_passed;
 }
 
 /*
@@ -312,6 +425,7 @@ int load_algo_shared_libraries(const smart_config_t *smart_config, algo_info_t *
 
             algo_info->shared_object_handles[i] = (long) lib_handle;
             algo_info->algo_functions[i] = search;
+            algo_info->algo_hash_digest[i] = hash_keyed_file(algo_info->algo_names[i], valid_path);
         }
         else
         {
