@@ -91,7 +91,7 @@ void init_and_load_tested_algorithms(const smart_config_t *smart_config, tested_
             char algo_hash[ALGO_HASH_LEN];
 
             if (get_tab_field(line, 0, algo_name, ALGO_NAME_LEN) &&
-                get_tab_field(line, 1, algo_hash, ALGO_HASH_LEN)
+                get_tab_field(line, 1, algo_hash, ALGO_HASH_LEN))
             {
                 // Add the algo name and hash to our tested algos struct.
                 str_set_add_copy(&(tested_algos->passed_algo_names), str2upper(algo_name));
