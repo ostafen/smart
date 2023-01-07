@@ -422,28 +422,28 @@ void print_benchmark_res(const run_command_opts_t *opts, algo_results_t *results
 {
     switch (results->success_state)
     {
-    case SUCCESS:
-    {
-        char results_line[MAX_LINE_LEN];
-        get_results_info(results_line, opts, results);
-        printf("\b\b\b\b\b.[OK]  %s\n", results_line);
-        break;
-    }
-    case CANNOT_SEARCH:
-    {
-        printf("\b\b\b\b\b.[--]  \n");
-        break;
-    }
-    case TIMED_OUT:
-    {
-        printf("\b\b\b\b\b\b.[OUT]  \n");
-        break;
-    }
-    case ERROR:
-    {
-        printf("\b\b\b\b\b\b\b\b.[ERROR] \n");
-        break;
-    }
+        case SUCCESS:
+        {
+            char results_line[MAX_LINE_LEN];
+            get_results_info(results_line, opts, results);
+            printf("\b\b\b\b\b.[OK]  %s\n", results_line);
+            break;
+        }
+        case CANNOT_SEARCH:
+        {
+            printf("\b\b\b\b\b.[--]  \n");
+            break;
+        }
+        case TIMED_OUT:
+        {
+            printf("\b\b\b\b\b\b.[OUT]  \n");
+            break;
+        }
+        case ERROR:
+        {
+            printf("\b\b\b\b\b\b\b\b.[ERROR] \n");
+            break;
+        }
     }
 }
 
@@ -508,13 +508,13 @@ int benchmark_algos_with_patterns(algo_results_t *results, const run_command_opt
     {
         print_benchmark_status(algo, algorithms);
 
-        results->algo_id = algo;
-        results->success_state = run_algo(pattern_list, m, T, n, opts, algorithms->algo_functions[algo], results);
+        results[algo].algo_id = algo;
+        results[algo].success_state = run_algo(pattern_list, m, T, n, opts, algorithms->algo_functions[algo], &(results[algo]));
 
-        if (results->success_state == SUCCESS)
-            calculate_algo_statistics(results, opts->num_runs);
+        if (results[algo].success_state == SUCCESS)
+            calculate_algo_statistics(&(results[algo]), opts->num_runs);
 
-        print_benchmark_res(opts, results);
+        print_benchmark_res(opts, &(results[algo]));
     }
 }
 
@@ -643,9 +643,71 @@ int get_num_pattern_lengths_to_run(const run_command_opts_t *opts, int *max_patt
 }
 
 /*
+ * Simple output function to store benchmark results as a tab separate file.
+ * TODO: output functions need writing properly with commands for type of output, etc. and probably putting in output.h
+ */
+void output_benchmark_results(const smart_config_t *smart_config, const run_command_opts_t *opts, int num_pattern_lengths,
+                              benchmark_results_t *results, const algo_info_t *algorithms)
+{
+    char result_filename[MAX_PATH_LENGTH];
+    set_filename_suffix_or_exit(result_filename, opts->expcode, ".csv");
+
+    char full_path[MAX_PATH_LENGTH];
+    set_full_path_or_exit(full_path, smart_config->smart_results_dir, result_filename);
+
+    FILE *rf = fopen(full_path, "w");
+
+    fprintf(rf, "PLEN\tALGORITHM\tMEAN PRE TIME\tMEAN SEARCH TIME\tSTD DEVIATION\tMEDIAN PRE TIME\tMEDIAN SEARCH TIME\n");
+
+    // For each pattern length benchmarked:
+    for (int pattern_len_no = 0; pattern_len_no < num_pattern_lengths; pattern_len_no++)
+    {
+        int pat_len = results[pattern_len_no].pattern_length;
+
+        // For each algorithm:
+        for (int algo_no = 0; algo_no < algorithms->num_algos; algo_no++)
+        {
+            char upper_case_name[ALGO_NAME_LEN];
+            set_upper_case_algo_name(upper_case_name, algorithms->algo_names[algo_no]);
+            fprintf(rf, "%d\t%s\t", pat_len, upper_case_name);
+
+            algo_results_t *algo_res = &(results[pattern_len_no].algo_results[algo_no]);
+            switch (algo_res->success_state)
+            {
+                case SUCCESS:
+                {
+                    algo_statistics_t *stats = &(algo_res->statistics);
+                    fprintf(rf, "%.2f\t%.2f\t%.2f\t%.2f\t%.2f\n",
+                            stats->mean_pre_time, stats->mean_search_time, stats->std_search_time, stats->median_pre_time, stats->median_search_time);
+                    break;
+                }
+                case CANNOT_SEARCH:
+                {
+                    fprintf(rf, "---\t---\t---\t---\t---\n");
+                    break;
+                }
+                case TIMED_OUT:
+                {
+                    fprintf(rf, "OUT\tOUT\tOUT\tOUT\tOUT\n");
+                    break;
+                }
+                case ERROR:
+                {
+                    fprintf(rf, "ERROR\tERROR\tERROR\tERROR\tERROR\n");
+                    break;
+                }
+            }
+        }
+    }
+
+    fclose(rf);
+}
+
+/*
  * Benchmarks all algorithms over a text T for all pattern lengths.
  */
-void benchmark_algorithms_with_text(const run_command_opts_t *opts, unsigned char *T, int n, const algo_info_t *algorithms)
+void benchmark_algorithms_with_text(const smart_config_t *smart_config, const run_command_opts_t *opts,
+                                    unsigned char *T, int n, const algo_info_t *algorithms)
 {
     int max_pattern_length;
     int num_pattern_lengths = get_num_pattern_lengths_to_run(opts, &max_pattern_length);
@@ -663,6 +725,8 @@ void benchmark_algorithms_with_text(const run_command_opts_t *opts, unsigned cha
         results[patt_len_idx].pattern_length = m;
         benchmark_algos_with_patterns(results[patt_len_idx].algo_results, opts, T, n, pattern_list, m, algorithms);
     }
+
+    output_benchmark_results(smart_config, opts, num_pattern_lengths, results, algorithms);
 
     free_pattern_matrix(pattern_list, opts->num_runs);
     free_benchmark_results(results, num_pattern_lengths, algorithms->num_algos);
@@ -704,7 +768,7 @@ void load_and_run_benchmarks(const smart_config_t *smart_config, run_command_opt
     set_time_string(time_format, 26, "%Y:%m:%d %H:%M:%S");
     info("Experimental tests with code %s started on %s", opts->expcode, time_format);
 
-    benchmark_algorithms_with_text(opts, T, n, algorithms);
+    benchmark_algorithms_with_text(smart_config, opts, T, n, algorithms);
 
     set_time_string(time_format, 26, "%Y:%m:%d %H:%M:%S");
     info("Experimental tests with code %s finished on %s", opts->expcode, time_format);
