@@ -508,13 +508,13 @@ int benchmark_algos_with_patterns(algo_results_t *results, const run_command_opt
     {
         print_benchmark_status(algo, algorithms);
 
-        results->algo_id = algo;
-        results->success_state = run_algo(pattern_list, m, T, n, opts, algorithms->algo_functions[algo], results);
+        results[algo].algo_id = algo;
+        results[algo].success_state = run_algo(pattern_list, m, T, n, opts, algorithms->algo_functions[algo], results + algo);
 
-        if (results->success_state == SUCCESS)
-            calculate_algo_statistics(results, opts->num_runs);
+        if (results[algo].success_state == SUCCESS)
+            calculate_algo_statistics(results + algo, opts->num_runs);
 
-        print_benchmark_res(opts, results);
+        print_benchmark_res(opts, results + algo);
     }
 }
 
