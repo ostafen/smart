@@ -37,7 +37,7 @@ int search(unsigned char *x, int m, unsigned char *y, int n)
     BEGIN_SEARCHING
     int count = 0;
     int j = 0;
-    while (j <= n - m + Q)
+    while (j <= n - m)
     {
         c = HS(y, j + m - Q);
         int f = F[c];
