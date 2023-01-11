@@ -702,12 +702,18 @@ void output_benchmark_run_summary(const smart_config_t *smart_config, const run_
     fclose(sf);
 }
 
+double GBs(double time_ms, int num_bytes)
+{
+    const int GIGA_BYTE = 1024 * 1024 * 1024;
+    return (double) num_bytes / time_ms * 1000 / GIGA_BYTE;
+}
+
 /*
  * Simple output function to store benchmark results as a tab separate file.
  * TODO: output functions need writing properly with commands for type of output, etc. and probably putting in output.h
  */
 void output_benchmark_statistics_csv(const smart_config_t *smart_config, const run_command_opts_t *opts, int num_pattern_lengths,
-                                     benchmark_results_t *results, const algo_info_t *algorithms)
+                                     benchmark_results_t *results, const algo_info_t *algorithms, const int num_bytes)
 {
     char result_filename[MAX_PATH_LENGTH];
     set_filename_suffix_or_exit(result_filename, opts->expcode, ".csv");
@@ -717,7 +723,7 @@ void output_benchmark_statistics_csv(const smart_config_t *smart_config, const r
 
     FILE *rf = fopen(full_path, "w");
 
-    fprintf(rf, "PLEN\tALGORITHM\tMEAN PRE TIME\tMEAN SEARCH TIME\tSTD DEVIATION\tMEDIAN PRE TIME\tMEDIAN SEARCH TIME\n");
+    fprintf(rf, "PLEN\tALGORITHM\tMEAN PRE TIME (ms)\tMEAN SEARCH TIME (ms)\tSTD DEVIATION\tMEDIAN PRE TIME (ms)\tMEDIAN SEARCH TIME (ms)\tMEAN PRE TIME (GB/s)\tMEAN SEARCH TIME (GB/s)\tMEDIAN PRE TIME (GB/s)\tMEDIAN SEARCH TIME (GB/s)\n");
 
     // For each pattern length benchmarked:
     for (int pattern_len_no = 0; pattern_len_no < num_pattern_lengths; pattern_len_no++)
@@ -737,23 +743,28 @@ void output_benchmark_statistics_csv(const smart_config_t *smart_config, const r
                 case SUCCESS:
                 {
                     algo_statistics_t *stats = &(algo_res->statistics);
-                    fprintf(rf, "%.2f\t%.2f\t%.2f\t%.2f\t%.2f\n",
+                    fprintf(rf, "%.3f\t%.3f\t%.3f\t%.3f\t%.3f",
                             stats->mean_pre_time, stats->mean_search_time, stats->std_search_time, stats->median_pre_time, stats->median_search_time);
+                    fprintf(rf, "\t%.3f\t%.3f\t%.3f\t%.3f\n",
+                            GBs(stats->mean_pre_time, num_bytes),
+                            GBs(stats->mean_search_time, num_bytes),
+                            GBs(stats->median_pre_time, num_bytes),
+                            GBs(stats->median_search_time, num_bytes));
                     break;
                 }
                 case CANNOT_SEARCH:
                 {
-                    fprintf(rf, "---\t---\t---\t---\t---\n");
+                    fprintf(rf, "---\t---\t---\t---\t---\t---\t---\t---\t---\n");
                     break;
                 }
                 case TIMED_OUT:
                 {
-                    fprintf(rf, "OUT\tOUT\tOUT\tOUT\tOUT\n");
+                    fprintf(rf, "OUT\tOUT\tOUT\tOUT\tOUT\tOUT\tOUT\tOUT\tOUT\n");
                     break;
                 }
                 case ERROR:
                 {
-                    fprintf(rf, "ERROR\tERROR\tERROR\tERROR\tERROR\n");
+                    fprintf(rf, "ERROR\tERROR\tERROR\tERROR\tERROR\tERROR\tERROR\tERROR\tERROR\n");
                     break;
                 }
             }
@@ -787,7 +798,7 @@ void benchmark_algorithms_with_text(const smart_config_t *smart_config, const ru
     }
 
     output_benchmark_run_summary(smart_config, opts, n);
-    output_benchmark_statistics_csv(smart_config, opts, num_pattern_lengths, results, algorithms);
+    output_benchmark_statistics_csv(smart_config, opts, num_pattern_lengths, results, algorithms, n);
 
     free_pattern_matrix(pattern_list, opts->num_runs);
     free_benchmark_results(results, num_pattern_lengths, algorithms->num_algos);
