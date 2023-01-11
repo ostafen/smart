@@ -643,11 +643,71 @@ int get_num_pattern_lengths_to_run(const run_command_opts_t *opts, int *max_patt
 }
 
 /*
+ * Writes out the summary of the experiment run to a text file.
+ */
+void output_benchmark_run_summary(const smart_config_t *smart_config, const run_command_opts_t *opts, const int n)
+{
+    char summary_filename[MAX_PATH_LENGTH];
+    set_filename_suffix_or_exit(summary_filename, opts->expcode, ".txt");
+
+    char full_path[MAX_PATH_LENGTH];
+    set_full_path_or_exit(full_path, smart_config->smart_results_dir, summary_filename);
+
+    FILE *sf = fopen(full_path, "w");
+
+    fprintf(sf, "Data source:\t");
+    switch (opts->data_source)
+    {
+        case DATA_SOURCE_FILES:
+        {
+            fprintf(sf, "files:         \t");
+            int snum = 0;
+            while (snum < MAX_DATA_SOURCES && opts->data_sources[snum] != NULL)
+            {
+                if (snum > 0) fprintf(sf, "%s", ", ");
+                fprintf(sf, "%s", opts->data_sources[snum]);
+                snum++;
+            }
+            fprintf(sf, "\n");
+            break;
+        }
+        case DATA_SOURCE_RANDOM:
+        {
+            fprintf(sf, "random text\n");
+            fprintf(sf, "Alphabet:      \t%d\n", opts->alphabet_size);
+            break;
+        }
+        case DATA_SOURCE_USER:
+        {
+            fprintf(sf, "user supplied:  \t%s\n", opts->data_to_search);
+        }
+    }
+
+    fprintf(sf, "Text length:   \t%d\n", n);
+    fprintf(sf, "Number of runs:\t%d\n", opts->num_runs);
+    fprintf(sf, "Random seed:   \t%ld\n", opts->random_seed);
+    fprintf(sf, "Time limit:    \t%d\n", opts->time_limit_millis);
+
+    fprintf(sf, "Patterns:      \t");
+    if (opts->pattern != NULL)
+    {
+        fprintf(sf, "user supplied:\t%s\n", opts->pattern);
+    }
+    else
+    {
+        fprintf(sf, "random patterns\n");
+    }
+
+
+    fclose(sf);
+}
+
+/*
  * Simple output function to store benchmark results as a tab separate file.
  * TODO: output functions need writing properly with commands for type of output, etc. and probably putting in output.h
  */
-void output_benchmark_results(const smart_config_t *smart_config, const run_command_opts_t *opts, int num_pattern_lengths,
-                              benchmark_results_t *results, const algo_info_t *algorithms)
+void output_benchmark_statistics_csv(const smart_config_t *smart_config, const run_command_opts_t *opts, int num_pattern_lengths,
+                                     benchmark_results_t *results, const algo_info_t *algorithms)
 {
     char result_filename[MAX_PATH_LENGTH];
     set_filename_suffix_or_exit(result_filename, opts->expcode, ".csv");
@@ -726,7 +786,8 @@ void benchmark_algorithms_with_text(const smart_config_t *smart_config, const ru
         benchmark_algos_with_patterns(results[patt_len_idx].algo_results, opts, T, n, pattern_list, m, algorithms);
     }
 
-    output_benchmark_results(smart_config, opts, num_pattern_lengths, results, algorithms);
+    output_benchmark_run_summary(smart_config, opts, n);
+    output_benchmark_statistics_csv(smart_config, opts, num_pattern_lengths, results, algorithms);
 
     free_pattern_matrix(pattern_list, opts->num_runs);
     free_benchmark_results(results, num_pattern_lengths, algorithms->num_algos);
