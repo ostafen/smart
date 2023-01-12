@@ -61,7 +61,7 @@ int search(unsigned char *x, int m, unsigned char *y, int n) {
 			   j--;
 			   if (D >= mask) {
 				   if (j-first) i=j;
-				   else {
+				   else if (first + len < n) {
 					   for (k=len; y[first+k]==x[k-1] && (k); k--);
 					   if ( k==0 ) count++;
 				   }

@@ -31,7 +31,9 @@ int search(unsigned char *x, int m, unsigned char *y, int n) {
    unsigned int B[SIGMA], D, set;
    int i, j, first, k, mm, sh, m1, count;
    if(m<Q) return -1;
-	int w = WORD, mq1 = m-Q+1, nq1 = n-Q+1;
+    int len = m;
+    if(m > WORD) m = WORD;
+   int w = WORD, mq1 = m-Q+1, nq1 = n-Q+1;
 	if (w > m) w = m;
 	unsigned int mask = 1<<(w-1);
 		
@@ -49,8 +51,7 @@ int search(unsigned char *x, int m, unsigned char *y, int n) {
 	
    /* Searching */
    BEGIN_SEARCHING
-    if(!memcmp(x,y,m)) OUTPUT(0);
-	for (i=mq1; i<nq1; i+=mq1) {
+	for (i=mq1-1; i<nq1; i+=mq1) {
 		D = B[y[i+2]];
 		D = (D<<1) & B[y[i+1]];
 		D = (D<<1) & B[y[i]];
@@ -60,9 +61,9 @@ int search(unsigned char *x, int m, unsigned char *y, int n) {
 		   do {
 			   j--;
 			   if (D >= mask) {
-				   if (j-first) i=j;
-				   else {
-					   for (k=m; y[first+k]==x[k-1] && (k); k--);
+				   if (j>first) i=j;
+				   else if (first + len < n) {
+					   for (k=len; (k) && y[first+k]==x[k-1]; k--);
 					   if ( k==0 ) count++;
 				   }
 				   D = ((D<<1)|1) & B[y[j]];
