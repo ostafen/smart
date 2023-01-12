@@ -723,7 +723,7 @@ void output_benchmark_statistics_csv(const smart_config_t *smart_config, const r
 
     FILE *rf = fopen(full_path, "w");
 
-    fprintf(rf, "PLEN\tALGORITHM\tMEAN PRE TIME (ms)\tMEAN SEARCH TIME (ms)\tSTD DEVIATION\tMEDIAN PRE TIME (ms)\tMEDIAN SEARCH TIME (ms)\tMEAN PRE TIME (GB/s)\tMEAN SEARCH TIME (GB/s)\tMEDIAN PRE TIME (GB/s)\tMEDIAN SEARCH TIME (GB/s)\n");
+    fprintf(rf, "PLEN\tALGORITHM\tMEAN PRE TIME (ms)\tMEAN SEARCH TIME (ms)\tSTD DEVIATION\tMEDIAN PRE TIME (ms)\tMEDIAN SEARCH TIME (ms)\tMEAN SEARCH TIME (GB/s)\tMEAN TOTAL TIME (GB/s)\tMEDIAN SEARCH TIME (GB/s)\tMEDIAN TOTAL TIME (GB/s)\n");
 
     // For each pattern length benchmarked:
     for (int pattern_len_no = 0; pattern_len_no < num_pattern_lengths; pattern_len_no++)
@@ -746,10 +746,10 @@ void output_benchmark_statistics_csv(const smart_config_t *smart_config, const r
                     fprintf(rf, "%.3f\t%.3f\t%.3f\t%.3f\t%.3f",
                             stats->mean_pre_time, stats->mean_search_time, stats->std_search_time, stats->median_pre_time, stats->median_search_time);
                     fprintf(rf, "\t%.3f\t%.3f\t%.3f\t%.3f\n",
-                            GBs(stats->mean_pre_time, num_bytes),
                             GBs(stats->mean_search_time, num_bytes),
-                            GBs(stats->median_pre_time, num_bytes),
-                            GBs(stats->median_search_time, num_bytes));
+                            GBs(stats->mean_pre_time + stats->mean_search_time, num_bytes),
+                            GBs(stats->median_search_time, num_bytes),
+                            GBs(stats->median_pre_time + stats->median_search_time, num_bytes));
                     break;
                 }
                 case CANNOT_SEARCH:
