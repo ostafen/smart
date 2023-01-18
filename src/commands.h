@@ -178,6 +178,11 @@ static char *const OPTION_SHORT_CPU_PIN = "-pin";
 static char *const OPTION_LONG_CPU_PIN = "--pin-cpu";
 static char *const PARAM_CPU_PINNING_OFF = "off";
 static char *const PARAM_CPU_PIN_LAST = "last";
+static char *const OPTION_SHORT_GET_CPU_STATS = "-cstats";
+static char *const OPTION_LONG_GET_CPU_STATS = "--cpu-stats";
+static char *const PARAM_CPU_STATS_FIRST_LEVEL_CACHE = "first";
+static char *const PARAM_CPU_STATS_LAST_LEVEL_CACHE = "last";
+static char *const PARAM_CPU_STATS_BRANCHING = "branch";
 
 /*
  * Run command flags.
@@ -192,6 +197,7 @@ static char *const FLAG_SHORT_PATTERN_LENGTHS_SHORT = "-short";
 static char *const FLAG_LONG_PATTERN_LENGTHS_SHORT = "--short-patterns";
 static char *const FLAG_SHORT_PATTERN_LENGTHS_VERY_SHORT = "-vshort";
 static char *const FLAG_LONG_PATTERN_LENGTHS_VERY_SHORT = "--very-short";
+
 
 static char *const FLAG_TEXT_OUTPUT = "-txt";     //TODO: output of results.
 static char *const FLAG_LATEX_OUTPUT = "-tex";    //TODO: output of results.
@@ -225,10 +231,11 @@ typedef struct run_command_opts
     int num_runs;                                // Number of patterns of a given length to benchmark.
     int time_limit_millis;                       // Number of milliseconds before an algorithm has timed out.
     long random_seed;                            // Random seed used to generate text or patterns.
-    enum cpu_pin_type cpu_pinning;               // What kind of cpu pinning to use.
-    int cpu_to_pin;                              // The number of the cpu to pin, if specified by the user, -1 otherwise.
     const char *pattern;                         // pattern to use for simple benchmarking.
     const char *data_to_search;                  // text to use for simple benchmarking.  If not specified normal data sources are used.
+    enum cpu_pin_type cpu_pinning;               // What kind of cpu pinning to use.
+    int cpu_to_pin;                              // The number of the cpu to pin, if specified by the user, -1 otherwise.
+    int cpu_stats;                               // A bitmask of cpu stats to acquire.  Zero means no stats to gather, 001 = L1 cache, 010 = last cache, 100 = branches.
     int occ;                                     // Boolean flag - whether to report total occurrences.
     int pre;                                     // Boolean flag - whether to report pre-processing time separately.
     char expcode[STR_BUF];                       // A code generated to identify this benchmarking run.
@@ -262,6 +269,7 @@ void init_run_command_opts(run_command_opts_t *opts)
     }
     opts->cpu_pinning = CPU_PIN_DEFAULT;
     opts->cpu_to_pin  = -1;
+    opts->cpu_stats   = 0; // default to gathering no cpu stats.
     opts->alphabet_size = SIGMA;
     opts->text_size = TEXT_SIZE_DEFAULT;
     opts->pattern_info.pattern_min_len = PATTERN_MIN_LEN_DEFAULT;
@@ -273,8 +281,9 @@ void init_run_command_opts(run_command_opts_t *opts)
     opts->random_seed = time(NULL);
     opts->pattern = NULL;
     opts->data_to_search = NULL;
-    opts->fill_buffer = 0;
-    opts->pre = 0;
+    opts->fill_buffer = FALSE;
+    opts->cpu_stats = FALSE;
+    opts->pre = FALSE;
     opts->occ = 0;
     gen_experiment_code(opts->expcode, STR_BUF);
 }
@@ -314,10 +323,17 @@ void print_run_usage_and_exit(const char *command)
     print_help_line("Reports preprocessing times and searching times separately", FLAG_SHORT_PREPROCESSING_TIME, FLAG_LONG_PREPROCESSING_TIME, "");
     print_help_line("Prints the total number of occurrences", FLAG_SHORT_OCCURRENCE, FLAG_LONG_OCCURRENCE, "");
     print_help_line("Set to L the upper bound for any worst case running time (in ms). The default value is 300 ms.", OPTION_SHORT_MAX_TIME, OPTION_LONG_MAX_TIME, "L");
-    print_help_line("Pin the benchmark process to a single CPU for lower benchmarking variance via parameter C: [off | last | {digits}]", OPTION_SHORT_CPU_PIN, OPTION_LONG_CPU_PIN, "C");
+    print_help_line("Pin the benchmark process to a single CPU for lower benchmarking variance via optional parameter [C]: [off | last | {digits}]", OPTION_SHORT_CPU_PIN, OPTION_LONG_CPU_PIN, "[C]");
     print_help_line("If set to 'off', no CPU pinning will be performed.", "", """", "off");
     print_help_line("If set to 'last' (the default), the benchmark will be pinned to the last available CPU.", "", """", "last");
     print_help_line("If set to a number N, the benchmark will be pinned to CPU number N, if available.", "", """", "N");
+    print_help_line("Gather CPU statistics for one or more properties [S]: [first | last | branch]", OPTION_SHORT_GET_CPU_STATS, OPTION_LONG_GET_CPU_STATS, "[S]");
+    print_help_line("If set to 'first' then cache accesses and misses for the L1 cache will be obtained.", "", "", "first");
+    print_help_line("If set to 'last' then cache accesses and misses for the last level cache will be obtained.", "", "", "last");
+    print_help_line("If set to 'branch' then branch instructions and prediction misses will be obtained.", "", "", "branch");
+    print_help_line("If no parameters are provided, defaults to obtaining L1 cache and branch instructions.", "", "", "");
+    print_help_line("Note that the number of CPU stats it is possible to obtain simultaneously varies by CPU.", "", "", "");
+
     //print_help_line("Output results in txt tabular format", FLAG_TEXT_OUTPUT, "", "");
     //print_help_line("Output results in latex tabular format", FLAG_LATEX_OUTPUT, "", "");
     print_help_line("Gives this help list.", OPTION_SHORT_HELP, OPTION_LONG_HELP, "");
@@ -453,9 +469,9 @@ void init_test_command_opts(test_command_opts_t *opts)
         opts->algo_names[i] = NULL;
     opts->num_algo_names = 0;
     opts->random_seed  = time(NULL);   // default is random seed set by the current time, unless -seed option is specified.
-    opts->debug = 0;
-    opts->quick = 0;
-    opts->fail_only = 0;
+    opts->debug = FALSE;
+    opts->quick = FALSE;
+    opts->fail_only = FALSE;
     opts->pattern_info.pattern_min_len = 0;            // Only set to a real operator if we are specifying pattern lengths for test.
     opts->pattern_info.pattern_max_len = 0;            // Only set to a real operator if we are specifying pattern lengths for test.
     opts->pattern_info.increment_operator = INCREMENT_MULTIPLY_OPERATOR;
