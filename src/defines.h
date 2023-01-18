@@ -14,6 +14,9 @@
  */
 #define SIGMA 256                         // constant alphabet size
 #define MEGA_BYTE (1024 * 1024)           // constant for 1 MB size
+#define GIGA_BYTE (MEGA_BYTE * 1024)      // constant for 1 Gb
+#define TRUE 1                            // value of true
+#define FALSE 0                           // value of false
 
 /*
  * Search return codes
