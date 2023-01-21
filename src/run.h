@@ -518,11 +518,21 @@ void calculate_algo_statistics(algo_results_t *results, int num_measurements)
  */
 void print_benchmark_status(const int algo, const algo_info_t *algorithms)
 {
-    char uppercase_algo_name[ALGO_NAME_LEN];
-    set_upper_case_algo_name(uppercase_algo_name, algorithms->algo_names[algo]);
+    char fail_flag;
+    char case_algo_name[ALGO_NAME_LEN];
+    if (algorithms->passed_tests[algo])
+    {
+        fail_flag = ' ';
+        set_upper_case_algo_name(case_algo_name, algorithms->algo_names[algo]);
+    }
+    else
+    {
+        fail_flag = '*';
+        set_lower_case_algo_name(case_algo_name, algorithms->algo_names[algo]);
+    }
 
     char header_line[MAX_LINE_LEN];
-    snprintf(header_line, MAX_LINE_LEN, "\t - [%d/%d] %s ", (algo + 1), algorithms->num_algos, uppercase_algo_name);
+    snprintf(header_line, MAX_LINE_LEN, "\t - [%d/%d] %c %s ", (algo + 1), algorithms->num_algos, fail_flag, case_algo_name);
 
     char output_line[MAX_LINE_LEN];
     size_t header_len = strlen(header_line);
@@ -605,7 +615,7 @@ void print_text_info(const unsigned char *T, int n)
     compute_alphabet_info(freq, &alphabet_size, &max_code);
 
     info("Alphabet of %d characters.", alphabet_size);
-    info("Greater chararacter has code %d.", max_code);
+    info("Greater chararacter has code %d.\n", max_code);
 }
 
 /*
@@ -902,6 +912,17 @@ void print_cpu_stats_info(run_command_opts_t *opts)
 }
 
 /*
+ * Loads the passing test status of the algorithms, and prints a warning if some of them have not passed.
+ */
+void load_test_status(const smart_config_t *smart_config, algo_info_t *algorithms)
+{
+    if (!set_passing_test_status(smart_config, algorithms))
+    {
+        warn("Some algorithms have not passed testing.  These are flagged with a * and their name is in lower case.\n");
+    }
+}
+
+/*
  * Loads the text and algorithms to use and then runs benchmarking.
  */
 void load_and_run_benchmarks(const smart_config_t *smart_config, run_command_opts_t *opts, algo_info_t *algorithms)
@@ -917,6 +938,9 @@ void load_and_run_benchmarks(const smart_config_t *smart_config, run_command_opt
 
     print_search_and_preprocessing_time_info(opts);
     print_cpu_stats_info(opts);
+
+    // Determine the test status of the algorithms to benchmark:
+    load_test_status(smart_config, algorithms);
 
     // Benchmark the algorithms:
     char time_format[26];

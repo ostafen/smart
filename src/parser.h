@@ -671,7 +671,11 @@ void parse_test_args(int argc, const char **argv, smart_subcommand_t *subcommand
         }
         else if (matches_option(param, OPTION_SHORT_QUICK_TESTS, OPTION_LONG_QUICK_TESTS))
         {
-            opts->quick = 1;
+            opts->test_type = QUICK_TESTS;
+        }
+        else if (matches_option(param, OPTION_SHORT_UPDATE, OPTION_LONG_UPDATE))
+        {
+            opts->test_type = FULL_TEST_AND_UPDATE;
         }
         else if (matches_option(param, OPTION_SHORT_FAIL_ONLY, OPTION_LONG_FAIL_ONLY))
         {

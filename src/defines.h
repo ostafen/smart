@@ -29,6 +29,7 @@
  */
 #define MAX_PATH_LENGTH 2048              // Maximum file path length.
 #define ALGO_NAME_LEN 25                  // Maximum length of an algorithm name string + 1 for null terminator char.
+#define ALGO_HASH_LEN 22                  // Max length of an algorithm test hash.
 #define MAX_DATA_SOURCES 32               // max number of algorithm name/regexes to specify on command line.
 #define MAX_SEARCH_PATHS 32               // maximum search paths for data or algo_names set via environment variable.
 #define MAX_SELECT_ALGOS 2048             // maximum number of algorithms which can be selected for benchmarking.
@@ -48,6 +49,7 @@
 #define SMART_RESULTS_PATH_DEFAULT "results"
 #define SMART_CONFIG_PATH_DEFAULT "config"
 #define SELECTED_ALGOS_FILENAME "selected_algos"
+#define TESTED_ALGOS_FILENAME "tested_algos"
 #define ALGO_FILENAME_SUFFIX ".algos"
 
 /*

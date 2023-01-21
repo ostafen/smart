@@ -32,6 +32,11 @@
 
 #include "defines.h"
 
+#define FNV_HASH_OFFSET_32 2166136261                      // 32 bit starting offset for FNV1a hash: see see http://www.isthe.com/chongo/tech/comp/fnv/
+#define FNV_HASH_OFFSET_64 14695981039346656037LLU         // 64 bit starting offset for FNV1a hash: see see http://www.isthe.com/chongo/tech/comp/fnv/
+#define FNV_HASH_32(v, p) (((p) ^ (v)) * 16777619)         // 32 bit FNV1a hash calculation: see http://www.isthe.com/chongo/tech/comp/fnv/
+#define FNV_HASH_64(v, p) (((p) ^ (v)) * 1099511628211)    // 64 bit FNV1a hash calculation: see http://www.isthe.com/chongo/tech/comp/fnv/
+
 static const char CASE_GAP = 'a' - 'A';
 
 /*
@@ -48,7 +53,8 @@ void print_logo()
     printf("	A String Matching Research Tool\n");
     printf("	by Simone Faro, Matt Palmer, Stefano Scafiti and Thierry Lecroq\n");
     printf("	Last Build Time: %s\n", BUILD_TIME);
-    printf("	Commit: %s\n", COMMIT);    printf("\n");
+    printf("	Commit: %s\n", COMMIT);
+    printf("\n");
     printf("	If you use this tool in your research please cite the following paper:\n");
     printf("	| Simone Faro and Thierry Lecroq\n");
     printf("	| The Exact Online String Matching Problem: a Review of the Most Recent Results\n");
@@ -449,6 +455,94 @@ int load_text_buffer(const char *filename, unsigned char *buffer, int n)
     return i;
 }
 
+/*
+ * Fills the field_value of max buffer size with the contents of a tab-delimited field in a line, trimming whitespace off the end.
+ * The first field is zero, second field 1, etc.
+ * Returns true if it found a value that would fit into the buffer, false otherwise.
+ */
+int get_tab_field(const char *from_line, int field_no, char *field_value, int buffer_size)
+{
+    // Find the start of the field:
+    const char *field_start = from_line;
+    for (int field = 0; field < field_no; field++)
+    {
+        field_start = strchr(field_start, '\t'); // find the next delimiter.
+        if (field_start == NULL) return 0;             // if we can't find a field to start, we didn't succeed.
+        field_start++;                                 // actual field starts one beyond the delimiter.
+    }
+
+    // Find the end of the field:
+    const char *field_end = strchr(field_start, '\t'); // find next delimiter.
+    if (field_end == NULL) field_end = strchr(field_start, '\n'); // if no next delimiter, find newline.
+    if (field_end == NULL)
+        field_end = from_line + strlen(from_line) - 1; // no newline - just use the end of the string.
+    else
+        field_end--; // field end is one before the newline.
+
+    // Ensure we have something to return:
+    if (field_start > field_end) return 0; // no token here.
+    size_t len = field_end - field_start + 1;
+    if (len + 1 > buffer_size) return 0; // can't fit the token into the buffer (need one extra space for null terminator).
+
+    // Copy the string into the field value and terminate with a null char, then trim whitespace off the end.
+    memcpy(field_value, field_start, len);
+    field_value[len] = STR_END_CHAR;
+    trim_str(field_value);
+
+    return 1;
+}
+
+/*
+ * Hashes a string using the FNV hash algorithm.
+ *
+ * See http://www.isthe.com/chongo/tech/comp/fnv/#FNV-1a
+ * See https://en.wikipedia.org/wiki/Fowler_Noll_Vo_hash
+ *
+ * While there are stronger hash algorithms, the virtue of FNV is it is extremely easy to calculate.
+ * Its properties rely on the special prime numbers it starts with and multiplies by, modulo 64 bits.
+ * We are not looking for cryptographic strength here, just a 64-bit deterministic digest of a sequence of bytes.
+ */
+unsigned long long hash_string(const char *string)
+{
+    unsigned long long hash_result = FNV_HASH_OFFSET_64;
+
+    int i = 0;
+    char c;
+    while ((c=string[i++]))
+    {
+        hash_result = FNV_HASH_64(c, hash_result);
+    }
+
+    return hash_result;
+}
+
+/*
+ * Hashes the contents of the file at file_path using the FNV hash algorithm, with an optional key (can be empty string).
+ *
+ * See http://www.isthe.com/chongo/tech/comp/fnv/#FNV-1a
+ * See https://en.wikipedia.org/wiki/Fowler_Noll_Vo_hash
+ *
+ * While there are stronger hash algorithms, the virtue of FNV is it is extremely easy to calculate.
+ * Its properties rely on the special prime numbers it starts with and multiplies by, modulo 64 bits.
+ * We are not looking for cryptographic strength here, just a 64-bit deterministic digest of a sequence of bytes.
+ */
+unsigned long long hash_keyed_file(const char *key, const char file_path[MAX_PATH_LENGTH])
+{
+    unsigned long long hash_result = hash_string(key);
+
+    int i;
+    FILE *algo_fp = fopen(file_path, "r");
+    if (algo_fp != NULL)
+    {
+        while ((i = getc(algo_fp) != EOF))
+        {
+            hash_result = FNV_HASH_64(i, hash_result);
+        }
+        fclose(algo_fp);
+    }
+
+    return hash_result;
+}
 
 /*
  * Generates a random text and stores it in the buffer of size bufsize, with an alphabet of sigma.
@@ -672,6 +766,7 @@ void free_regexes(regex_t *expressions[], int num_expressions)
     for (int i = 0; i < num_expressions; i++)
     {
         regfree(expressions[i]);
+        free(expressions[i]);
         expressions[i] = NULL;
     }
 }
