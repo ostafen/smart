@@ -4,10 +4,10 @@ SRC_DIR=src
 ALGO_DIR=algos
 
 # Release CFLAGS.
-#CFLAGS=-O3 -lm -msse4 -ldl -Wno-format-truncation
+CFLAGS=-O3 -lm -msse4 -ldl -Wno-format-truncation
 
 # Debug CFLAGS.
-CFLAGS=-O1 -lm -msse4 -ldl -g -gdwarf-2 -Wno-format-truncation
+#CFLAGS=-O1 -lm -msse4 -ldl -g -gdwarf-2 -Wno-format-truncation
 
 BIN_DIR=bin
 
@@ -42,7 +42,7 @@ $(BIN_DIR)/$(ALGO_DIR)/%.so: $(OBJ_DIR)/$(ALGO_DIR)/%.o
 	$(dir_guard)
 	$(CC) -shared -o $@ $< $(CFLAGS)
  
-$(BIN_DIR)/smart: $(OBJ_DIR)/smart.o $(OBJ_DIR)/string_set.o
+$(BIN_DIR)/smart: $(OBJ_DIR)/smart.o $(OBJ_DIR)/string_set.o $(OBJ_DIR)/cpu_stats.o
 	$(dir_guard)
 	$(CC) -g -o $@ $^ $(CFLAGS)
 

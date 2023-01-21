@@ -674,9 +674,9 @@ int run_random_tests(test_results_info_t *test_results, unsigned char *T)
     int increment      = test_results->opts->test_type == QUICK_TESTS ? 4 : 1;
 
     // Run tests with random text of all alphabets.
-    for (int sigma = start_alphabet; sigma <= end_alphabet; sigma += increment)
+    for (int sigma = end_alphabet; sigma >= start_alphabet; sigma -= increment)
     {
-        double done = (double)(sigma - start_alphabet) / range;
+        double done = (double)(end_alphabet - sigma) / range;
         percent_done = update_random_test_percentage(test_results, done, start_percent, percent_done);
 
         gen_random_text(sigma, T, TEST_TEXT_SIZE);

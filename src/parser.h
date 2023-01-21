@@ -10,6 +10,7 @@
 #include "utils.h"
 #include "config.h"
 #include "commands.h"
+#include "cpu_stats.h"
 
 //TODO: standardise "usage" syntax for optional params, etc.
 
@@ -60,6 +61,14 @@ void check_is_int(const char *param, const char *option)
 int is_command_option(const char *arg)
 {
     return arg[0] == '-';
+}
+
+/*
+ * Returns true if there is another parameter following the current one that is not a command option.
+ */
+int next_is_param(const int curr_arg, const int argc, const char **argv)
+{
+    return curr_arg + 1 < argc && !is_command_option(argv[curr_arg + 1]);
 }
 
 /*
@@ -370,6 +379,34 @@ int parse_cpu_pinning(run_command_opts_t *opts, int curr_arg, int argc, const ch
 }
 
 /*
+ * Parses the cpu stats.  If no additional parameters are provided, it defaults to L1 cache and branching.
+ */
+int parse_cpu_stats(run_command_opts_t *opts, int curr_arg, int argc, const char **argv)
+{
+    int num_params_parsed = 0;
+
+    while (next_is_param(curr_arg, argc, argv))
+    {
+        num_params_parsed += 1;
+        const char *param = argv[++curr_arg];
+        if (!strcmp(param, PARAM_CPU_STATS_FIRST_LEVEL_CACHE))
+            opts->cpu_stats |= CPU_STAT_L1_CACHE;
+        else if (!strcmp(param, PARAM_CPU_STATS_LAST_LEVEL_CACHE))
+            opts->cpu_stats |= CPU_STAT_LL_CACHE;
+        else if (!strcmp(param, PARAM_CPU_STATS_BRANCHING))
+            opts->cpu_stats |= CPU_STAT_BRANCHES;
+        else
+            error_and_exit("Unknown parameter for cpu stats provided: %s", param);
+    }
+
+    // If no parameters set, default to l1 cache and branches.
+    if (opts->cpu_stats == 0)
+        opts->cpu_stats = CPU_STAT_L1_CACHE | CPU_STAT_BRANCHES;
+
+    return num_params_parsed;
+}
+
+/*
  * Parses a run option that is not associated with any other parameter as an algo name regex.
  */
 void parse_run_algo_name(run_command_opts_t *opts, int curr_arg, const char **argv)
@@ -571,6 +608,10 @@ void parse_run_args(int argc, const char **argv, smart_subcommand_t *subcommand)
         else if (matches_option(param, OPTION_SHORT_CPU_PIN, OPTION_LONG_CPU_PIN))
         {
             curr_arg += parse_cpu_pinning(opts, curr_arg, argc, argv);
+        }
+        else if (matches_option(argv[curr_arg], OPTION_SHORT_GET_CPU_STATS, OPTION_LONG_GET_CPU_STATS))
+        {
+            curr_arg += parse_cpu_stats(opts, curr_arg, argc, argv);
         }
         else if (!parse_flag(opts, curr_arg, argc, argv))
         {
