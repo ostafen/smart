@@ -785,7 +785,7 @@ void output_benchmark_statistics_csv(const smart_config_t *smart_config, const r
 
     FILE *rf = fopen(full_path, "w");
 
-    fprintf(rf, "PLEN\tALGORITHM\tMEAN PRE TIME (ms)\tMEAN SEARCH TIME (ms)\tSTD DEVIATION\tMEDIAN PRE TIME (ms)\tMEDIAN SEARCH TIME (ms)\tMEAN SEARCH TIME (GB/s)\tMEAN TOTAL TIME (GB/s)\tMEDIAN SEARCH TIME (GB/s)\tMEDIAN TOTAL TIME (GB/s)");
+    fprintf(rf, "PLEN\tALGORITHM\tMEAN PRE TIME (ms)\tMEAN SEARCH TIME (ms)\tSTD DEVIATION\tMEDIAN PRE TIME (ms)\tMEDIAN SEARCH TIME (ms)\tMEAN SEARCH SPEED (GB/s)\tMEAN TOTAL SPEED (GB/s)\tMEDIAN SEARCH SPEED (GB/s)\tMEDIAN TOTAL SPEED (GB/s)");
     fprintf(rf, opts->cpu_stats ? "\tL1_CACHE_ACCESS\tL1_CACHE_MISSES\tLL_CACHE_ACCESS\tLL_CACHE_MISSES\tBRANCH INSTRUCTIONS\tBRANCH MISSES\n" : "\n");
 
     // For each pattern length benchmarked:
