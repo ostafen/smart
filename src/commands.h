@@ -509,8 +509,8 @@ void print_test_usage_and_exit(const char *command)
     print_help_line("To multiply by a fixed amount V, use operator *", "", "", "* V");
     print_help_line("Sets the random seed to integer S, ensuring tests can be precisely repeated.", OPTION_SHORT_SEED, OPTION_LONG_SEED, "S");
     print_help_line("Runs tests faster by testing less exhaustively.  Will not update if quick tests are run.", OPTION_SHORT_QUICK_TESTS, OPTION_LONG_QUICK_TESTS, "");
-    print_help_line("Report only failures in the test output.", OPTION_SHORT_FAIL_ONLY, OPTION_LONG_FAIL_ONLY, "");
     print_help_line("Useful to get fast feedback, but all tests should pass before benchmarking against other algorithms.", "", "", "");
+    print_help_line("Report only failures in the test output.", OPTION_SHORT_FAIL_ONLY, OPTION_LONG_FAIL_ONLY, "");
     print_help_line("Re-runs a failing search - put a breakpoint on debug_search() in test.h", OPTION_SHORT_DEBUG, OPTION_LONG_DEBUG, "");
     print_help_line("Updates the tested algorithm file with the test results, if it is not a quick test.", OPTION_SHORT_UPDATE, OPTION_LONG_UPDATE, "");
     print_help_line("Gives this help list.", OPTION_SHORT_HELP, OPTION_LONG_HELP, "");
