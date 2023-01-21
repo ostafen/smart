@@ -7,7 +7,7 @@ uint16_t str_hash(const char *s)
 {
     uint16_t hash = 0;
 
-    int n = strlen(s);
+    size_t n = strlen(s);
     for (int i = 0; i < n; i++)
     {
         hash += s[i] << 1;
@@ -41,6 +41,25 @@ int str_set_add(str_set_t *set, const char *s)
     node_t *node = malloc(sizeof(node_t));
     node->next = set->buckets[hash];
     node->s = s;
+    node->allocated_string = NULL;
+    set->buckets[hash] = node;
+    set->size++;
+
+    return 1;
+}
+
+int str_set_add_copy(str_set_t *set, const char *s)
+{
+    int hash = str_hash(s);
+    if (str_set_contains_hash(set, s, hash))
+        return 0;
+
+    node_t *node = malloc(sizeof(node_t));
+    size_t length = strlen(s) + 1;
+    node->allocated_string = malloc(sizeof(char) * length);
+    memcpy(node->allocated_string, s, length);
+    node->next = set->buckets[hash];
+    node->s = node->allocated_string;
     set->buckets[hash] = node;
     set->size++;
 
@@ -76,6 +95,7 @@ void str_set_free(str_set_t *set)
         for (node_t *curr = set->buckets[i]; curr != NULL;)
         {
             node_t *next = curr->next;
+            if (curr->allocated_string != NULL) free(curr->allocated_string);
             free(curr);
             curr = next;
         }

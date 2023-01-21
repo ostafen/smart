@@ -414,6 +414,8 @@ void print_select_usage_and_exit(const char *command)
  * Test command
  */
 
+enum test_command_type {QUICK_TESTS, FULL_TESTS, FULL_TEST_AND_UPDATE};
+
 /*
  * Test command options
  */
@@ -425,12 +427,15 @@ static char *const OPTION_SHORT_QUICK_TESTS = "-q";
 static char *const OPTION_LONG_QUICK_TESTS = "--quick";
 static char *const OPTION_SHORT_FAIL_ONLY = "-fo";
 static char *const OPTION_LONG_FAIL_ONLY = "--fail-only";
+static char *const OPTION_SHORT_UPDATE = "-update";
+static char *const OPTION_LONG_UPDATE = "--update-results";
 
 /*
  * Options for the test subcommand.
  */
 typedef struct test_command_opts
 {
+    enum test_command_type test_type;              // The type of test to run
     enum algo_sources algo_source;                 // source of algorithms to test.
     const char *named_set;                         // name of the named set to load algorithms from, if specified.
     const char *algo_names[MAX_SELECT_ALGOS];      // algo_names to test, as POSIX regular expressions.
@@ -438,7 +443,6 @@ typedef struct test_command_opts
     long random_seed;                              // Random seed used to generate text or patterns.
     pattern_len_info_t pattern_info;               // Info about what pattern sizes to test random patterns with.
     int debug;                                     // If set will re-call a failing search function with the failing parameters.
-    int quick;                                     // Whether to run quick tests.
     int fail_only;                                 // Whether to only report failures in the test output.
 } test_command_opts_t;
 
@@ -447,6 +451,7 @@ typedef struct test_command_opts
  */
 void init_test_command_opts(test_command_opts_t *opts)
 {
+    opts->test_type = FULL_TESTS;
     opts->algo_source  = ALGO_REGEXES;       // default is just user specified algo_names unless a command says different.
     opts->named_set    = NULL;
     for (int i = 0; i < MAX_SELECT_ALGOS; i++)
@@ -454,7 +459,6 @@ void init_test_command_opts(test_command_opts_t *opts)
     opts->num_algo_names = 0;
     opts->random_seed  = time(NULL);   // default is random seed set by the current time, unless -seed option is specified.
     opts->debug = 0;
-    opts->quick = 0;
     opts->fail_only = 0;
     opts->pattern_info.pattern_min_len = 0;            // Only set to a real operator if we are specifying pattern lengths for test.
     opts->pattern_info.pattern_max_len = 0;            // Only set to a real operator if we are specifying pattern lengths for test.
@@ -469,9 +473,11 @@ void print_test_usage_and_exit(const char *command)
 {
     print_logo();
 
-    printf("\n usage: %s test [algo1, algo2, ...] | -all | -sel | -use | -plen |-inc | -rs | -q | -d | -h\n\n", command);
+    printf("\n usage: %s test [algo1, algo2, ...] | -all | -sel | -use | -plen |-inc | -rs | -q | -fo | -d | -update | -h\n\n", command);
 
     info("Tests a set of smart algorithms for correctness with a variety of fixed and randomized tests.");
+    info("Tests include buffer overflow, patterns at the start and end, patterns before the start or after the end,");
+    info("consecutive patterns, consecutive partial patterns and random strings of various lengths.");
     info("You can specify the algorithms to test directly using POSIX extended regular expressions, e.g. test hor wfr.*");
     info("You can also specify that all algorithms, the currently selected set, or another saved set of algorithms are tested.\n");
 
@@ -484,10 +490,11 @@ void print_test_usage_and_exit(const char *command)
     print_help_line("To add by a fixed amount V, use operator +", "", "", "+ V");
     print_help_line("To multiply by a fixed amount V, use operator *", "", "", "* V");
     print_help_line("Sets the random seed to integer S, ensuring tests can be precisely repeated.", OPTION_SHORT_SEED, OPTION_LONG_SEED, "S");
-    print_help_line("Runs tests faster by testing less exhaustively.", OPTION_SHORT_QUICK_TESTS, OPTION_LONG_QUICK_TESTS, "");
+    print_help_line("Runs tests faster by testing less exhaustively.  Will not update if quick tests are run.", OPTION_SHORT_QUICK_TESTS, OPTION_LONG_QUICK_TESTS, "");
     print_help_line("Report only failures in the test output.", OPTION_SHORT_FAIL_ONLY, OPTION_LONG_FAIL_ONLY, "");
     print_help_line("Useful to get fast feedback, but all tests should pass before benchmarking against other algorithms.", "", "", "");
     print_help_line("Re-runs a failing search - put a breakpoint on debug_search() in test.h", OPTION_SHORT_DEBUG, OPTION_LONG_DEBUG, "");
+    print_help_line("Updates the tested algorithm file with the test results, if it is not a quick test.", OPTION_SHORT_UPDATE, OPTION_LONG_UPDATE, "");
     print_help_line("Gives this help list.", OPTION_SHORT_HELP, OPTION_LONG_HELP, "");
 
     printf("\n\n");
