@@ -295,7 +295,7 @@ void print_run_usage_and_exit(const char *command)
 {
     print_logo();
 
-    printf("\n usage: %s [algo names...] [-text | -rand | -data | -plen | -inc | -short | -vshort | -pat | -use | -all | -runs | -ts | -fb | -rs | -pre | -occ | -tb | -pin | -h]\n\n", command);
+    printf("\n usage: %s [algo names...] [-text | -rand | -data | -plen | -inc | -short | -vshort | -pat | -use | -all | -runs | -ts | -fb | -rs | -pre | -occ | -tb | -pin | -cstats | -h]\n\n", command);
 
     printf("\tYou can specify algorithms to benchmark directly as POSIX regular expressions, e.g. smart run bsdm.* hor ...\n");
     printf("\tIf you do not specify any algorithms on the command line or by another command, the default selected algorithms will be used.\n\n");
