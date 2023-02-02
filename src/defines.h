@@ -97,7 +97,7 @@
  * Console output formatting defines.
  */
 #define COL_WIDTH 32                              // width of column to output name value pairs with.
-#define BENCHMARK_HEADER_LEN (ALGO_NAME_LEN + 4)  // Length of header containing algorithm name and dots when benchmarking.
+#define BENCHMARK_HEADER_LEN (ALGO_NAME_LEN + 16)  // Length of header containing algorithm name and dots when benchmarking.
 
 /*
  * Miscellaneous string defines.

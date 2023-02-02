@@ -430,27 +430,66 @@ void get_results_info(char output_line[MAX_LINE_LEN], const run_command_opts_t *
     char occurence[MAX_LINE_LEN];
     if (opts->occ)
     {
-        snprintf(occurence, MAX_LINE_LEN, "occ %d", results->occurrence_count);
+        snprintf(occurence, MAX_LINE_LEN, "occ(%d)", results->occurrence_count);
     }
     else
     {
         occurence[0] = STR_END_CHAR;
     }
 
-    if (opts->pre)
-        snprintf(output_line, MAX_LINE_LEN, "\tmean: %.2f + [%.2f ± %.2f] ms\tmedian: %.2f + [%.2f] ms\t\t%s",
+    if (opts->cpu_stats) {
+        char cpu_stats[STR_BUF];
+        char cpu_stat[STR_BUF];
+        cpu_stats[0] = STR_END_CHAR;
+        if (results->statistics.sum_cpu_stats.l1_cache_access > 0) {
+            snprintf(cpu_stat, STR_BUF, "L1: %.2f%%",
+                     (double) results->statistics.sum_cpu_stats.l1_cache_misses /
+                     results->statistics.sum_cpu_stats.l1_cache_access * 100);
+            strcat(cpu_stats, cpu_stat);
+        }
+
+        if (results->statistics.sum_cpu_stats.cache_references > 0)
+        {
+            snprintf(cpu_stat, STR_BUF, strlen(cpu_stats) > 0 ? "\tLL: %.2f%%" : "LL: %.2f%%",
+                     (double) results->statistics.sum_cpu_stats.cache_misses /
+                     results->statistics.sum_cpu_stats.cache_references * 100);
+            strcat(cpu_stats, cpu_stat);
+        }
+
+        if (results->statistics.sum_cpu_stats.branch_instructions > 0) {
+            snprintf(cpu_stat, STR_BUF, strlen(cpu_stats) > 0 ? "\tBr: %.2f%%" : "Br: %.2f%%",
+                     (double) results->statistics.sum_cpu_stats.branch_misses /
+                     results->statistics.sum_cpu_stats.branch_instructions * 100);
+            strcat(cpu_stats, cpu_stat);
+        }
+
+        snprintf(output_line, MAX_LINE_LEN, "\t( %.2f, %.2f ) + ( %.2f ± %.2f, %.2f ) ms\t   %s\t%s",
                  results->statistics.mean_pre_time,
+                 results->statistics.median_pre_time,
                  results->statistics.mean_search_time,
                  results->statistics.std_search_time,
+                 results->statistics.median_search_time,
+                 cpu_stats, occurence);
+/*
+        snprintf(output_line, MAX_LINE_LEN, "\tpre: ( %.2f, %.2f ) ms\t search: ( %.2f ± %.2f, %.2f ) ms\t   %s\t%s",
+                 results->statistics.mean_pre_time,
                  results->statistics.median_pre_time,
+                 results->statistics.mean_search_time,
+                 results->statistics.std_search_time,
+                 results->statistics.median_search_time,
+                 cpu_stats, occurence);
+                 */
+    }
+    else
+    {
+        snprintf(output_line, MAX_LINE_LEN, "\tpre: (%.2f, %.2f) ms\t search: (%.2f ± %.2f, %.2f) ms\t%s",
+                 results->statistics.mean_pre_time,
+                 results->statistics.median_pre_time,
+                 results->statistics.mean_search_time,
+                 results->statistics.std_search_time,
                  results->statistics.median_search_time,
                  occurence);
-    else
-        snprintf(output_line, MAX_LINE_LEN, "\tmean: [%.2f ± %.2f] ms\tmedian: %.2f ms\t%s",
-                 results->statistics.mean_search_time + results->statistics.mean_pre_time,
-                 results->statistics.std_search_time,
-                 results->statistics.median_search_time + results->statistics.median_pre_time,
-                 occurence);
+    }
 }
 
 /*
@@ -553,7 +592,7 @@ int benchmark_algos_with_patterns(algo_results_t *results, const run_command_opt
     print_edge(TOP_EDGE_WIDTH);
 
     info("\tSearching for a set of %d patterns with length %d", opts->num_runs, m);
-    info("\tTesting %d algorithms\n", algorithms->num_algos);
+    info("\tTesting %d algorithms                    Preprocessing + Search: ( mean ± stddev, median )", algorithms->num_algos);
 
     for (int algo = 0; algo < algorithms->num_algos; algo++)
     {
