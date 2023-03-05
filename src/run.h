@@ -251,7 +251,7 @@ double compute_std(double avg, double *T, int n)
     double std = 0.0;
     for (int i = 0; i < n; i++)
         std += pow(avg - T[i], 2.0);
-    int sample_divisor = MAX(1, n);
+    int sample_divisor = MAX(1, n - 1);
     return sqrt(std / sample_divisor);
 }
 
