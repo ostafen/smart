@@ -238,15 +238,21 @@ double compute_median_of_sorted_array(const double *T, int n)
 }
 
 /*
- * Computes and returns the standard deviation given a mean average, and a list of search times of size n.
+ * Computes and returns the sample standard deviation given a mean average, and a list of search times of size n.
+ *
+ * Sample standard deviation differs from population standard deviation, by dividing by one less than the number of
+ * samples.  This biases the sample standard deviation to be slightly bigger, to account for likely wider variation
+ * in the population as a whole.
+ *
+ * See: https://www.statology.org/population-vs-sample-standard-deviation/
  */
 double compute_std(double avg, double *T, int n)
 {
     double std = 0.0;
     for (int i = 0; i < n; i++)
         std += pow(avg - T[i], 2.0);
-
-    return sqrt(std / n);
+    int sample_divisor = n > 1 ? n - 1 : 1;
+    return sqrt(std / sample_divisor);
 }
 
 /*
