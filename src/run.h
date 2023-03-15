@@ -473,7 +473,7 @@ void get_results_info(char output_line[MAX_LINE_LEN], const run_command_opts_t *
         char cpu_stat[STR_BUF];
         cpu_stats[0] = STR_END_CHAR;
         if (results->statistics.sum_cpu_stats.l1_cache_access > 0) {
-            snprintf(cpu_stat, STR_BUF, "L1(%.*f%%)",
+            snprintf(cpu_stat, STR_BUF, "L1:%.*f%%",
                      opts->precision, (double) results->statistics.sum_cpu_stats.l1_cache_misses /
                      results->statistics.sum_cpu_stats.l1_cache_access * 100);
             strcat(cpu_stats, cpu_stat);
@@ -481,14 +481,14 @@ void get_results_info(char output_line[MAX_LINE_LEN], const run_command_opts_t *
 
         if (results->statistics.sum_cpu_stats.cache_references > 0)
         {
-            snprintf(cpu_stat, STR_BUF, strlen(cpu_stats) > 0 ? "  LL(%.*f%%)" : "LL(%.*f%%)",
+            snprintf(cpu_stat, STR_BUF, strlen(cpu_stats) > 0 ? "  LL:%.*f%%" : "LL:%.*f%%",
                      opts->precision, (double) results->statistics.sum_cpu_stats.cache_misses /
                      results->statistics.sum_cpu_stats.cache_references * 100);
             strcat(cpu_stats, cpu_stat);
         }
 
         if (results->statistics.sum_cpu_stats.branch_instructions > 0) {
-            snprintf(cpu_stat, STR_BUF, strlen(cpu_stats) > 0 ? "  Br(%.*f%%)" : "Br(%.*f%%)",
+            snprintf(cpu_stat, STR_BUF, strlen(cpu_stats) > 0 ? "  Br:%.*f%%" : "Br:%.*f%%",
                      opts->precision, (double) results->statistics.sum_cpu_stats.branch_misses /
                      results->statistics.sum_cpu_stats.branch_instructions * 100);
             strcat(cpu_stats, cpu_stat);
