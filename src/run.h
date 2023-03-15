@@ -494,49 +494,31 @@ void get_results_info(char output_line[MAX_LINE_LEN], const run_command_opts_t *
             strcat(cpu_stats, cpu_stat);
         }
 
-        snprintf(output_line, MAX_LINE_LEN, "\t( %.2f - %.2f, %.2f, %.2f ) + (  %.2f - %.2f, %.2f ± %.2f, %.2f ) ms\t   %s\t%s",
-                 results->statistics.min_pre_time,
-                 results->statistics.max_pre_time,
-                 results->statistics.mean_pre_time,
-                 results->statistics.median_pre_time,
-                 results->statistics.min_search_time,
-                 results->statistics.max_search_time,
-                 results->statistics.mean_search_time,
-                 results->statistics.std_search_time,
-                 results->statistics.median_search_time,
+        snprintf(output_line, MAX_LINE_LEN, "\t( %.*f - %.*f, %.*f, %.*f ) + (  %.*f - %.*f, %.*f ± %.*f, %.*f ) ms\t   %s\t%s",
+                 opts->precision, results->statistics.min_pre_time,
+                 opts->precision, results->statistics.max_pre_time,
+                 opts->precision, results->statistics.mean_pre_time,
+                 opts->precision, results->statistics.median_pre_time,
+                 opts->precision, results->statistics.min_search_time,
+                 opts->precision, results->statistics.max_search_time,
+                 opts->precision, results->statistics.mean_search_time,
+                 opts->precision, results->statistics.std_search_time,
+                 opts->precision, results->statistics.median_search_time,
                  cpu_stats, occurence);
-/*
-        snprintf(output_line, MAX_LINE_LEN, "\tpre: ( %.2f, %.2f ) ms\t search: ( %.2f ± %.2f, %.2f ) ms\t   %s\t%s",
-                 results->statistics.mean_pre_time,
-                 results->statistics.median_pre_time,
-                 results->statistics.mean_search_time,
-                 results->statistics.std_search_time,
-                 results->statistics.median_search_time,
-                 cpu_stats, occurence);
-                 */
     }
     else
     {
-        snprintf(output_line, MAX_LINE_LEN, "\t( %.2f - %.2f, %.2f, %.2f ) + ( %.2f - %.2f, %.2f ± %.2f, %.2f ) ms\t%s",
-                 results->statistics.min_pre_time,
-                 results->statistics.max_pre_time,
-                 results->statistics.mean_pre_time,
-                 results->statistics.median_pre_time,
-                 results->statistics.min_search_time,
-                 results->statistics.max_search_time,
-                 results->statistics.mean_search_time,
-                 results->statistics.std_search_time,
-                 results->statistics.median_search_time,
+        snprintf(output_line, MAX_LINE_LEN, "\t( %.*f - %.*f, %.*f, %.*f ) + ( %.*f - %.*f, %.*f ± %.*f, %.*f ) ms\t%s",
+                 opts->precision, results->statistics.min_pre_time,
+                 opts->precision, results->statistics.max_pre_time,
+                 opts->precision, results->statistics.mean_pre_time,
+                 opts->precision, results->statistics.median_pre_time,
+                 opts->precision, results->statistics.min_search_time,
+                 opts->precision, results->statistics.max_search_time,
+                 opts->precision, results->statistics.mean_search_time,
+                 opts->precision, results->statistics.std_search_time,
+                 opts->precision, results->statistics.median_search_time,
                  occurence);
-        /*
-        snprintf(output_line, MAX_LINE_LEN, "\tpre: (%.2f, %.2f) ms\t search: (%.2f ± %.2f, %.2f) ms\t%s",
-                 results->statistics.mean_pre_time,
-                 results->statistics.median_pre_time,
-                 results->statistics.mean_search_time,
-                 results->statistics.std_search_time,
-                 results->statistics.median_search_time,
-                 occurence);
-                 */
     }
 }
 
@@ -893,15 +875,21 @@ void output_benchmark_statistics_csv(const smart_config_t *smart_config, const r
                 case SUCCESS:
                 {
                     algo_statistics_t *stats = &(algo_res->statistics);
-                    fprintf(rf, "%.3f\t%.3f\t%.3f\t%.3f\t%.3f\t%.3f\t%.3f\t%.3f\t%.3f",
-                            stats->min_pre_time, stats->max_pre_time, stats->mean_pre_time, stats->median_pre_time,
-                            stats->min_search_time, stats->max_search_time, stats->mean_search_time, stats->std_search_time,
-                            stats->median_search_time);
-                    fprintf(rf, "\t%.3f\t%.3f\t%.3f\t%.3f",
-                            GBs(stats->mean_search_time, num_bytes),
-                            GBs(stats->median_search_time, num_bytes),
-                            GBs(stats->mean_pre_time + stats->mean_search_time, num_bytes),
-                            GBs(stats->median_pre_time + stats->median_search_time, num_bytes));
+                    fprintf(rf, "%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f",
+                            opts->precision, stats->min_pre_time,
+                            opts->precision, stats->max_pre_time,
+                            opts->precision, stats->mean_pre_time,
+                            opts->precision, stats->median_pre_time,
+                            opts->precision, stats->min_search_time,
+                            opts->precision, stats->max_search_time,
+                            opts->precision, stats->mean_search_time,
+                            opts->precision, stats->std_search_time,
+                            opts->precision, stats->median_search_time);
+                    fprintf(rf, "\t%.*f\t%.*f\t%.*f\t%.*f",
+                            opts->precision, GBs(stats->mean_search_time, num_bytes),
+                            opts->precision, GBs(stats->median_search_time, num_bytes),
+                            opts->precision, GBs(stats->mean_pre_time + stats->mean_search_time, num_bytes),
+                            opts->precision, GBs(stats->median_pre_time + stats->median_search_time, num_bytes));
                     if (opts->cpu_stats)
                     {
                         if (opts->cpu_stats & CPU_STAT_L1_CACHE)

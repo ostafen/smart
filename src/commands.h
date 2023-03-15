@@ -183,6 +183,8 @@ static char *const OPTION_LONG_GET_CPU_STATS = "--cpu-stats";
 static char *const PARAM_CPU_STATS_FIRST_LEVEL_CACHE = "first";
 static char *const PARAM_CPU_STATS_LAST_LEVEL_CACHE = "last";
 static char *const PARAM_CPU_STATS_BRANCHING = "branch";
+static char *const OPTION_SHORT_PRECISION = "-prec";
+static char *const OPTION_LONG_PRECISION = "--precision";
 
 /*
  * Run command flags.
@@ -239,6 +241,7 @@ typedef struct run_command_opts
     int occ;                                     // Boolean flag - whether to report total occurrences.
     int pre;                                     // Boolean flag - whether to report pre-processing time separately.
     char expcode[STR_BUF];                       // A code generated to identify this benchmarking run.
+    int precision;                               // number of decimal points to round to for results.  Defaults to 2.
 } run_command_opts_t;
 
 /*
@@ -285,6 +288,7 @@ void init_run_command_opts(run_command_opts_t *opts)
     opts->cpu_stats = FALSE;
     opts->pre = FALSE;
     opts->occ = 0;
+    opts->precision = 2;
     gen_experiment_code(opts->expcode, STR_BUF);
 }
 
@@ -322,6 +326,7 @@ void print_run_usage_and_exit(const char *command)
     print_help_line("Sets the random seed to integer S, ensuring tests and benchmarks can be precisely repeated.", OPTION_SHORT_SEED, OPTION_LONG_SEED, "S");
     print_help_line("Reports preprocessing times and searching times separately", FLAG_SHORT_PREPROCESSING_TIME, FLAG_LONG_PREPROCESSING_TIME, "");
     print_help_line("Prints the total number of occurrences", FLAG_SHORT_OCCURRENCE, FLAG_LONG_OCCURRENCE, "");
+    print_help_line("Sets the precision of the output to P - the number of decimal places to round to.", OPTION_SHORT_PRECISION, OPTION_LONG_PRECISION, "P");
     print_help_line("Set to L the upper bound for any worst case running time (in ms). The default value is 300 ms.", OPTION_SHORT_MAX_TIME, OPTION_LONG_MAX_TIME, "L");
     print_help_line("Pin the benchmark process to a single CPU for lower benchmarking variance via optional parameter [C]: [off | last | {digits}]", OPTION_SHORT_CPU_PIN, OPTION_LONG_CPU_PIN, "[C]");
     print_help_line("If set to 'off', no CPU pinning will be performed.", "", """", "off");
