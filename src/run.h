@@ -869,7 +869,10 @@ void output_benchmark_statistics_csv(const smart_config_t *smart_config, const r
 
     FILE *rf = fopen(full_path, "w");
 
-    fprintf(rf, "PLEN\tALGORITHM\tMEAN PRE TIME (ms)\tMEAN SEARCH TIME (ms)\tSTD DEVIATION\tMEDIAN PRE TIME (ms)\tMEDIAN SEARCH TIME (ms)\tMEAN SEARCH SPEED (GB/s)\tMEAN TOTAL SPEED (GB/s)\tMEDIAN SEARCH SPEED (GB/s)\tMEDIAN TOTAL SPEED (GB/s)");
+    fprintf(rf, "PLEN\tALGORITHM");
+    fprintf(rf, "\tMIN PRE TIME (ms)\tMAX PRE TIME (ms)\tMEAN PRE TIME (ms)\tMEDIAN PRE TIME (ms)");
+    fprintf(rf, "\tMIN SEARCH TIME (ms)\tMAX SEARCH TIME (ms)\tMEAN SEARCH TIME (ms)\tSTD DEVIATION\tMEDIAN SEARCH TIME (ms)");
+    fprintf(rf, "\tMEAN SEARCH SPEED (GB/s)\tMEDIAN SEARCH SPEED (GB/s)\tMEAN TOTAL SPEED (GB/s)\tMEDIAN TOTAL SPEED (GB/s)");
     fprintf(rf, opts->cpu_stats ? "\tL1_CACHE_ACCESS\tL1_CACHE_MISSES\tLL_CACHE_ACCESS\tLL_CACHE_MISSES\tBRANCH INSTRUCTIONS\tBRANCH MISSES\n" : "\n");
 
     // For each pattern length benchmarked:
@@ -890,12 +893,14 @@ void output_benchmark_statistics_csv(const smart_config_t *smart_config, const r
                 case SUCCESS:
                 {
                     algo_statistics_t *stats = &(algo_res->statistics);
-                    fprintf(rf, "%.3f\t%.3f\t%.3f\t%.3f\t%.3f",
-                            stats->mean_pre_time, stats->mean_search_time, stats->std_search_time, stats->median_pre_time, stats->median_search_time);
+                    fprintf(rf, "%.3f\t%.3f\t%.3f\t%.3f\t%.3f\t%.3f\t%.3f\t%.3f\t%.3f",
+                            stats->min_pre_time, stats->max_pre_time, stats->mean_pre_time, stats->median_pre_time,
+                            stats->min_search_time, stats->max_search_time, stats->mean_search_time, stats->std_search_time,
+                            stats->median_search_time);
                     fprintf(rf, "\t%.3f\t%.3f\t%.3f\t%.3f",
                             GBs(stats->mean_search_time, num_bytes),
-                            GBs(stats->mean_pre_time + stats->mean_search_time, num_bytes),
                             GBs(stats->median_search_time, num_bytes),
+                            GBs(stats->mean_pre_time + stats->mean_search_time, num_bytes),
                             GBs(stats->median_pre_time + stats->median_search_time, num_bytes));
                     if (opts->cpu_stats)
                     {
