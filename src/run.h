@@ -197,6 +197,27 @@ void gen_patterns(const run_command_opts_t *opts, unsigned char *patterns[], int
 }
 
 /*
+ * Computes the minimum and maximum values contained in the list of doubles of length n,
+ * and puts them into min_value and max_value. If the list is empty, the min and max will be zero.
+ */
+void compute_min_max(const double *T, int n, double *min_value, double *max_value)
+{
+    double min = 0.0;
+    double max = 0.0;
+    if (n > 0)
+    {
+        min = max = T[0];
+        for (int i = 1; i < n; i++)
+        {
+            if (min > T[i]) min = T[i];
+            if (max < T[i]) max = T[i];
+        }
+    }
+    *min_value = min;
+    *max_value = max;
+}
+
+/*
  * Computes and returns the mean average of a list of search times of size n.
  */
 double compute_average(const double *T, int n)
@@ -222,18 +243,24 @@ cpu_stats_t compute_sum_cpu_stats(const cpu_stats_t *stats, int n)
 }
 
 /*
- * Computes and returns the median of a sorted array T of doubles of size n.
+ * Computes and returns the median of an array T of doubles of size n.
+ * It creates a copy of the array and sorts it before obtaining the median.
  */
-double compute_median_of_sorted_array(const double *T, int n)
+double compute_median(const double *T, int n)
 {
+    // Sort the array passed in:
+    double sorted[n];
+    memcpy(sorted, T, sizeof(double) * n);
+    qsort(sorted, n, sizeof(double), double_compare);
+
     // if the list of doubles  has an even number of elements:
     if (n % 2 == 0)
     {
-        return (T[n / 2] + T[n / 2 + 1]) / 2; // return mean of n/2 and n/2+1 elements.
+        return (sorted[n / 2] + sorted[n / 2 + 1]) / 2; // return mean of n/2 and n/2+1 elements.
     }
     else
     {
-        return T[(n + 1) / 2]; // return the element in the middle of the sorted array.
+        return sorted[(n + 1) / 2]; // return the element in the middle of the sorted array.
     }
 }
 
@@ -294,13 +321,17 @@ typedef struct algo_measurements
  */
 typedef struct algo_statistics
 {
+    double min_search_time;
+    double max_search_time;
     double mean_search_time;
     double median_search_time;
     double std_search_time;
+    double min_pre_time;
+    double max_pre_time;
     double mean_pre_time;
     double median_pre_time;
-    cpu_stats_t sum_cpu_stats;
-    cpu_stats_t median_cpu_stats;
+    cpu_stats_t sum_cpu_stats;    //TODO: we only provide total sums here across all executions, not a mean.  I think this is OK, but needs normalising?
+    cpu_stats_t median_cpu_stats; //TODO: do we need median cpu stats?
 } algo_statistics_t;
 
 /*
@@ -463,9 +494,13 @@ void get_results_info(char output_line[MAX_LINE_LEN], const run_command_opts_t *
             strcat(cpu_stats, cpu_stat);
         }
 
-        snprintf(output_line, MAX_LINE_LEN, "\t( %.2f, %.2f ) + ( %.2f ± %.2f, %.2f ) ms\t   %s\t%s",
+        snprintf(output_line, MAX_LINE_LEN, "\t( %.2f - %.2f, %.2f, %.2f ) + (  %.2f - %.2f, %.2f ± %.2f, %.2f ) ms\t   %s\t%s",
+                 results->statistics.min_pre_time,
+                 results->statistics.max_pre_time,
                  results->statistics.mean_pre_time,
                  results->statistics.median_pre_time,
+                 results->statistics.min_search_time,
+                 results->statistics.max_search_time,
                  results->statistics.mean_search_time,
                  results->statistics.std_search_time,
                  results->statistics.median_search_time,
@@ -482,9 +517,13 @@ void get_results_info(char output_line[MAX_LINE_LEN], const run_command_opts_t *
     }
     else
     {
-        snprintf(output_line, MAX_LINE_LEN, "\t( %.2f, %.2f ) + ( %.2f ± %.2f, %.2f ) ms\t%s",
+        snprintf(output_line, MAX_LINE_LEN, "\t( %.2f - %.2f, %.2f, %.2f ) + ( %.2f - %.2f, %.2f ± %.2f, %.2f ) ms\t%s",
+                 results->statistics.min_pre_time,
+                 results->statistics.max_pre_time,
                  results->statistics.mean_pre_time,
                  results->statistics.median_pre_time,
+                 results->statistics.min_search_time,
+                 results->statistics.max_search_time,
                  results->statistics.mean_search_time,
                  results->statistics.std_search_time,
                  results->statistics.median_search_time,
@@ -539,25 +578,22 @@ void print_benchmark_res(const run_command_opts_t *opts, algo_results_t *results
  */
 void calculate_algo_statistics(algo_results_t *results, int num_measurements)
 {
-    // Compute mean pre and search times:
+    // Compute min and max pre and search times:
+    compute_min_max(results->measurements.pre_times, num_measurements,
+                    &(results->statistics.min_pre_time), &(results->statistics.max_pre_time));
+    compute_min_max(results->measurements.search_times, num_measurements,
+                    &(results->statistics.min_search_time), &(results->statistics.max_search_time));
+
+    // Compute mean pre and search times and the standard deviation:
     results->statistics.mean_pre_time = compute_average(results->measurements.pre_times, num_measurements);
     results->statistics.mean_search_time = compute_average(results->measurements.search_times, num_measurements);
     results->statistics.std_search_time = compute_std(results->statistics.mean_search_time,
                                                       results->measurements.search_times, num_measurements);
-
     // Compute median pre and search times:
-    // To calculate medians, we need to sort the arrays.   Copy them into a temp array before sorting,
-    // otherwise we destroy the relationship between pre-time and search_time for each measurement.
-    double temp[num_measurements];
-    memcpy(temp, results->measurements.pre_times, sizeof(double) * num_measurements);
-    qsort(temp, num_measurements, sizeof(double), double_compare);
-    results->statistics.median_pre_time = compute_median_of_sorted_array(temp, num_measurements);
+    results->statistics.median_pre_time = compute_median(results->measurements.pre_times, num_measurements);
+    results->statistics.median_search_time = compute_median(results->measurements.search_times, num_measurements);
 
-    memcpy(temp, results->measurements.search_times, sizeof(double) * num_measurements);
-    qsort(temp, num_measurements, sizeof(double), double_compare);
-    results->statistics.median_search_time = compute_median_of_sorted_array(temp, num_measurements);
-
-    // Compute mean cpu stats:
+    // Compute sum cpu stats:
     results->statistics.sum_cpu_stats = compute_sum_cpu_stats(results->measurements.cpu_stats, num_measurements);
 }
 
@@ -601,7 +637,7 @@ int benchmark_algos_with_patterns(algo_results_t *results, const run_command_opt
     print_edge(TOP_EDGE_WIDTH);
 
     info("\tSearching for a set of %d patterns with length %d", opts->num_runs, m);
-    info("\tTesting %d algorithms                   Preprocessing + Search: ( mean ± stddev, median )", algorithms->num_algos);
+    info("\tTesting %d algorithms                   Preprocessing + Search: ( min - max, mean ± stddev, median )", algorithms->num_algos);
 
     for (int algo = 0; algo < algorithms->num_algos; algo++)
     {
