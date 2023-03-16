@@ -288,7 +288,7 @@ void init_run_command_opts(run_command_opts_t *opts)
     opts->cpu_stats = FALSE;
     opts->pre = FALSE;
     opts->occ = 0;
-    opts->precision = 2;
+    opts->precision = DEFAULT_PRECISION;
     gen_experiment_code(opts->expcode, STR_BUF);
 }
 
