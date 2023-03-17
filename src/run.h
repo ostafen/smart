@@ -326,10 +326,19 @@ typedef struct algo_statistics
     double mean_search_time;
     double median_search_time;
     double std_search_time;
+
     double min_pre_time;
     double max_pre_time;
     double mean_pre_time;
     double median_pre_time;
+    //TODO: do we want standard deviation of pre-processing?  It's normally a very small time.
+
+    double min_total_time;
+    double max_total_time;
+    double mean_total_time;
+    double median_total_time;
+    double std_total_time;
+
     cpu_stats_t sum_cpu_stats;    //TODO: we only provide total sums here across all executions, not a mean.  I think this is OK, but needs normalising?
     cpu_stats_t median_cpu_stats; //TODO: do we need median cpu stats?
 } algo_statistics_t;
@@ -494,31 +503,57 @@ void get_results_info(char output_line[MAX_LINE_LEN], const run_command_opts_t *
             strcat(cpu_stats, cpu_stat);
         }
 
-        snprintf(output_line, MAX_LINE_LEN, "\t(%.*f - %.*f, %.*f, %.*f) + (%.*f - %.*f, %.*f ± %.*f, %.*f) ms\t   %s\t%s",
-                 opts->precision, results->statistics.min_pre_time,
-                 opts->precision, results->statistics.max_pre_time,
-                 opts->precision, results->statistics.mean_pre_time,
-                 opts->precision, results->statistics.median_pre_time,
-                 opts->precision, results->statistics.min_search_time,
-                 opts->precision, results->statistics.max_search_time,
-                 opts->precision, results->statistics.mean_search_time,
-                 opts->precision, results->statistics.std_search_time,
-                 opts->precision, results->statistics.median_search_time,
-                 cpu_stats, occurence);
+        if (opts->pre)
+        {
+            snprintf(output_line, MAX_LINE_LEN, "\t(%.*f - %.*f, %.*f, %.*f) + (%.*f - %.*f, %.*f ± %.*f, %.*f) ms\t   %s\t%s",
+                     opts->precision, results->statistics.min_pre_time,
+                     opts->precision, results->statistics.max_pre_time,
+                     opts->precision, results->statistics.mean_pre_time,
+                     opts->precision, results->statistics.median_pre_time,
+                     opts->precision, results->statistics.min_search_time,
+                     opts->precision, results->statistics.max_search_time,
+                     opts->precision, results->statistics.mean_search_time,
+                     opts->precision, results->statistics.std_search_time,
+                     opts->precision, results->statistics.median_search_time,
+                     cpu_stats, occurence);
+        }
+        else
+        {
+            snprintf(output_line, MAX_LINE_LEN, "\t%.*f - %.*f, %.*f ± %.*f, %.*f ms\t   %s\t%s",
+                     opts->precision, results->statistics.min_total_time,
+                     opts->precision, results->statistics.max_total_time,
+                     opts->precision, results->statistics.mean_total_time,
+                     opts->precision, results->statistics.std_total_time,
+                     opts->precision, results->statistics.median_total_time,
+                     cpu_stats, occurence);
+        }
     }
     else
     {
-        snprintf(output_line, MAX_LINE_LEN, "\t(%.*f - %.*f, %.*f, %.*f) + (%.*f - %.*f, %.*f ± %.*f, %.*f) ms\t%s",
-                 opts->precision, results->statistics.min_pre_time,
-                 opts->precision, results->statistics.max_pre_time,
-                 opts->precision, results->statistics.mean_pre_time,
-                 opts->precision, results->statistics.median_pre_time,
-                 opts->precision, results->statistics.min_search_time,
-                 opts->precision, results->statistics.max_search_time,
-                 opts->precision, results->statistics.mean_search_time,
-                 opts->precision, results->statistics.std_search_time,
-                 opts->precision, results->statistics.median_search_time,
-                 occurence);
+        if (opts->pre)
+        {
+            snprintf(output_line, MAX_LINE_LEN, "\t(%.*f - %.*f, %.*f, %.*f) + (%.*f - %.*f, %.*f ± %.*f, %.*f) ms\t%s",
+                     opts->precision, results->statistics.min_pre_time,
+                     opts->precision, results->statistics.max_pre_time,
+                     opts->precision, results->statistics.mean_pre_time,
+                     opts->precision, results->statistics.median_pre_time,
+                     opts->precision, results->statistics.min_search_time,
+                     opts->precision, results->statistics.max_search_time,
+                     opts->precision, results->statistics.mean_search_time,
+                     opts->precision, results->statistics.std_search_time,
+                     opts->precision, results->statistics.median_search_time,
+                     occurence);
+        }
+        else
+        {
+            snprintf(output_line, MAX_LINE_LEN, "\t%.*f - %.*f, %.*f ± %.*f, %.*f ms\t%s",
+                     opts->precision, results->statistics.min_total_time,
+                     opts->precision, results->statistics.max_total_time,
+                     opts->precision, results->statistics.mean_total_time,
+                     opts->precision, results->statistics.std_total_time,
+                     opts->precision, results->statistics.median_total_time,
+                     occurence);
+        }
     }
 }
 
@@ -560,23 +595,38 @@ void print_benchmark_res(const run_command_opts_t *opts, algo_results_t *results
  */
 void calculate_algo_statistics(algo_results_t *results, int num_measurements)
 {
-    // Compute min and max pre and search times:
+    // Compute total of pre and search times:
+    double *total_times = malloc(sizeof(double) * num_measurements);
+    for (int i = 0; i < num_measurements; i++)
+    {
+        total_times[i] = results->measurements.pre_times[i] + results->measurements.search_times[i];
+    }
+
+    // Compute min and max pre, search and total times:
     compute_min_max(results->measurements.pre_times, num_measurements,
                     &(results->statistics.min_pre_time), &(results->statistics.max_pre_time));
     compute_min_max(results->measurements.search_times, num_measurements,
                     &(results->statistics.min_search_time), &(results->statistics.max_search_time));
+    compute_min_max(total_times, num_measurements,
+                    &(results->statistics.min_total_time), &(results->statistics.max_total_time));
 
-    // Compute mean pre and search times and the standard deviation:
+    // Compute mean pre, search and total times and the standard deviation:
     results->statistics.mean_pre_time = compute_average(results->measurements.pre_times, num_measurements);
     results->statistics.mean_search_time = compute_average(results->measurements.search_times, num_measurements);
     results->statistics.std_search_time = compute_std(results->statistics.mean_search_time,
                                                       results->measurements.search_times, num_measurements);
-    // Compute median pre and search times:
+    results->statistics.mean_total_time = compute_average(total_times, num_measurements);
+    results->statistics.std_total_time = compute_std(results->statistics.mean_total_time, total_times, num_measurements);
+
+    // Compute median pre, search and total times:
     results->statistics.median_pre_time = compute_median(results->measurements.pre_times, num_measurements);
     results->statistics.median_search_time = compute_median(results->measurements.search_times, num_measurements);
+    results->statistics.median_total_time = compute_median(total_times, num_measurements);
 
     // Compute sum cpu stats:
     results->statistics.sum_cpu_stats = compute_sum_cpu_stats(results->measurements.cpu_stats, num_measurements);
+
+    free(total_times);
 }
 
 /*
@@ -619,7 +669,9 @@ int benchmark_algos_with_patterns(algo_results_t *results, const run_command_opt
     print_edge(TOP_EDGE_WIDTH);
 
     info("\tSearching for a set of %d patterns with length %d", opts->num_runs, m);
-    info("\tTesting %d algorithms                   Preprocessing + Search: ( min - max, mean ± stddev, median )", algorithms->num_algos);
+
+    const char *pre_header = opts->pre ? "(preprocessing) + (search): " : "";
+    info("\tTesting %d algorithms                   %smin - max, mean ± stddev, median", algorithms->num_algos, pre_header);
 
     for (int algo = 0; algo < algorithms->num_algos; algo++)
     {
@@ -854,6 +906,7 @@ void output_benchmark_statistics_csv(const smart_config_t *smart_config, const r
     fprintf(rf, "PLEN\tALGORITHM");
     fprintf(rf, "\tMIN PRE TIME (ms)\tMAX PRE TIME (ms)\tMEAN PRE TIME (ms)\tMEDIAN PRE TIME (ms)");
     fprintf(rf, "\tMIN SEARCH TIME (ms)\tMAX SEARCH TIME (ms)\tMEAN SEARCH TIME (ms)\tSTD DEVIATION\tMEDIAN SEARCH TIME (ms)");
+    fprintf(rf, "\tMIN TOTAL TIME (ms)\tMAX TOTAL TIME (ms)\tMEAN TOTAL TIME (ms)\tTOTAL STD DEVIATION\tMEDIAN TOTAL TIME (ms");
     fprintf(rf, "\tMEAN SEARCH SPEED (GB/s)\tMEDIAN SEARCH SPEED (GB/s)\tMEAN TOTAL SPEED (GB/s)\tMEDIAN TOTAL SPEED (GB/s)");
     fprintf(rf, opts->cpu_stats ? "\tL1_CACHE_ACCESS\tL1_CACHE_MISSES\tLL_CACHE_ACCESS\tLL_CACHE_MISSES\tBRANCH INSTRUCTIONS\tBRANCH MISSES\n" : "\n");
 
@@ -875,7 +928,7 @@ void output_benchmark_statistics_csv(const smart_config_t *smart_config, const r
                 case SUCCESS:
                 {
                     algo_statistics_t *stats = &(algo_res->statistics);
-                    fprintf(rf, "%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f",
+                    fprintf(rf, "%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f",
                             opts->precision, stats->min_pre_time,
                             opts->precision, stats->max_pre_time,
                             opts->precision, stats->mean_pre_time,
@@ -884,7 +937,12 @@ void output_benchmark_statistics_csv(const smart_config_t *smart_config, const r
                             opts->precision, stats->max_search_time,
                             opts->precision, stats->mean_search_time,
                             opts->precision, stats->std_search_time,
-                            opts->precision, stats->median_search_time);
+                            opts->precision, stats->median_search_time,
+                            opts->precision, stats->min_total_time,
+                            opts->precision, stats->max_total_time,
+                            opts->precision, stats->mean_total_time,
+                            opts->precision, stats->std_total_time,
+                            opts->precision, stats->median_total_time);
                     fprintf(rf, "\t%.*f\t%.*f\t%.*f\t%.*f",
                             opts->precision, GBs(stats->mean_search_time, num_bytes),
                             opts->precision, GBs(stats->median_search_time, num_bytes),
@@ -911,17 +969,17 @@ void output_benchmark_statistics_csv(const smart_config_t *smart_config, const r
                 }
                 case CANNOT_SEARCH:
                 {
-                    write_tabbed_string(rf, "---", opts->cpu_stats ? 15 : 9);
+                    write_tabbed_string(rf, "---", opts->cpu_stats ? 24 : 18); //TODO: check this.
                     break;
                 }
                 case TIMED_OUT:
                 {
-                    write_tabbed_string(rf, "OUT", opts->cpu_stats ? 15 : 9);
+                    write_tabbed_string(rf, "OUT", opts->cpu_stats ? 24 : 18); //TODO: check this.
                     break;
                 }
                 case ERROR:
                 {
-                    write_tabbed_string(rf, "ERROR", opts->cpu_stats ? 15 : 9);
+                    write_tabbed_string(rf, "ERROR", opts->cpu_stats ? 24 : 18); //TODO: check this.
                     break;
                 }
             }
