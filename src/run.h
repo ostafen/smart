@@ -811,16 +811,28 @@ int get_num_pattern_lengths_to_run(const run_command_opts_t *opts, int *max_patt
     return num_pattern_lengths;
 }
 
+void set_experiment_filename(const run_command_opts_t *opts, char file_name[MAX_PATH_LENGTH], const char *output_type, const char *suffix)
+{
+    if (opts->description)
+    {
+        snprintf(file_name, MAX_PATH_LENGTH, "%s - %s - %s.%s", opts->expcode, opts->description, output_type, suffix);
+    }
+    else
+    {
+        snprintf(file_name, MAX_PATH_LENGTH, "%s - %s.%s", opts->expcode, output_type, suffix);
+    }
+}
+
 /*
  * Writes out the summary of the experiment run to a text file.
  */
 void output_benchmark_run_summary(const smart_config_t *smart_config, const run_command_opts_t *opts, const int n)
 {
-    char summary_filename[MAX_PATH_LENGTH];
-    set_filename_suffix_or_exit(summary_filename, opts->expcode, ".txt");
+    char file_name[MAX_PATH_LENGTH];
+    set_experiment_filename(opts, file_name, "experiment", "txt");
 
     char full_path[MAX_PATH_LENGTH];
-    set_full_path_or_exit(full_path, smart_config->smart_results_dir, summary_filename);
+    set_full_path_or_exit(full_path, smart_config->smart_results_dir, file_name);
 
     FILE *sf = fopen(full_path, "w");
 
@@ -895,11 +907,11 @@ void write_tabbed_string(FILE *fp, const char *string, int num_repetitions)
 void output_benchmark_statistics_csv(const smart_config_t *smart_config, const run_command_opts_t *opts, int num_pattern_lengths,
                                      benchmark_results_t *results, const algo_info_t *algorithms, const int num_bytes)
 {
-    char result_filename[MAX_PATH_LENGTH];
-    set_filename_suffix_or_exit(result_filename, opts->expcode, ".csv");
+    char filename[MAX_PATH_LENGTH];
+    set_experiment_filename(opts, filename, "statistics", "csv");
 
     char full_path[MAX_PATH_LENGTH];
-    set_full_path_or_exit(full_path, smart_config->smart_results_dir, result_filename);
+    set_full_path_or_exit(full_path, smart_config->smart_results_dir, filename);
 
     FILE *rf = fopen(full_path, "w");
 

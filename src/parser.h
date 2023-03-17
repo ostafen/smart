@@ -449,6 +449,18 @@ int parse_pattern(run_command_opts_t *opts, int curr_arg, int argc, const char *
 }
 
 /*
+ * Parses a description parameter.
+ * Returns the number of parameters parsed.
+ */
+int parse_description(run_command_opts_t *opts, int curr_arg, int argc, const char **argv)
+{
+    check_end_of_params(curr_arg + 1, argc, OPTION_LONG_PATTERN);
+    opts->description = argv[curr_arg + 1];
+
+    return 1;
+}
+
+/*
  * Parses a user supplied search data parameter
  * Returns the number of parameters parsed.
  */
@@ -627,6 +639,10 @@ void parse_run_args(int argc, const char **argv, smart_subcommand_t *subcommand)
         else if (matches_option(argv[curr_arg], OPTION_SHORT_PRECISION, OPTION_LONG_PRECISION))
         {
             curr_arg += parse_precision(opts, curr_arg, argc, argv);
+        }
+        else if (matches_option(argv[curr_arg], OPTION_SHORT_DESCRIPTION, OPTION_LONG_DESCRIPTION))
+        {
+            curr_arg += parse_description(opts, curr_arg, argc, argv);
         }
         else if (!parse_flag(opts, curr_arg, argc, argv))
         {

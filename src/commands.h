@@ -185,6 +185,8 @@ static char *const PARAM_CPU_STATS_LAST_LEVEL_CACHE = "last";
 static char *const PARAM_CPU_STATS_BRANCHING = "branch";
 static char *const OPTION_SHORT_PRECISION = "-prec";
 static char *const OPTION_LONG_PRECISION = "--precision";
+static char *const OPTION_SHORT_DESCRIPTION = "-desc";
+static char *const OPTION_LONG_DESCRIPTION = "--description";
 
 /*
  * Run command flags.
@@ -242,6 +244,7 @@ typedef struct run_command_opts
     int pre;                                     // Boolean flag - whether to report pre-processing time separately.
     char expcode[STR_BUF];                       // A code generated to identify this benchmarking run.
     int precision;                               // number of decimal points to round to for results.  Defaults to 2.
+    const char *description;                     // an optional description for the experiment.
 } run_command_opts_t;
 
 /*
@@ -289,6 +292,7 @@ void init_run_command_opts(run_command_opts_t *opts)
     opts->pre = FALSE;
     opts->occ = 0;
     opts->precision = DEFAULT_PRECISION;
+    opts->description = NULL;
     gen_experiment_code(opts->expcode, STR_BUF);
 }
 
@@ -299,7 +303,7 @@ void print_run_usage_and_exit(const char *command)
 {
     print_logo();
 
-    printf("\n usage: %s [algo names...] [-text | -rand | -data | -plen | -inc | -short | -vshort | -pat | -use | -all | -runs | -ts | -fb | -rs | -pre | -occ | -tb | -pin | -cstats | -h]\n\n", command);
+    printf("\n usage: %s [algo names...] [-text | -rand | -data | -plen | -inc | -short | -vshort | -pat | -use | -all | -runs | -ts | -fb | -rs | -pre | -occ | -tb | -pin | -cstats | -desc | -h]\n\n", command);
 
     printf("\tYou can specify algorithms to benchmark directly as POSIX regular expressions, e.g. smart run bsdm.* hor ...\n");
     printf("\tIf you do not specify any algorithms on the command line or by another command, the default selected algorithms will be used.\n\n");
@@ -338,7 +342,7 @@ void print_run_usage_and_exit(const char *command)
     print_help_line("If set to 'branch' then branch instructions and prediction misses will be obtained.", "", "", "branch");
     print_help_line("If no parameters are provided, defaults to obtaining L1 cache and branch instructions.", "", "", "");
     print_help_line("Note that the number of CPU stats it is possible to obtain simultaneously varies by CPU.", "", "", "");
-
+    print_help_line("An optional description to add to the experiment, which will be included in the filenames of the output.", OPTION_SHORT_DESCRIPTION, OPTION_LONG_DESCRIPTION, "D");
     //print_help_line("Output results in txt tabular format", FLAG_TEXT_OUTPUT, "", "");
     //print_help_line("Output results in latex tabular format", FLAG_LATEX_OUTPUT, "", "");
     print_help_line("Gives this help list.", OPTION_SHORT_HELP, OPTION_LONG_HELP, "");
