@@ -862,6 +862,10 @@ void output_benchmark_run_summary(const smart_config_t *smart_config, const run_
         {
             fprintf(sf, "user supplied:  \t%s\n", opts->data_to_search);
         }
+        case DATA_SOURCE_NOT_DEFINED:
+        {
+            fprintf(sf, "ERROR: no data source defined\n");
+        }
     }
 
     fprintf(sf, "Text length:   \t%d\n", n);
