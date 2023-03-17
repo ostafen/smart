@@ -254,6 +254,17 @@ int parse_random_text(run_command_opts_t *opts, int curr_arg, int argc, const ch
 }
 
 /*
+ * Parses the precision of the output - the number of decimal points to round to in the output.
+ * Returns the number of parameters parsed.
+ */
+int parse_precision(run_command_opts_t *opts, int curr_arg, int argc, const char **argv)
+{
+    parse_next_int_parameter(OPTION_LONG_PRECISION, &(opts->precision), curr_arg, argc, argv);
+
+    return 1;
+}
+
+/*
  * Parses the pattern length parameters, setting the minimum and maxiumum bounds to search with.
  * Returns the number of parameters parsed.
  */
@@ -438,6 +449,18 @@ int parse_pattern(run_command_opts_t *opts, int curr_arg, int argc, const char *
 }
 
 /*
+ * Parses a description parameter.
+ * Returns the number of parameters parsed.
+ */
+int parse_description(run_command_opts_t *opts, int curr_arg, int argc, const char **argv)
+{
+    check_end_of_params(curr_arg + 1, argc, OPTION_LONG_PATTERN);
+    opts->description = argv[curr_arg + 1];
+
+    return 1;
+}
+
+/*
  * Parses a user supplied search data parameter
  * Returns the number of parameters parsed.
  */
@@ -612,6 +635,14 @@ void parse_run_args(int argc, const char **argv, smart_subcommand_t *subcommand)
         else if (matches_option(argv[curr_arg], OPTION_SHORT_GET_CPU_STATS, OPTION_LONG_GET_CPU_STATS))
         {
             curr_arg += parse_cpu_stats(opts, curr_arg, argc, argv);
+        }
+        else if (matches_option(argv[curr_arg], OPTION_SHORT_PRECISION, OPTION_LONG_PRECISION))
+        {
+            curr_arg += parse_precision(opts, curr_arg, argc, argv);
+        }
+        else if (matches_option(argv[curr_arg], OPTION_SHORT_DESCRIPTION, OPTION_LONG_DESCRIPTION))
+        {
+            curr_arg += parse_description(opts, curr_arg, argc, argv);
         }
         else if (!parse_flag(opts, curr_arg, argc, argv))
         {

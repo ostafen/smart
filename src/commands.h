@@ -183,6 +183,10 @@ static char *const OPTION_LONG_GET_CPU_STATS = "--cpu-stats";
 static char *const PARAM_CPU_STATS_FIRST_LEVEL_CACHE = "first";
 static char *const PARAM_CPU_STATS_LAST_LEVEL_CACHE = "last";
 static char *const PARAM_CPU_STATS_BRANCHING = "branch";
+static char *const OPTION_SHORT_PRECISION = "-prec";
+static char *const OPTION_LONG_PRECISION = "--precision";
+static char *const OPTION_SHORT_DESCRIPTION = "-desc";
+static char *const OPTION_LONG_DESCRIPTION = "--description";
 
 /*
  * Run command flags.
@@ -239,6 +243,8 @@ typedef struct run_command_opts
     int occ;                                     // Boolean flag - whether to report total occurrences.
     int pre;                                     // Boolean flag - whether to report pre-processing time separately.
     char expcode[STR_BUF];                       // A code generated to identify this benchmarking run.
+    int precision;                               // number of decimal points to round to for results.  Defaults to 2.
+    const char *description;                     // an optional description for the experiment.
 } run_command_opts_t;
 
 /*
@@ -285,6 +291,8 @@ void init_run_command_opts(run_command_opts_t *opts)
     opts->cpu_stats = FALSE;
     opts->pre = FALSE;
     opts->occ = 0;
+    opts->precision = DEFAULT_PRECISION;
+    opts->description = NULL;
     gen_experiment_code(opts->expcode, STR_BUF);
 }
 
@@ -295,7 +303,7 @@ void print_run_usage_and_exit(const char *command)
 {
     print_logo();
 
-    printf("\n usage: %s [algo names...] [-text | -rand | -data | -plen | -inc | -short | -vshort | -pat | -use | -all | -runs | -ts | -fb | -rs | -pre | -occ | -tb | -pin | -cstats | -h]\n\n", command);
+    printf("\n usage: %s [algo names...] [-text | -rand | -data | -plen | -inc | -short | -vshort | -pat | -use | -all | -runs | -ts | -fb | -rs | -pre | -occ | -tb | -pin | -cstats | -desc | -h]\n\n", command);
 
     printf("\tYou can specify algorithms to benchmark directly as POSIX regular expressions, e.g. smart run bsdm.* hor ...\n");
     printf("\tIf you do not specify any algorithms on the command line or by another command, the default selected algorithms will be used.\n\n");
@@ -322,6 +330,7 @@ void print_run_usage_and_exit(const char *command)
     print_help_line("Sets the random seed to integer S, ensuring tests and benchmarks can be precisely repeated.", OPTION_SHORT_SEED, OPTION_LONG_SEED, "S");
     print_help_line("Reports preprocessing times and searching times separately", FLAG_SHORT_PREPROCESSING_TIME, FLAG_LONG_PREPROCESSING_TIME, "");
     print_help_line("Prints the total number of occurrences", FLAG_SHORT_OCCURRENCE, FLAG_LONG_OCCURRENCE, "");
+    print_help_line("Sets the precision of the output to P - the number of decimal places to round to.", OPTION_SHORT_PRECISION, OPTION_LONG_PRECISION, "P");
     print_help_line("Set to L the upper bound for any worst case running time (in ms). The default value is 300 ms.", OPTION_SHORT_MAX_TIME, OPTION_LONG_MAX_TIME, "L");
     print_help_line("Pin the benchmark process to a single CPU for lower benchmarking variance via optional parameter [C]: [off | last | {digits}]", OPTION_SHORT_CPU_PIN, OPTION_LONG_CPU_PIN, "[C]");
     print_help_line("If set to 'off', no CPU pinning will be performed.", "", """", "off");
@@ -333,7 +342,7 @@ void print_run_usage_and_exit(const char *command)
     print_help_line("If set to 'branch' then branch instructions and prediction misses will be obtained.", "", "", "branch");
     print_help_line("If no parameters are provided, defaults to obtaining L1 cache and branch instructions.", "", "", "");
     print_help_line("Note that the number of CPU stats it is possible to obtain simultaneously varies by CPU.", "", "", "");
-
+    print_help_line("An optional description to add to the experiment, which will be included in the filenames of the output.", OPTION_SHORT_DESCRIPTION, OPTION_LONG_DESCRIPTION, "D");
     //print_help_line("Output results in txt tabular format", FLAG_TEXT_OUTPUT, "", "");
     //print_help_line("Output results in latex tabular format", FLAG_LATEX_OUTPUT, "", "");
     print_help_line("Gives this help list.", OPTION_SHORT_HELP, OPTION_LONG_HELP, "");

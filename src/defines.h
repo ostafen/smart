@@ -78,7 +78,8 @@
 #define PATTERN_MAX_LEN_DEFAULT 4096      // default maximum size of pattern to benchmark.
 #define NUM_RUNS_DEFAULT 500              // default number of patterns of a given size to benchmark with.
 #define TIME_LIMIT_MILLIS_DEFAULT 300     // default time limit in milliseconds for a search to pass benchmarking.
-#define CPU_PIN_DEFAULT PIN_LAST_CPU      // default CPU pinning - can be [off | last | {digit}]
+#define CPU_PIN_DEFAULT PIN_LAST_CPU      // default CPU pinning - a value from the enum cpu_pin_type in commands.h.
+#define DEFAULT_PRECISION 2               // default precision for outputting results - number of decimal points to round to.
 
 /*
  * Test settings
@@ -97,7 +98,7 @@
  * Console output formatting defines.
  */
 #define COL_WIDTH 32                              // width of column to output name value pairs with.
-#define BENCHMARK_HEADER_LEN (ALGO_NAME_LEN + 4)  // Length of header containing algorithm name and dots when benchmarking.
+#define BENCHMARK_HEADER_LEN (ALGO_NAME_LEN + 16)  // Length of header containing algorithm name and dots when benchmarking.
 
 /*
  * Miscellaneous string defines.
