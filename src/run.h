@@ -861,10 +861,12 @@ void output_benchmark_run_summary(const smart_config_t *smart_config, const run_
         case DATA_SOURCE_USER:
         {
             fprintf(sf, "user supplied:  \t%s\n", opts->data_to_search);
+            break;
         }
         case DATA_SOURCE_NOT_DEFINED:
         {
             fprintf(sf, "ERROR: no data source defined\n");
+            break;
         }
     }
 
