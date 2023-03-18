@@ -1,17 +1,7 @@
 #include <stdlib.h>
-#include <libgen.h>
-#include <sys/types.h>
-#include <sys/ipc.h>
-#include <sys/shm.h>
-#include <dirent.h>
-#include <dlfcn.h>
-#include <stdlib.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#include <math.h>
-#include <sys/time.h>
-#include <sys/stat.h>
 
 #include "timer.h"
 #include "defines.h"
@@ -19,21 +9,11 @@
 #include "commands.h"
 #include "algorithms.h"
 #include "cpu_pinning.h"
-#include "cpu_stats.h"
-
-#define TOP_EDGE_WIDTH 60
+#include "data_sources.h"
+#include "bench_results.h"
+#include "output.h"
 
 static const char *DOTS = "................................................................";
-
-void print_edge(int len)
-{
-    int i;
-    fprintf(stdout, "\t");
-    for (i = 0; i < len; i++)
-        fprintf(stdout, "%c", '_');
-    fprintf(stdout, "\n");
-}
-
 
 /*
  * Prints a percentage on a line which overwrites the previous percentage value using \b back.
@@ -45,133 +25,6 @@ void print_percentage(int perc)
     else if (perc < 100)
         printf("\b\b\b\b\b[%d%%]", perc);
     fflush(stdout);
-}
-
-/*
- * Loads the files defined in the list of filenames into a text buffer T, up to a maximum size of text.
- * Returns the current size of data loaded.
- */
-int merge_text_buffers(const char filenames[][MAX_PATH_LENGTH], int n_files, unsigned char *T, int max_text_size)
-{
-    int curr_size = 0;
-    for (int i = 0; i < n_files && curr_size < max_text_size; i++)
-    {
-        info("Loading the file %s", filenames[i]);
-        int size = load_text_buffer(filenames[i], T + curr_size, max_text_size - curr_size);
-
-        if (size > 0)
-        {
-            curr_size += size;
-        }
-        else
-        {
-            warn("Could not load file: %s", filenames[i]);
-        }
-    }
-
-    return curr_size;
-}
-
-/*
- * Replicates existing data of length size in a buffer to fill up any remaining space in the buffer.
- */
-void replicate_buffer(unsigned char *buffer, int size, int target_size)
-{
-    if (size > 0)
-    {
-        while (size < target_size)
-        {
-            int cpy_size = (target_size - size) < size ? (target_size - size) : size;
-            memcpy(buffer + size, buffer, cpy_size);
-            size += cpy_size;
-        }
-    }
-}
-
-/*
- * Adds a file or the files in a directory defined in the data source to a list of filenames,
- * searching for them in the search paths defined.
- * If the data source points to a directory, all the files in that directory are added.
- * If the data source points to a file, just that file is added.
- * Returns the number of files in the filenames array.
- */
-int add_files(const char search_paths[][MAX_PATH_LENGTH], int num_search_paths, const char *data_source,
-              char filenames[][MAX_PATH_LENGTH], int num_files, int max_files)
-{
-    char valid_path[MAX_PATH_LENGTH];
-    locate_file_path(valid_path, data_source, search_paths, num_search_paths);
-
-    if (!is_empty_string(valid_path))
-    {
-        __mode_t file_mode = get_file_mode(valid_path);
-        if (S_ISDIR(file_mode))
-        {
-            num_files = add_filenames_in_dir(valid_path, filenames, num_files, max_files);
-        }
-        else if (S_ISREG(file_mode) && num_files < max_files)
-        {
-            strcpy(filenames[num_files++], valid_path);
-        }
-    }
-
-    return num_files;
-}
-
-/*
- * Builds a list of filenames from the data sources and places them in filenames, searching the search path.
- * Returns the number of files in the filenames array.
- */
-int build_list_of_files_to_load(const smart_config_t *smart_config, const char *data_sources[MAX_DATA_SOURCES], char filenames[][MAX_PATH_LENGTH])
-{
-    int source_index = 0, num_files = 0;
-    while (source_index < MAX_DATA_SOURCES && num_files < MAX_DATA_FILES && data_sources[source_index] != NULL)
-    {
-        num_files = add_files(smart_config->smart_data_search_paths,
-                              smart_config->num_data_search_paths,
-                              data_sources[source_index++],
-                              filenames, num_files, MAX_DATA_FILES);
-    }
-
-    return num_files;
-}
-
-/*
- * Loads all the files located in an array of data_sources into a buffer up to the bufsize.
- * Uses the search path to locate files or directories if they do not exist locally.
- * Returns the size of data loaded into the buffer.
- */
-int gen_search_text(const smart_config_t *smart_config, const char *data_sources[MAX_DATA_SOURCES], unsigned char *buffer, int bufsize, int fill_buffer)
-{
-    char filenames[MAX_DATA_FILES][MAX_PATH_LENGTH];
-    int n_files = build_list_of_files_to_load(smart_config, data_sources, filenames);
-    if (n_files > 0)
-    {
-        int n = merge_text_buffers(filenames, n_files, buffer, bufsize);
-
-        if (n >= bufsize || !fill_buffer)
-            return n;
-
-        replicate_buffer(buffer, n, bufsize);
-
-        if (n > 0)
-            return bufsize;
-    }
-
-    error_and_exit("No files could be found to generate the search text.");
-}
-
-/*
- * Loads user supplied data from the command line as the search data into the buffer.
- *
- * WARNING: the buffer must be guaranteed to be at least opts->text_size in size.
- */
-int gen_user_data(const run_command_opts_t *opts, unsigned char *buffer)
-{
-    int size = strlen(opts->data_to_search);
-    int to_copy = size < opts->text_size ? size : opts->text_size;
-    memcpy(buffer, opts->data_to_search, to_copy);
-
-    return size;
 }
 
 /*
@@ -193,221 +46,6 @@ void gen_patterns(const run_command_opts_t *opts, unsigned char *patterns[], int
             int k = n == m ? 0 : rand() % (n - m);
             memcpy(patterns[i], T + k, m);
         }
-    }
-}
-
-/*
- * Computes the minimum and maximum values contained in the list of doubles of length n,
- * and puts them into min_value and max_value. If the list is empty, the min and max will be zero.
- */
-void compute_min_max(const double *T, int n, double *min_value, double *max_value)
-{
-    double min = 0.0;
-    double max = 0.0;
-    if (n > 0)
-    {
-        min = max = T[0];
-        for (int i = 1; i < n; i++)
-        {
-            if (min > T[i]) min = T[i];
-            if (max < T[i]) max = T[i];
-        }
-    }
-    *min_value = min;
-    *max_value = max;
-}
-
-/*
- * Computes and returns the mean average of a list of search times of size n.
- */
-double compute_average(const double *T, int n)
-{
-    double avg = 0.0;
-    for (int i = 0; i < n; i++)
-        avg += T[i];
-
-    return avg / n;
-}
-
-/*
- * Computes and returns the sum of a list of CPU measurements of size n
- */
-cpu_stats_t compute_sum_cpu_stats(const cpu_stats_t *stats, int n)
-{
-    cpu_stats_t mean;
-    zero_cpu_stats(&mean);
-    for (int i = 0; i < n; i++)
-        cpu_stats_add(&mean, stats + i);
-
-    return mean;
-}
-
-/*
- * Computes and returns the median of an array T of doubles of size n.
- * It creates a copy of the array and sorts it before obtaining the median.
- */
-double compute_median(const double *T, int n)
-{
-    // Sort the array passed in:
-    double sorted[n];
-    memcpy(sorted, T, sizeof(double) * n);
-    qsort(sorted, n, sizeof(double), double_compare);
-
-    // if the list of doubles  has an even number of elements:
-    if (n % 2 == 0)
-    {
-        return (sorted[n / 2] + sorted[n / 2 + 1]) / 2; // return mean of n/2 and n/2+1 elements.
-    }
-    else
-    {
-        return sorted[(n + 1) / 2]; // return the element in the middle of the sorted array.
-    }
-}
-
-/*
- * Computes and returns the sample standard deviation given a mean average, and a list of search times of size n.
- *
- * Sample standard deviation differs from population standard deviation, by dividing by one less than the number of
- * samples.  This biases the sample standard deviation to be slightly bigger, to account for likely wider variation
- * in the population as a whole.
- *
- * See: https://www.statology.org/population-vs-sample-standard-deviation/
- */
-double compute_std(double avg, double *T, int n)
-{
-    double std = 0.0;
-    for (int i = 0; i < n; i++)
-        std += pow(avg - T[i], 2.0);
-    int sample_divisor = MAX(1, n - 1);
-    return sqrt(std / sample_divisor);
-}
-
-/*
- * Allocates memory to hold the patterns for benchmarking.
- */
-void allocate_pattern_matrix(unsigned char **M, const int num_entries, const int pattern_length)
-{
-    size_t element_size = sizeof(unsigned char) * (pattern_length + 1);
-    for (int i = 0; i < num_entries; i++)
-        M[i] = (unsigned char *)malloc(element_size);
-}
-
-/*
- * Frees memory allocated for benchmarking patterns.
- */
-void free_pattern_matrix(unsigned char **M, size_t num_entries)
-{
-    for (int i = 0; i < num_entries; i++)
-        free(M[i]);
-}
-
-/*
- * The various results of attempting to measure benchmark times for an algorithm.
- */
-enum measurement_status
-{
-    SUCCESS,
-    TIMED_OUT,
-    CANNOT_SEARCH,
-    ERROR
-};
-
-/*
- * The specific measurements taken for each invocation of an algorithm search.
- */
-typedef struct algo_measurements
-{
-    double *search_times;
-    double *pre_times;
-    cpu_stats_t *cpu_stats;
-} algo_measurements_t;
-
-/*
- * Various statistics which can be computed from the measurements of an algorithm for a single pattern length.
- */
-typedef struct algo_statistics
-{
-    double min_search_time;
-    double max_search_time;
-    double mean_search_time;
-    double median_search_time;
-    double std_search_time;
-
-    double min_pre_time;
-    double max_pre_time;
-    double mean_pre_time;
-    double median_pre_time;
-    //TODO: do we want standard deviation of pre-processing?  It's normally a very small time.
-
-    double min_total_time;
-    double max_total_time;
-    double mean_total_time;
-    double median_total_time;
-    double std_total_time;
-
-    cpu_stats_t sum_cpu_stats;    //TODO: we only provide total sums here across all executions, not a mean.  I think this is OK, but needs normalising?
-    cpu_stats_t median_cpu_stats; //TODO: do we need median cpu stats?
-} algo_statistics_t;
-
-/*
- * The result of benchmarking a single algorithm, including all measurements and statistics derived from them,
- * for a single length of pattern.
- */
-typedef struct algo_results
-{
-    int algo_id;
-    enum measurement_status success_state;
-    algo_measurements_t measurements;
-    algo_statistics_t statistics;
-    int occurrence_count;
-} algo_results_t;
-
-/*
- * All measurements and statistics from benchmarking all selected algorithms for a set size of pattern.
- */
-typedef struct benchmark_results
-{
-    int pattern_length;
-    algo_results_t *algo_results;
-} benchmark_results_t;
-
-/*
- * Allocates memory for all benchmark results given the number of different patern lengths, the number of algorithms,
- * and the number of runs per pattern length for each algorithm.
- */
-void allocate_benchmark_results(benchmark_results_t bench_result[], int num_pattern_lengths, int num_algos, int num_runs)
-{
-    // For each pattern length we process, allocate space for bench_result for all the algorithms:
-    for (int i = 0; i < num_pattern_lengths; i++)
-    {
-        bench_result[i].algo_results = (algo_results_t *)malloc(sizeof(algo_results_t) * num_algos);
-
-        // For each algorithm we process for a pattern length, allocate space for all the measurements it will make:
-        for (int j = 0; j < num_algos; j++)
-        {
-            bench_result[i].algo_results[j].measurements.search_times = (double *)malloc(sizeof(double) * num_runs);
-            bench_result[i].algo_results[j].measurements.pre_times = (double *)malloc(sizeof(double) * num_runs);
-            bench_result[i].algo_results[j].measurements.cpu_stats = (cpu_stats_t *)malloc(sizeof(cpu_stats_t) * num_runs);
-        }
-    }
-}
-
-/*
- * Frees memory allocated for benchmark results.
- */
-void free_benchmark_results(benchmark_results_t bench_result[], int num_pattern_lengths, int num_algos)
-{
-    // For each pattern length we process, allocate space for bench_result for all the algorithms:
-    for (int i = 0; i < num_pattern_lengths; i++)
-    {
-        // For each algorithm we process for a pattern length, allocate space for all the measurements it will make:
-        for (int j = 0; j < num_algos; j++)
-        {
-            free(bench_result[i].algo_results[j].measurements.search_times);
-            free(bench_result[i].algo_results[j].measurements.pre_times);
-            free(bench_result[i].algo_results[j].measurements.cpu_stats);
-        }
-        free(bench_result[i].algo_results);
     }
 }
 
@@ -596,46 +234,6 @@ void print_benchmark_res(const run_command_opts_t *opts, algo_results_t *results
 }
 
 /*
- * Calculates statistics for an algorithm for a given pattern length, given the measurements taken for that
- * algorithm over a number of runs.
- */
-void calculate_algo_statistics(algo_results_t *results, int num_measurements)
-{
-    // Compute total of pre and search times:
-    double *total_times = malloc(sizeof(double) * num_measurements);
-    for (int i = 0; i < num_measurements; i++)
-    {
-        total_times[i] = results->measurements.pre_times[i] + results->measurements.search_times[i];
-    }
-
-    // Compute min and max pre, search and total times:
-    compute_min_max(results->measurements.pre_times, num_measurements,
-                    &(results->statistics.min_pre_time), &(results->statistics.max_pre_time));
-    compute_min_max(results->measurements.search_times, num_measurements,
-                    &(results->statistics.min_search_time), &(results->statistics.max_search_time));
-    compute_min_max(total_times, num_measurements,
-                    &(results->statistics.min_total_time), &(results->statistics.max_total_time));
-
-    // Compute mean pre, search and total times and the standard deviation:
-    results->statistics.mean_pre_time = compute_average(results->measurements.pre_times, num_measurements);
-    results->statistics.mean_search_time = compute_average(results->measurements.search_times, num_measurements);
-    results->statistics.std_search_time = compute_std(results->statistics.mean_search_time,
-                                                      results->measurements.search_times, num_measurements);
-    results->statistics.mean_total_time = compute_average(total_times, num_measurements);
-    results->statistics.std_total_time = compute_std(results->statistics.mean_total_time, total_times, num_measurements);
-
-    // Compute median pre, search and total times:
-    results->statistics.median_pre_time = compute_median(results->measurements.pre_times, num_measurements);
-    results->statistics.median_search_time = compute_median(results->measurements.search_times, num_measurements);
-    results->statistics.median_total_time = compute_median(total_times, num_measurements);
-
-    // Compute sum cpu stats:
-    results->statistics.sum_cpu_stats = compute_sum_cpu_stats(results->measurements.cpu_stats, num_measurements);
-
-    free(total_times);
-}
-
-/*
  * Prints the status of benchmarking for an algorithm.
  */
 void print_benchmark_status(const int algo, const algo_info_t *algorithms)
@@ -671,9 +269,7 @@ void print_benchmark_status(const int algo, const algo_info_t *algorithms)
 int benchmark_algos_with_patterns(algo_results_t *results, const run_command_opts_t *opts, unsigned char *T, int n,
                                   unsigned char **pattern_list, int m, const algo_info_t *algorithms)
 {
-    printf("\n");
-    print_edge(TOP_EDGE_WIDTH);
-
+    info("\n------------------------------------------------------------");
     info("\tSearching for a set of %d patterns with length %d", opts->num_runs, m);
 
     const char *pre_header = opts->pre ? "(preprocessing) + (search): " : "";
@@ -691,38 +287,6 @@ int benchmark_algos_with_patterns(algo_results_t *results, const run_command_opt
 
         print_benchmark_res(opts, results + algo);
     }
-}
-
-/*
- * Computes information about the size of the alphabet contained in character frequency table freq, and gives
- * both the number of unique characters, and the maximum character code it contains.
- */
-void compute_alphabet_info(const int *freq, int *alphabet_size, int *max_code)
-{
-    *alphabet_size = 0;
-    *max_code = 0;
-    for (int c = 0; c < SIGMA; c++)
-    {
-        if (freq[c] != 0)
-        {
-            (*alphabet_size)++;
-
-            if (c > *max_code)
-                *max_code = c;
-        }
-    }
-}
-
-/*
- * Computes the frequency of characters contained in text buffer T of size n, and places them in the freq table.
- */
-void compute_frequency(const unsigned char *T, int n, int *freq)
-{
-    for (int j = 0; j < SIGMA; j++)
-        freq[j] = 0;
-
-    for (int j = 0; j < n; j++)
-        freq[T[j]]++;
 }
 
 /*
@@ -817,201 +381,23 @@ int get_num_pattern_lengths_to_run(const run_command_opts_t *opts, int *max_patt
     return num_pattern_lengths;
 }
 
-void set_experiment_filename(const run_command_opts_t *opts, char file_name[MAX_PATH_LENGTH], const char *output_type, const char *suffix)
+/*
+ * Allocates memory to hold the patterns for benchmarking.
+ */
+void allocate_pattern_matrix(unsigned char **M, const int num_entries, const int pattern_length)
 {
-    if (opts->description)
-    {
-        snprintf(file_name, MAX_PATH_LENGTH, "%s - %s - %s.%s", opts->expcode, opts->description, output_type, suffix);
-    }
-    else
-    {
-        snprintf(file_name, MAX_PATH_LENGTH, "%s - %s.%s", opts->expcode, output_type, suffix);
-    }
+    size_t element_size = sizeof(unsigned char) * (pattern_length + 1);
+    for (int i = 0; i < num_entries; i++)
+        M[i] = (unsigned char *)malloc(element_size);
 }
 
 /*
- * Writes out the summary of the experiment run to a text file.
+ * Frees memory allocated for benchmarking patterns.
  */
-void output_benchmark_run_summary(const smart_config_t *smart_config, const run_command_opts_t *opts, const int n)
+void free_pattern_matrix(unsigned char **M, size_t num_entries)
 {
-    char file_name[MAX_PATH_LENGTH];
-    set_experiment_filename(opts, file_name, "experiment", "txt");
-
-    char full_path[MAX_PATH_LENGTH];
-    set_full_path_or_exit(full_path, smart_config->smart_results_dir, file_name);
-
-    FILE *sf = fopen(full_path, "w");
-
-    fprintf(sf, "Data source:\t");
-    switch (opts->data_source)
-    {
-        case DATA_SOURCE_FILES:
-        {
-            fprintf(sf, "files:         \t");
-            int snum = 0;
-            while (snum < MAX_DATA_SOURCES && opts->data_sources[snum] != NULL)
-            {
-                if (snum > 0) fprintf(sf, "%s", ", ");
-                fprintf(sf, "%s", opts->data_sources[snum]);
-                snum++;
-            }
-            fprintf(sf, "\n");
-            break;
-        }
-        case DATA_SOURCE_RANDOM:
-        {
-            fprintf(sf, "random text\n");
-            fprintf(sf, "Alphabet:      \t%d\n", opts->alphabet_size);
-            break;
-        }
-        case DATA_SOURCE_USER:
-        {
-            fprintf(sf, "user supplied:  \t%s\n", opts->data_to_search);
-            break;
-        }
-        case DATA_SOURCE_NOT_DEFINED:
-        {
-            fprintf(sf, "ERROR: no data source defined\n");
-            break;
-        }
-    }
-
-    fprintf(sf, "Text length:   \t%d\n", n);
-    fprintf(sf, "Number of runs:\t%d\n", opts->num_runs);
-    fprintf(sf, "Random seed:   \t%ld\n", opts->random_seed);
-    fprintf(sf, "Time limit:    \t%d\n", opts->time_limit_millis);
-
-    fprintf(sf, "Patterns:      \t");
-    if (opts->pattern != NULL)
-    {
-        fprintf(sf, "user supplied:\t%s\n", opts->pattern);
-    }
-    else
-    {
-        fprintf(sf, "random patterns\n");
-    }
-
-
-    fclose(sf);
-}
-
-double GBs(double time_ms, int num_bytes)
-{
-    return (double) num_bytes / time_ms * 1000 / GIGA_BYTE;
-}
-
-void write_tabbed_string(FILE *fp, const char *string, int num_repetitions)
-{
-    if (num_repetitions > 0)
-    {
-        fprintf(fp, "%s", string);
-        for (int i = 1; i < num_repetitions; i++)
-        {
-            fprintf(fp, "\t%s", string);
-        }
-    }
-}
-
-/*
- * Simple output function to store benchmark results as a tab separate file.
- * TODO: output functions need writing properly with commands for type of output, etc. and probably putting in output.h
- */
-void output_benchmark_statistics_csv(const smart_config_t *smart_config, const run_command_opts_t *opts, int num_pattern_lengths,
-                                     benchmark_results_t *results, const algo_info_t *algorithms, const int num_bytes)
-{
-    char filename[MAX_PATH_LENGTH];
-    set_experiment_filename(opts, filename, "statistics", "csv");
-
-    char full_path[MAX_PATH_LENGTH];
-    set_full_path_or_exit(full_path, smart_config->smart_results_dir, filename);
-
-    FILE *rf = fopen(full_path, "w");
-
-    fprintf(rf, "PLEN\tALGORITHM");
-    fprintf(rf, "\tMIN PRE TIME (ms)\tMAX PRE TIME (ms)\tMEAN PRE TIME (ms)\tMEDIAN PRE TIME (ms)");
-    fprintf(rf, "\tMIN SEARCH TIME (ms)\tMAX SEARCH TIME (ms)\tMEAN SEARCH TIME (ms)\tSTD DEVIATION\tMEDIAN SEARCH TIME (ms)");
-    fprintf(rf, "\tMIN TOTAL TIME (ms)\tMAX TOTAL TIME (ms)\tMEAN TOTAL TIME (ms)\tTOTAL STD DEVIATION\tMEDIAN TOTAL TIME (ms");
-    fprintf(rf, "\tMEAN SEARCH SPEED (GB/s)\tMEDIAN SEARCH SPEED (GB/s)\tMEAN TOTAL SPEED (GB/s)\tMEDIAN TOTAL SPEED (GB/s)");
-    fprintf(rf, opts->cpu_stats ? "\tL1_CACHE_ACCESS\tL1_CACHE_MISSES\tLL_CACHE_ACCESS\tLL_CACHE_MISSES\tBRANCH INSTRUCTIONS\tBRANCH MISSES\n" : "\n");
-
-    // For each pattern length benchmarked:
-    for (int pattern_len_no = 0; pattern_len_no < num_pattern_lengths; pattern_len_no++)
-    {
-        int pat_len = results[pattern_len_no].pattern_length;
-
-        // For each algorithm:
-        for (int algo_no = 0; algo_no < algorithms->num_algos; algo_no++)
-        {
-            char upper_case_name[ALGO_NAME_LEN];
-            set_upper_case_algo_name(upper_case_name, algorithms->algo_names[algo_no]);
-            fprintf(rf, "%d\t%s\t", pat_len, upper_case_name);
-
-            algo_results_t *algo_res = &(results[pattern_len_no].algo_results[algo_no]);
-            switch (algo_res->success_state)
-            {
-                case SUCCESS:
-                {
-                    algo_statistics_t *stats = &(algo_res->statistics);
-                    fprintf(rf, "%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f",
-                            opts->precision, stats->min_pre_time,
-                            opts->precision, stats->max_pre_time,
-                            opts->precision, stats->mean_pre_time,
-                            opts->precision, stats->median_pre_time,
-                            opts->precision, stats->min_search_time,
-                            opts->precision, stats->max_search_time,
-                            opts->precision, stats->mean_search_time,
-                            opts->precision, stats->std_search_time,
-                            opts->precision, stats->median_search_time,
-                            opts->precision, stats->min_total_time,
-                            opts->precision, stats->max_total_time,
-                            opts->precision, stats->mean_total_time,
-                            opts->precision, stats->std_total_time,
-                            opts->precision, stats->median_total_time);
-                    fprintf(rf, "\t%.*f\t%.*f\t%.*f\t%.*f",
-                            opts->precision, GBs(stats->mean_search_time, num_bytes),
-                            opts->precision, GBs(stats->median_search_time, num_bytes),
-                            opts->precision, GBs(stats->mean_pre_time + stats->mean_search_time, num_bytes),
-                            opts->precision, GBs(stats->median_pre_time + stats->median_search_time, num_bytes));
-                    if (opts->cpu_stats)
-                    {
-                        if (opts->cpu_stats & CPU_STAT_L1_CACHE)
-                            fprintf(rf, "\t%lld\t%lld", stats->sum_cpu_stats.l1_cache_access, stats->sum_cpu_stats.l1_cache_misses);
-                        else
-                            fprintf(rf, "\t---\t---");
-
-                        if (opts->cpu_stats & CPU_STAT_LL_CACHE)
-                            fprintf(rf, "\t%lld\t%lld", stats->sum_cpu_stats.cache_references, stats->sum_cpu_stats.cache_misses);
-                        else
-                            fprintf(rf, "\t---\t---");
-
-                        if (opts->cpu_stats & CPU_STAT_BRANCHES)
-                            fprintf(rf, "\t%lld\t%lld", stats->sum_cpu_stats.branch_instructions, stats->sum_cpu_stats.branch_misses);
-                        else
-                            fprintf(rf, "\t---\t---");
-                    }
-                    break;
-                }
-                case CANNOT_SEARCH:
-                {
-                    write_tabbed_string(rf, "---", opts->cpu_stats ? 24 : 18); //TODO: check this.
-                    break;
-                }
-                case TIMED_OUT:
-                {
-                    write_tabbed_string(rf, "OUT", opts->cpu_stats ? 24 : 18); //TODO: check this.
-                    break;
-                }
-                case ERROR:
-                {
-                    write_tabbed_string(rf, "ERROR", opts->cpu_stats ? 24 : 18); //TODO: check this.
-                    break;
-                }
-            }
-            fprintf(rf, "\n");
-        }
-    }
-
-    fclose(rf);
+    for (int i = 0; i < num_entries; i++)
+        free(M[i]);
 }
 
 /*

@@ -545,27 +545,6 @@ unsigned long long hash_keyed_file(const char *key, const char file_path[MAX_PAT
 }
 
 /*
- * Generates a random text and stores it in the buffer of size bufsize, with an alphabet of sigma.
- * Returns the size of the random data (which will be bufsize).
- */
-int gen_random_text(const int sigma, unsigned char *buffer, const int bufsize)
-{
-    // An alphabet of one means all symbols are the same - so just set zero.
-    if (sigma == 1)
-    {
-        memset(buffer, 0, bufsize);
-    }
-    else
-    {
-        for (int i = 0; i < bufsize; i++)
-        {
-            buffer[i] = rand() % sigma;
-        }
-    }
-    return bufsize;
-}
-
-/*
  * Empties the file passed in.
  */
 void empty_file(char *filename)

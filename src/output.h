@@ -17,6 +17,212 @@
  * download the tool at: http://www.dmi.unict.it/~faro/smart/
  */
 
+#include "config.h"
+#include "commands.h"
+#include "bench_results.h"
+
+void set_experiment_filename(const run_command_opts_t *opts, char file_name[MAX_PATH_LENGTH], const char *output_type, const char *suffix)
+{
+    if (opts->description)
+    {
+        snprintf(file_name, MAX_PATH_LENGTH, "%s - %s - %s.%s", opts->expcode, opts->description, output_type, suffix);
+    }
+    else
+    {
+        snprintf(file_name, MAX_PATH_LENGTH, "%s - %s.%s", opts->expcode, output_type, suffix);
+    }
+}
+
+double GBs(double time_ms, int num_bytes)
+{
+    return (double) num_bytes / time_ms * 1000 / GIGA_BYTE;
+}
+
+void write_tabbed_string(FILE *fp, const char *string, int num_repetitions)
+{
+    if (num_repetitions > 0)
+    {
+        fprintf(fp, "%s", string);
+        for (int i = 1; i < num_repetitions; i++)
+        {
+            fprintf(fp, "\t%s", string);
+        }
+    }
+}
+
+/*
+ * Writes out the summary of the experiment run to a text file.
+ */
+void output_benchmark_run_summary(const smart_config_t *smart_config, const run_command_opts_t *opts, const int n)
+{
+    char file_name[MAX_PATH_LENGTH];
+    set_experiment_filename(opts, file_name, "experiment", "txt");
+
+    char full_path[MAX_PATH_LENGTH];
+    set_full_path_or_exit(full_path, smart_config->smart_results_dir, file_name);
+
+    FILE *sf = fopen(full_path, "w");
+
+    fprintf(sf, "Data source:\t");
+    switch (opts->data_source)
+    {
+        case DATA_SOURCE_FILES:
+        {
+            fprintf(sf, "files:         \t");
+            int snum = 0;
+            while (snum < MAX_DATA_SOURCES && opts->data_sources[snum] != NULL)
+            {
+                if (snum > 0) fprintf(sf, "%s", ", ");
+                fprintf(sf, "%s", opts->data_sources[snum]);
+                snum++;
+            }
+            fprintf(sf, "\n");
+            break;
+        }
+        case DATA_SOURCE_RANDOM:
+        {
+            fprintf(sf, "random text\n");
+            fprintf(sf, "Alphabet:      \t%d\n", opts->alphabet_size);
+            break;
+        }
+        case DATA_SOURCE_USER:
+        {
+            fprintf(sf, "user supplied:  \t%s\n", opts->data_to_search);
+            break;
+        }
+        case DATA_SOURCE_NOT_DEFINED:
+        {
+            fprintf(sf, "ERROR: no data source defined\n");
+            break;
+        }
+    }
+
+    fprintf(sf, "Text length:   \t%d\n", n);
+    fprintf(sf, "Number of runs:\t%d\n", opts->num_runs);
+    fprintf(sf, "Random seed:   \t%ld\n", opts->random_seed);
+    fprintf(sf, "Time limit:    \t%d\n", opts->time_limit_millis);
+
+    fprintf(sf, "Patterns:      \t");
+    if (opts->pattern != NULL)
+    {
+        fprintf(sf, "user supplied:\t%s\n", opts->pattern);
+    }
+    else
+    {
+        fprintf(sf, "random patterns\n");
+    }
+
+
+    fclose(sf);
+}
+
+
+/*
+ * Simple output function to store benchmark results as a tab separate file.
+ */
+void output_benchmark_statistics_csv(const smart_config_t *smart_config, const run_command_opts_t *opts, int num_pattern_lengths,
+                                     benchmark_results_t *results, const algo_info_t *algorithms, const int num_bytes)
+{
+    char filename[MAX_PATH_LENGTH];
+    set_experiment_filename(opts, filename, "statistics", "csv");
+
+    char full_path[MAX_PATH_LENGTH];
+    set_full_path_or_exit(full_path, smart_config->smart_results_dir, filename);
+
+    FILE *rf = fopen(full_path, "w");
+
+    fprintf(rf, "PLEN\tALGORITHM");
+    fprintf(rf, "\tMIN PRE TIME (ms)\tMAX PRE TIME (ms)\tMEAN PRE TIME (ms)\tMEDIAN PRE TIME (ms)");
+    fprintf(rf, "\tMIN SEARCH TIME (ms)\tMAX SEARCH TIME (ms)\tMEAN SEARCH TIME (ms)\tSTD DEVIATION\tMEDIAN SEARCH TIME (ms)");
+    fprintf(rf, "\tMIN TOTAL TIME (ms)\tMAX TOTAL TIME (ms)\tMEAN TOTAL TIME (ms)\tTOTAL STD DEVIATION\tMEDIAN TOTAL TIME (ms");
+    fprintf(rf, "\tMEAN SEARCH SPEED (GB/s)\tMEDIAN SEARCH SPEED (GB/s)\tMEAN TOTAL SPEED (GB/s)\tMEDIAN TOTAL SPEED (GB/s)");
+    fprintf(rf, opts->cpu_stats ? "\tL1_CACHE_ACCESS\tL1_CACHE_MISSES\tLL_CACHE_ACCESS\tLL_CACHE_MISSES\tBRANCH INSTRUCTIONS\tBRANCH MISSES\n" : "\n");
+
+    // For each pattern length benchmarked:
+    for (int pattern_len_no = 0; pattern_len_no < num_pattern_lengths; pattern_len_no++)
+    {
+        int pat_len = results[pattern_len_no].pattern_length;
+
+        // For each algorithm:
+        for (int algo_no = 0; algo_no < algorithms->num_algos; algo_no++)
+        {
+            char upper_case_name[ALGO_NAME_LEN];
+            set_upper_case_algo_name(upper_case_name, algorithms->algo_names[algo_no]);
+            fprintf(rf, "%d\t%s\t", pat_len, upper_case_name);
+
+            algo_results_t *algo_res = &(results[pattern_len_no].algo_results[algo_no]);
+            switch (algo_res->success_state)
+            {
+                case SUCCESS:
+                {
+                    algo_statistics_t *stats = &(algo_res->statistics);
+                    fprintf(rf, "%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f",
+                            opts->precision, stats->min_pre_time,
+                            opts->precision, stats->max_pre_time,
+                            opts->precision, stats->mean_pre_time,
+                            opts->precision, stats->median_pre_time,
+                            opts->precision, stats->min_search_time,
+                            opts->precision, stats->max_search_time,
+                            opts->precision, stats->mean_search_time,
+                            opts->precision, stats->std_search_time,
+                            opts->precision, stats->median_search_time,
+                            opts->precision, stats->min_total_time,
+                            opts->precision, stats->max_total_time,
+                            opts->precision, stats->mean_total_time,
+                            opts->precision, stats->std_total_time,
+                            opts->precision, stats->median_total_time);
+                    fprintf(rf, "\t%.*f\t%.*f\t%.*f\t%.*f",
+                            opts->precision, GBs(stats->mean_search_time, num_bytes),
+                            opts->precision, GBs(stats->median_search_time, num_bytes),
+                            opts->precision, GBs(stats->mean_pre_time + stats->mean_search_time, num_bytes),
+                            opts->precision, GBs(stats->median_pre_time + stats->median_search_time, num_bytes));
+                    if (opts->cpu_stats)
+                    {
+                        if (opts->cpu_stats & CPU_STAT_L1_CACHE)
+                            fprintf(rf, "\t%lld\t%lld", stats->sum_cpu_stats.l1_cache_access, stats->sum_cpu_stats.l1_cache_misses);
+                        else
+                            fprintf(rf, "\t---\t---");
+
+                        if (opts->cpu_stats & CPU_STAT_LL_CACHE)
+                            fprintf(rf, "\t%lld\t%lld", stats->sum_cpu_stats.cache_references, stats->sum_cpu_stats.cache_misses);
+                        else
+                            fprintf(rf, "\t---\t---");
+
+                        if (opts->cpu_stats & CPU_STAT_BRANCHES)
+                            fprintf(rf, "\t%lld\t%lld", stats->sum_cpu_stats.branch_instructions, stats->sum_cpu_stats.branch_misses);
+                        else
+                            fprintf(rf, "\t---\t---");
+                    }
+                    break;
+                }
+                case CANNOT_SEARCH:
+                {
+                    write_tabbed_string(rf, "---", opts->cpu_stats ? 24 : 18); //TODO: check this.
+                    break;
+                }
+                case TIMED_OUT:
+                {
+                    write_tabbed_string(rf, "OUT", opts->cpu_stats ? 24 : 18); //TODO: check this.
+                    break;
+                }
+                case ERROR:
+                {
+                    write_tabbed_string(rf, "ERROR", opts->cpu_stats ? 24 : 18); //TODO: check this.
+                    break;
+                }
+            }
+            fprintf(rf, "\n");
+        }
+    }
+
+    fclose(rf);
+}
+
+
+
+/*********************************************************************************************************
+ * Old output code.  Will bring back functions from here if required.
+
 char colors[100][8];
 int num_colors = 100;
 
@@ -884,3 +1090,7 @@ int outputINDEX(char list_of_filenames[NumSetting][50], int num_buffers, char *e
 	fclose(fp);
 	return 1;
 }
+
+ **********************************************************
+ * End of old output code.
+ */
