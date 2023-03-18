@@ -63,59 +63,12 @@ void output_benchmark_run_summary(const smart_config_t *smart_config, const run_
 
     FILE *sf = fopen(full_path, "w");
 
-    fprintf(sf, "Data source:\t");
-    switch (opts->data_source)
-    {
-        case DATA_SOURCE_FILES:
-        {
-            fprintf(sf, "files:         \t");
-            int snum = 0;
-            while (snum < MAX_DATA_SOURCES && opts->data_sources[snum] != NULL)
-            {
-                if (snum > 0) fprintf(sf, "%s", ", ");
-                fprintf(sf, "%s", opts->data_sources[snum]);
-                snum++;
-            }
-            fprintf(sf, "\n");
-            break;
-        }
-        case DATA_SOURCE_RANDOM:
-        {
-            fprintf(sf, "random text\n");
-            fprintf(sf, "Alphabet:      \t%d\n", opts->alphabet_size);
-            break;
-        }
-        case DATA_SOURCE_USER:
-        {
-            fprintf(sf, "user supplied:  \t%s\n", opts->data_to_search);
-            break;
-        }
-        case DATA_SOURCE_NOT_DEFINED:
-        {
-            fprintf(sf, "ERROR: no data source defined\n");
-            break;
-        }
-    }
+    save_run_options(sf, opts);
 
-    fprintf(sf, "Text length:   \t%d\n", n);
-    fprintf(sf, "Number of runs:\t%d\n", opts->num_runs);
-    fprintf(sf, "Random seed:   \t%ld\n", opts->random_seed);
-    fprintf(sf, "Time limit:    \t%d\n", opts->time_limit_millis);
-
-    fprintf(sf, "Patterns:      \t");
-    if (opts->pattern != NULL)
-    {
-        fprintf(sf, "user supplied:\t%s\n", opts->pattern);
-    }
-    else
-    {
-        fprintf(sf, "random patterns\n");
-    }
-
+    fprintf(sf, INT_KEY_FMT, "Text length", n);
 
     fclose(sf);
 }
-
 
 /*
  * Simple output function to store benchmark results as a tab separate file.

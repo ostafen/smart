@@ -352,6 +352,85 @@ void print_run_usage_and_exit(const char *command)
     exit(0);
 }
 
+void load_run_options(const char *filename, run_command_opts_t *run_options)
+{
+    //TODO: will allow loading a previous experiment run and replaying it,
+    //      optionally overriding specific parameters on the command line.
+}
+
+const char *CHAR_KEY_FMT = "%s\t%c\n";
+const char *STR_KEY_FMT = "%s\t%s\n";
+const char *INT_KEY_FMT = "%s\t%d\n";
+const char *LONG_KEY_FMT = "%s\t%ld\n";
+
+static char *const EXPCODE_KEY = "Experiment code";
+static char *const MAX_TEXT_SIZE_KEY = "Max text size";
+static char *const FILL_BUFFER_KEY = "Fill buffer";
+static char *const NUM_RUNS_KEY = "Num runs";
+static char *const TIME_LIMIT_KEY = "Time bound (ms)";
+static char *const RANDOM_SEED_KEY = "Random seed";
+static char *const DESCRIPTION_KEY = "Description";
+static char *const PRECISION_KEY = "Precision";
+static char *const ALPHABET_SIZE_KEY = "Alphabet size";
+static char *const ALGO_SOURCE_KEY = "Algorithm source type";
+static char *const PATT_MIN_LEN_KEY = "Pattern minimum length";
+static char *const PATT_MAX_LEN_KEY = "Pattern maximum length";
+static char *const PATT_INC_OPERATOR_KEY = "Pattern length increment operator";
+static char *const PATT_INCREMENT_BY = "Pattern increment length by";
+static char *const NUM_ALGO_NAMES_KEY = "Num algorithm specs";
+static char *const ALGO_NAME_KEY = "Algorithm spec";
+static char *const SELECTED_ALGO_NAME_KEY = "Selected algo filename";
+static char *const DATA_SOURCE_TYPE_KEY = "Data source type";
+static char *const DATA_SOURCE_KEY = "Data source";
+static char *const PATTERN_KEY = "Pattern";
+static char *const DATA_TO_SEARCH_KEY = "Data to search";
+static char *const PREPROCESSING_KEY = "Show preprocessing";
+static char *const OCCURRENCE_KEY = "Show occurrences";
+static char *const CPU_PIN_TYPE_KEY = "CPU pinning type";
+static char *const CPU_TO_PIN_KEY = "CPU to pin";
+static char *const CPU_STATS_KEY = "CPU stats bitfield";
+
+/*
+ * Saves the run options into a tab delimited key-value pair, with one value on each line.
+ */
+void save_run_options(FILE *fp, const run_command_opts_t *run_options)
+{
+    fprintf(fp, STR_KEY_FMT, EXPCODE_KEY, run_options->expcode);
+    if (run_options->description) fprintf(fp, STR_KEY_FMT, DESCRIPTION_KEY, run_options->description);
+
+    fprintf(fp, INT_KEY_FMT, MAX_TEXT_SIZE_KEY, run_options->text_size);
+    fprintf(fp, INT_KEY_FMT, FILL_BUFFER_KEY, run_options->fill_buffer);
+
+    fprintf(fp, INT_KEY_FMT, NUM_RUNS_KEY, run_options->num_runs);
+    fprintf(fp, INT_KEY_FMT, TIME_LIMIT_KEY, run_options->time_limit_millis);
+    fprintf(fp,LONG_KEY_FMT, RANDOM_SEED_KEY, run_options->random_seed);
+    fprintf(fp, INT_KEY_FMT, PRECISION_KEY, run_options->precision);
+    fprintf(fp, INT_KEY_FMT, ALPHABET_SIZE_KEY, run_options->alphabet_size);
+
+    fprintf(fp, INT_KEY_FMT, PATT_MIN_LEN_KEY, run_options->pattern_info.pattern_min_len);
+    fprintf(fp, INT_KEY_FMT, PATT_MAX_LEN_KEY, run_options->pattern_info.pattern_max_len);
+    fprintf(fp, CHAR_KEY_FMT, PATT_INC_OPERATOR_KEY, run_options->pattern_info.increment_operator);
+    fprintf(fp, INT_KEY_FMT, PATT_INCREMENT_BY, run_options->pattern_info.increment_by);
+
+    fprintf(fp, INT_KEY_FMT, ALGO_SOURCE_KEY, run_options->algo_source);
+    fprintf(fp, STR_KEY_FMT, SELECTED_ALGO_NAME_KEY, run_options->algo_filename);
+    fprintf(fp, INT_KEY_FMT, NUM_ALGO_NAMES_KEY, run_options->num_algo_names);
+    for (int i = 0; i < run_options->num_algo_names; i++)
+        fprintf(fp, STR_KEY_FMT, ALGO_NAME_KEY, run_options->algo_names[i]);
+
+    fprintf(fp, INT_KEY_FMT, DATA_SOURCE_TYPE_KEY, run_options->data_source);
+    for (int i = 0; i < MAX_DATA_SOURCES && run_options->data_sources[i] != NULL; i++)
+        fprintf(fp, STR_KEY_FMT, DATA_SOURCE_KEY, run_options->data_sources[i]);
+
+    if (run_options->pattern) fprintf(fp, STR_KEY_FMT, PATTERN_KEY, run_options->pattern);
+    if (run_options->data_to_search) fprintf(fp, STR_KEY_FMT, DATA_TO_SEARCH_KEY, run_options->data_to_search);
+
+    fprintf(fp, INT_KEY_FMT, PREPROCESSING_KEY, run_options->pre);
+    fprintf(fp, INT_KEY_FMT, OCCURRENCE_KEY, run_options->occ);
+    fprintf(fp, INT_KEY_FMT, CPU_PIN_TYPE_KEY, run_options->cpu_pinning);
+    fprintf(fp, INT_KEY_FMT, CPU_TO_PIN_KEY, run_options->cpu_to_pin);
+    fprintf(fp, INT_KEY_FMT, CPU_STATS_KEY, run_options->cpu_stats);
+}
 
 /************************************
  * Select command
