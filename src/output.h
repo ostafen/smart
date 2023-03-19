@@ -65,7 +65,15 @@ void output_benchmark_run_summary(const smart_config_t *smart_config, const run_
 
     save_run_options(sf, opts);
 
+    //TODO: should capture runtime information in the results and output that in the summary too:
+// 3.  actual algorithms benchmarked.
+// 4.  finished date/time.
+
     fprintf(sf, INT_KEY_FMT, "Text length", n);
+    if (opts->pinnned_cpu >= 0)
+        fprintf(sf, INT_KEY_FMT, PINNED_CPU_KEY, opts->pinnned_cpu);
+    else
+        fprintf(sf, STR_KEY_FMT, PINNED_CPU_KEY, "not pinned");
 
     fclose(sf);
 }

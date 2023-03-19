@@ -250,6 +250,7 @@ typedef struct run_command_opts
     const char *data_to_search;                  // text to use for simple benchmarking.  If not specified normal data sources are used.
     enum cpu_pin_type cpu_pinning;               // What kind of cpu pinning to use.
     int cpu_to_pin;                              // The number of the cpu to pin, if specified by the user, -1 otherwise.
+    int pinnned_cpu;                             // The CPU which was actually pinned.
     int cpu_stats;                               // A bitmask of cpu stats to acquire.  Zero means no stats to gather, 001 = L1 cache, 010 = last cache, 100 = branches.
     int occ;                                     // Boolean flag - whether to report total occurrences.
     int pre;                                     // Boolean flag - whether to report pre-processing time separately.
@@ -278,6 +279,7 @@ void init_run_command_opts(run_command_opts_t *opts)
     }
     opts->cpu_pinning = CPU_PIN_DEFAULT;
     opts->cpu_to_pin  = -1;
+    opts->pinnned_cpu = -1;
     opts->cpu_stats   = 0; // default to gathering no cpu stats.
     opts->alphabet_size = SIGMA;
     opts->text_size = TEXT_SIZE_DEFAULT;
@@ -393,6 +395,7 @@ static char *const PREPROCESSING_KEY = "Show preprocessing";
 static char *const OCCURRENCE_KEY = "Show occurrences";
 static char *const CPU_PIN_TYPE_KEY = "CPU pinning type";
 static char *const CPU_TO_PIN_KEY = "CPU to pin";
+static char *const PINNED_CPU_KEY = "Process pinned to CPU number";
 static char *const CPU_STATS_KEY = "CPU stats";
 
 static char *const COMMAND_LINE_ALGORITHMS = "Algorithms provided on the command line.";

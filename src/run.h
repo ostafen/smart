@@ -608,7 +608,7 @@ int exec_run(run_command_opts_t *opts, smart_config_t *smart_config)
 
     set_random_seed(opts->random_seed);
 
-    pin_to_one_CPU_core(opts->cpu_pinning, opts->cpu_to_pin, "Variation in benchmarking may be higher.");
+    opts->pinnned_cpu = pin_to_one_CPU_core(opts->cpu_pinning, opts->cpu_to_pin, "Variation in benchmarking may be higher.");
 
     run_benchmark(smart_config, opts);
 
