@@ -46,7 +46,7 @@ int pin_cpu(int cpu_to_pin, int num_processors)
  * Sets the scheduler affinity to pin this process to one CPU core.
  * This can avoid benchmarking variation caused by processes moving from one core to another, causing cache misses.
  */
-void pin_to_one_CPU_core(enum cpu_pin_type cpu_pinning, int cpu_to_pin, const char *not_enabled_message)
+int pin_to_one_CPU_core(enum cpu_pin_type cpu_pinning, int cpu_to_pin, const char *not_enabled_message)
 {
     int num_processors = (int)sysconf(_SC_NPROCESSORS_ONLN);
     switch (cpu_pinning)
@@ -58,12 +58,18 @@ void pin_to_one_CPU_core(enum cpu_pin_type cpu_pinning, int cpu_to_pin, const ch
         }
         case PIN_LAST_CPU:
         {
-            pin_cpu(num_processors - 1, num_processors);
+            if (pin_cpu(num_processors - 1, num_processors))
+            {
+                return num_processors - 1;
+            }
             break;
         }
         case PIN_SPECIFIED_CPU:
         {
-            pin_cpu(cpu_to_pin, num_processors);
+            if (pin_cpu(cpu_to_pin, num_processors))
+            {
+                return cpu_to_pin;
+            }
             break;
         }
         default:
@@ -71,17 +77,19 @@ void pin_to_one_CPU_core(enum cpu_pin_type cpu_pinning, int cpu_to_pin, const ch
             error_and_exit("Unknown cpu pinning option provided: %d", cpu_pinning);
         }
     }
+
+    return -1;
 }
 
 #else
 
 /*
- * Sets the scheduler affinity to pin this process to one CPU core.
- * This can avoid benchmarking variation caused by processes moving from one core to another, causing cache misses.
+ * Empty implementation for non linux systems, returns -1 to indicate no cpu was pinned.
  */
-void pin_to_one_CPU_core(enum cpu_pin_type cpu_pinning, int cpu_to_pin, const char *not_enabled_message)
+int pin_to_one_CPU_core(enum cpu_pin_type cpu_pinning, int cpu_to_pin, const char *not_enabled_message)
 {
     warn("CPU pinning only enabled on linux: %s", not_enabled_message);
+    return -1;
 }
 
 #endif
