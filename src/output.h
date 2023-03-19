@@ -21,6 +21,10 @@
 #include "commands.h"
 #include "bench_results.h"
 
+static char *const NUM_ALGORITHMS_BENCHMARKED_KEY = "Num algorithms benchmarked";
+static char *const ALGORITHM_BENCHMARKED_KEY = "Algorithm benchmarked";
+static char *const TEXT_LENGTH_KEY = "Text length";
+
 void set_experiment_filename(const run_command_opts_t *opts, char file_name[MAX_PATH_LENGTH], const char *output_type, const char *suffix)
 {
     if (opts->description)
@@ -53,7 +57,8 @@ void write_tabbed_string(FILE *fp, const char *string, int num_repetitions)
 /*
  * Writes out the summary of the experiment run to a text file.
  */
-void output_benchmark_run_summary(const smart_config_t *smart_config, const run_command_opts_t *opts, const int n)
+void output_benchmark_run_summary(const smart_config_t *smart_config, const run_command_opts_t *opts,
+                                  const algo_info_t *algorithms, const int n)
 {
     char file_name[MAX_PATH_LENGTH];
     set_experiment_filename(opts, file_name, "experiment", "txt");
@@ -65,11 +70,14 @@ void output_benchmark_run_summary(const smart_config_t *smart_config, const run_
 
     save_run_options(sf, opts);
 
-    //TODO: should capture runtime information in the results and output that in the summary too:
-// 3.  actual algorithms benchmarked.
-// 4.  finished date/time.
-
-    fprintf(sf, INT_KEY_FMT, "Text length", n);
+    fprintf(sf, INT_KEY_FMT, TEXT_LENGTH_KEY, n);
+    
+    fprintf(sf, INT_KEY_FMT, NUM_ALGORITHMS_BENCHMARKED_KEY, algorithms->num_algos);
+    for (int i = 0; i < algorithms->num_algos; i++)
+    {
+        fprintf(sf, STR_KEY_FMT, ALGORITHM_BENCHMARKED_KEY, algorithms->algo_names[i]);
+    }
+    
     if (opts->pinnned_cpu >= 0)
         fprintf(sf, INT_KEY_FMT, PINNED_CPU_KEY, opts->pinnned_cpu);
     else

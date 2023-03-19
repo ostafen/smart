@@ -371,7 +371,7 @@ const char *LONG_KEY_FMT = "%s\t%ld\n";
 
 static char *const EXPCODE_KEY = "Experiment code";
 static char *const CREATION_DATETIME = "Creation date time";
-static char *const MAX_TEXT_SIZE_KEY = "Max text size";
+static char *const MAX_TEXT_SIZE_KEY = "Max text length";
 static char *const FILL_BUFFER_KEY = "Fill buffer";
 static char *const NUM_RUNS_KEY = "Num runs";
 static char *const TIME_LIMIT_KEY = "Time bound (ms)";

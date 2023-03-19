@@ -424,7 +424,7 @@ void benchmark_algorithms_with_text(const smart_config_t *smart_config, const ru
         benchmark_algos_with_patterns(results[patt_len_idx].algo_results, opts, T, n, pattern_list, m, algorithms);
     }
 
-    output_benchmark_run_summary(smart_config, opts, n);
+    output_benchmark_run_summary(smart_config, opts, algorithms, n);
     output_benchmark_statistics_csv(smart_config, opts, num_pattern_lengths, results, algorithms, n);
 
     free_pattern_matrix(pattern_list, opts->num_runs);
