@@ -404,7 +404,7 @@ void free_pattern_matrix(unsigned char **M, size_t num_entries)
 /*
  * Benchmarks all algorithms over a text T for all pattern lengths.
  */
-void benchmark_algorithms_with_text(const smart_config_t *smart_config, const run_command_opts_t *opts,
+void benchmark_algorithms_with_text(const smart_config_t *smart_config, run_command_opts_t *opts,
                                     unsigned char *T, int n, const algo_info_t *algorithms)
 {
     int max_pattern_length;
@@ -416,6 +416,7 @@ void benchmark_algorithms_with_text(const smart_config_t *smart_config, const ru
     allocate_benchmark_results(results, num_pattern_lengths, algorithms->num_algos, opts->num_runs);
     allocate_pattern_matrix(pattern_list, opts->num_runs, opts->pattern_info.pattern_max_len);
 
+    opts->started_date = time(NULL);
     for (int m = opts->pattern_info.pattern_min_len, patt_len_idx = 0; m <= max_pattern_length;
              m = next_pattern_length(&(opts->pattern_info), m), patt_len_idx++)
     {
@@ -423,6 +424,7 @@ void benchmark_algorithms_with_text(const smart_config_t *smart_config, const ru
         results[patt_len_idx].pattern_length = m;
         benchmark_algos_with_patterns(results[patt_len_idx].algo_results, opts, T, n, pattern_list, m, algorithms);
     }
+    opts->finished_date = time(NULL);
 
     output_benchmark_run_summary(smart_config, opts, algorithms, n);
     output_benchmark_statistics_csv(smart_config, opts, num_pattern_lengths, results, algorithms, n);

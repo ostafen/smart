@@ -24,6 +24,9 @@
 static char *const NUM_ALGORITHMS_BENCHMARKED_KEY = "Num algorithms benchmarked";
 static char *const ALGORITHM_BENCHMARKED_KEY = "Algorithm benchmarked";
 static char *const TEXT_LENGTH_KEY = "Text length";
+static char *const STARTED_BENCHMARKING = "Started benchmarking";
+static char *const FINISHED_BENCHMARKING = "Finished benchmarking";
+
 
 void set_experiment_filename(const run_command_opts_t *opts, char file_name[MAX_PATH_LENGTH], const char *output_type, const char *suffix)
 {
@@ -83,6 +86,14 @@ void output_benchmark_run_summary(const smart_config_t *smart_config, const run_
     else
         fprintf(sf, STR_KEY_FMT, PINNED_CPU_KEY, "not pinned");
 
+    char time_string[26];
+    set_time_string_with_time(time_string, 26, "%Y:%m:%d %H:%M:%S", opts->started_date);
+    fprintf(sf, STR_KEY_FMT, STARTED_BENCHMARKING, time_string);
+
+    
+    set_time_string_with_time(time_string, 26, "%Y:%m:%d %H:%M:%S", opts->finished_date);
+    fprintf(sf, STR_KEY_FMT, FINISHED_BENCHMARKING, time_string);
+    
     fclose(sf);
 }
 

@@ -255,6 +255,8 @@ typedef struct run_command_opts
     int occ;                                     // Boolean flag - whether to report total occurrences.
     int pre;                                     // Boolean flag - whether to report pre-processing time separately.
     time_t creation_date;                        // The date/time the experiment was created.
+    time_t started_date;                         // The date/time the benchmarking started.
+    time_t finished_date;                        // The date time when benchmarking finished.
     char expcode[STR_BUF];                       // A code generated to identify this benchmarking run.
     int precision;                               // number of decimal points to round to for results.  Defaults to 2.
     const char *description;                     // an optional description for the experiment.
@@ -299,6 +301,7 @@ void init_run_command_opts(run_command_opts_t *opts)
     opts->precision = DEFAULT_PRECISION;
     opts->description = NULL;
     opts->creation_date = time(NULL);
+    opts->finished_date = 0;
     snprintf(opts->expcode, STR_BUF, "EXP%d", (int) opts->creation_date);
 }
 
@@ -418,10 +421,15 @@ void save_run_options(FILE *fp, const run_command_opts_t *run_options)
     fprintf(fp, INT_KEY_FMT, TIME_LIMIT_KEY, run_options->time_limit_millis);
     fprintf(fp,LONG_KEY_FMT, RANDOM_SEED_KEY, run_options->random_seed);
 
-    fprintf(fp, INT_KEY_FMT, PATT_MIN_LEN_KEY, run_options->pattern_info.pattern_min_len);
-    fprintf(fp, INT_KEY_FMT, PATT_MAX_LEN_KEY, run_options->pattern_info.pattern_max_len);
-    fprintf(fp, CHAR_KEY_FMT, PATT_INC_OPERATOR_KEY, run_options->pattern_info.increment_operator);
-    fprintf(fp, INT_KEY_FMT, PATT_INCREMENT_BY, run_options->pattern_info.increment_by);
+    if (run_options->pattern)
+        fprintf(fp, STR_KEY_FMT, PATTERN_KEY, run_options->pattern);
+    else
+    {
+        fprintf(fp, INT_KEY_FMT, PATT_MIN_LEN_KEY, run_options->pattern_info.pattern_min_len);
+        fprintf(fp, INT_KEY_FMT, PATT_MAX_LEN_KEY, run_options->pattern_info.pattern_max_len);
+        fprintf(fp, CHAR_KEY_FMT, PATT_INC_OPERATOR_KEY, run_options->pattern_info.increment_operator);
+        fprintf(fp, INT_KEY_FMT, PATT_INCREMENT_BY, run_options->pattern_info.increment_by);
+    }
 
     switch (run_options->algo_source)
     {
@@ -447,8 +455,6 @@ void save_run_options(FILE *fp, const run_command_opts_t *run_options)
             break;
         }
     }
-
-    if (run_options->pattern) fprintf(fp, STR_KEY_FMT, PATTERN_KEY, run_options->pattern);
 
     switch (run_options->data_source)
     {
