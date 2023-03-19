@@ -331,6 +331,7 @@ int get_text(const smart_config_t *smart_config, run_command_opts_t *opts, unsig
         case DATA_SOURCE_USER: {
             info("Using search data supplied on the command line with the %s option.", OPTION_LONG_SEARCH_DATA);
             size = gen_user_data(opts, T);
+            break;
         }
         default: {
             error_and_exit("Undefined source for data: %d\n", opts->data_source);
