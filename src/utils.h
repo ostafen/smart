@@ -163,6 +163,11 @@ void set_filename_suffix_or_exit(char fullname[MAX_PATH_LENGTH], const char *fil
     }
 }
 
+const char *true_false(int value)
+{
+    return value ? "true" : "false";
+}
+
 /*
  * Copies the string in path into the to_path, up to the limit of MAX_PATH_LENGTH.
  * Returns true (1) if it copied the path successfully (even empty), and false (0) if it could not copy the full path.
@@ -366,7 +371,7 @@ void set_env_var_or_default(char path_to_set[MAX_PATH_LENGTH], const char *env_v
 }
 
 /*
- * Sets a time string using the time string format.
+ * Sets a time string to the current date time using the time string format.
  */
 void set_time_string(char *time_string, int size, const char * time_format)
 {
@@ -374,6 +379,16 @@ void set_time_string(char *time_string, int size, const char * time_format)
     struct tm *tm_info;
     time(&date_timer);
     tm_info = localtime(&date_timer);
+    strftime(time_string, size, time_format, tm_info);
+}
+
+/*
+ * Sets a time string using the time string format using the time provided.
+ */
+void set_time_string_with_time(char *time_string, int size, const char * time_format, time_t time_to_format)
+{
+    struct tm *tm_info;
+    tm_info = localtime(&time_to_format);
     strftime(time_string, size, time_format, tm_info);
 }
 
