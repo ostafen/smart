@@ -98,7 +98,108 @@ void output_benchmark_run_summary(const smart_config_t *smart_config, const run_
 }
 
 /*
- * Simple output function to store benchmark results as a tab separate file.
+ * Outputs benchmark measurements as a tab separated CSV file.
+ */
+void output_benchmark_measurements_csv(const smart_config_t *smart_config, const run_command_opts_t *opts, int num_pattern_lengths,
+                                       benchmark_results_t *results, const algo_info_t *algorithms, const int num_bytes)
+{
+    char filename[MAX_PATH_LENGTH];
+    set_experiment_filename(opts, filename, "measurements", "csv");
+
+    char full_path[MAX_PATH_LENGTH];
+    set_full_path_or_exit(full_path, smart_config->smart_results_dir, filename);
+
+    FILE *rf = fopen(full_path, "w");
+
+    fprintf(rf, "PLEN\tALGORITHM\tMEASUREMENT");
+    fprintf(rf, "\tPRE TIME (ms)\tSEARCH TIME (ms)\tTOTAL TIME (ms)\tPRE TIME (Gb/s)\tSEARCH TIME (Gb/s)\tTOTAL TIME (Gb/s)");
+    fprintf(rf, opts->cpu_stats ? "\tL1_CACHE_ACCESS\tL1_CACHE_MISSES\tLL_CACHE_ACCESS\tLL_CACHE_MISSES\tBRANCH INSTRUCTIONS\tBRANCH MISSES\n" : "\n");
+
+    // For each pattern length benchmarked:
+    for (int pattern_len_no = 0; pattern_len_no < num_pattern_lengths; pattern_len_no++)
+    {
+        int pat_len = results[pattern_len_no].pattern_length;
+
+        // For each algorithm:
+        for (int algo_no = 0; algo_no < algorithms->num_algos; algo_no++)
+        {
+            char upper_case_name[ALGO_NAME_LEN];
+            set_upper_case_algo_name(upper_case_name, algorithms->algo_names[algo_no]);
+
+            algo_results_t *algo_res = &(results[pattern_len_no].algo_results[algo_no]);
+            switch (algo_res->success_state)
+            {
+                case SUCCESS:
+                {
+                    algo_measurements_t *measurements = &(algo_res->measurements);
+                    for (int measurement = 0; measurement < opts->num_runs; measurement++)
+                    {
+                        fprintf(rf, "%d\t%s\t%d\t", pat_len, upper_case_name, measurement);
+                        fprintf(rf, "%f\t%f\t%f\t%f\t%f\t%f",
+                                measurements->pre_times[measurement],
+                                measurements->search_times[measurement],
+                                measurements->pre_times[measurement] + measurements->search_times[measurement],
+                                GBs(measurements->pre_times[measurement], pat_len),
+                                GBs(measurements->search_times[measurement], num_bytes),
+                                GBs(measurements->pre_times[measurement] + measurements->search_times[measurement], pat_len + num_bytes));
+                        if (opts->cpu_stats)
+                        {
+                            if (opts->cpu_stats & CPU_STAT_L1_CACHE)
+                                fprintf(rf, "\t%lld\t%lld",
+                                        measurements->cpu_stats[measurement].l1_cache_access,
+                                        measurements->cpu_stats[measurement].l1_cache_misses);
+                            else
+                                fprintf(rf, "\t---\t---");
+
+                            if (opts->cpu_stats & CPU_STAT_LL_CACHE)
+                                fprintf(rf, "\t%lld\t%lld",
+                                        measurements->cpu_stats[measurement].cache_references,
+                                        measurements->cpu_stats[measurement].cache_misses);
+                            else
+                                fprintf(rf, "\t---\t---");
+
+                            if (opts->cpu_stats & CPU_STAT_BRANCHES)
+                                fprintf(rf, "\t%lld\t%lld",
+                                        measurements->cpu_stats[measurement].branch_instructions,
+                                        measurements->cpu_stats[measurement].branch_misses);
+                            else
+                                fprintf(rf, "\t---\t---");
+                        }
+                        fprintf(rf, "\n");
+                    }
+
+                    break;
+                }
+                case CANNOT_SEARCH:
+                {
+                    fprintf(rf, "%d\t%s\t", pat_len, upper_case_name);
+                    write_tabbed_string(rf, "---", opts->cpu_stats ? 13 : 7); //TODO: check this.
+                    fprintf(rf, "\n");
+                    break;
+                }
+                case TIMED_OUT:
+                {
+                    fprintf(rf, "%d\t%s\t", pat_len, upper_case_name);
+                    write_tabbed_string(rf, "OUT", opts->cpu_stats ? 13 : 7); //TODO: check this.
+                    fprintf(rf, "\n");
+                    break;
+                }
+                case ERROR:
+                {
+                    fprintf(rf, "%d\t%s\t", pat_len, upper_case_name);
+                    write_tabbed_string(rf, "ERROR", opts->cpu_stats ? 13 : 7); //TODO: check this.
+                    fprintf(rf, "\n");
+                    break;
+                }
+            }
+        }
+    }
+
+    fclose(rf);
+}
+
+/*
+ * Outputs benchmark statistics as a tab separated CSV file.
  */
 void output_benchmark_statistics_csv(const smart_config_t *smart_config, const run_command_opts_t *opts, int num_pattern_lengths,
                                      benchmark_results_t *results, const algo_info_t *algorithms, const int num_bytes)
@@ -154,8 +255,8 @@ void output_benchmark_statistics_csv(const smart_config_t *smart_config, const r
                     fprintf(rf, "\t%.*f\t%.*f\t%.*f\t%.*f",
                             opts->precision, GBs(stats->mean_search_time, num_bytes),
                             opts->precision, GBs(stats->median_search_time, num_bytes),
-                            opts->precision, GBs(stats->mean_pre_time + stats->mean_search_time, num_bytes),
-                            opts->precision, GBs(stats->median_pre_time + stats->median_search_time, num_bytes));
+                            opts->precision, GBs(stats->mean_pre_time + stats->mean_search_time, pat_len),
+                            opts->precision, GBs(stats->median_pre_time + stats->median_search_time, pat_len));
                     if (opts->cpu_stats)
                     {
                         if (opts->cpu_stats & CPU_STAT_L1_CACHE)
