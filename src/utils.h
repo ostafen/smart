@@ -163,9 +163,20 @@ void set_filename_suffix_or_exit(char fullname[MAX_PATH_LENGTH], const char *fil
     }
 }
 
+/*
+ * returns "true" if the value is not zero, and "false" if the value is zero.
+ */
 const char *true_false(int value)
 {
     return value ? "true" : "false";
+}
+
+/*
+ * Returns a rate in Gigabytes per second, given a time in milliseconds and the number of bytes scanned in that time.
+ */
+double GBs(double time_ms, int num_bytes)
+{
+    return (double) num_bytes / time_ms * 1000 / GIGA_BYTE;
 }
 
 /*
