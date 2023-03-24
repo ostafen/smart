@@ -966,8 +966,8 @@ int remove_failing_test_results(const smart_config_t *smart_config, const algo_i
  */
 void append_passing_test_result(const algo_info_t *algorithms, int algo_no, FILE *tested_algo_file, int num_updated)
 {
-    char time_now[26];
-    set_time_string(time_now, 26, "%Y:%m:%d %H:%M:%S");
+    char time_now[TIME_FORMAT_STRLEN];
+    set_time_string(time_now, TIME_FORMAT_STRLEN, TIME_FORMAT);
 
     char uppercase_algoname[ALGO_NAME_LEN];
     set_upper_case_algo_name(uppercase_algoname, algorithms->algo_names[algo_no]);
@@ -1208,15 +1208,15 @@ void run_tests(const smart_config_t *smart_config, const test_command_opts_t *op
     print_algorithms_as_list("\tTesting ", &algorithms);
     printf("\n");
     print_test_option_messages(opts);
-    char time_format[26];
-    set_time_string(time_format, 26, "%Y:%m:%d %H:%M:%S");
+    char time_format[TIME_FORMAT_STRLEN];
+    set_time_string(time_format, TIME_FORMAT_STRLEN, TIME_FORMAT);
     info("Algorithm correctness tests started at %s", time_format);
 
     // Test
     test_algos(smart_config, opts, &algorithms);
 
     // Finish testing.
-    set_time_string(time_format, 26, "%Y:%m:%d %H:%M:%S");
+    set_time_string(time_format, TIME_FORMAT_STRLEN, TIME_FORMAT);
     info("Algorithm correctness tests finished at %s", time_format);
     unload_algos(&algorithms);
 }
