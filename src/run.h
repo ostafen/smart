@@ -54,7 +54,7 @@ void gen_patterns(const run_command_opts_t *opts, unsigned char *patterns[], int
  * Returns the status of attempting to measure the algorithm performance.
  */
 enum measurement_status run_algo(unsigned char **pattern_list, int m,
-                                 unsigned char *T, int n, const run_command_opts_t *opts,
+                                 unsigned char *T, const run_command_opts_t *opts,
                                  search_function *search_func, algo_results_t *results)
 {
     enum measurement_status status = SUCCESS; // assume success, errors will update it.
@@ -75,12 +75,13 @@ enum measurement_status run_algo(unsigned char **pattern_list, int m,
             cpu_perf_start(&perf_events);
         }
 
-        int occur = search_func(P, m, T, n, &(results->measurements.search_times[k]), &(results->measurements.pre_times[k]));
+        int occur = search_func(P, m, T, opts->text_stats.text_actual_length, &(results->measurements.search_times[k]), &(results->measurements.pre_times[k]));
 
         if (getting_cpu_stats) {
             cpu_perf_end(&perf_events, &(results->measurements.cpu_stats[k]));
         }
 
+        //TODO: for user supplied patterns and/or data, it is possible to have zero matches and not be an error.
         if (occur == 0 || occur == ERROR_SEARCHING)
         {
             status = ERROR;
@@ -266,7 +267,7 @@ void print_benchmark_status(const int algo, const algo_info_t *algorithms)
 /*
  * Benchmarks all selected algorithms using a set of random patterns of a set length.
  */
-int benchmark_algos_with_patterns(algo_results_t *results, const run_command_opts_t *opts, unsigned char *T, int n,
+int benchmark_algos_with_patterns(algo_results_t *results, const run_command_opts_t *opts, unsigned char *T,
                                   unsigned char **pattern_list, int m, const algo_info_t *algorithms)
 {
     info("\n------------------------------------------------------------");
@@ -280,7 +281,7 @@ int benchmark_algos_with_patterns(algo_results_t *results, const run_command_opt
         print_benchmark_status(algo, algorithms);
 
         results[algo].algo_id = algo;
-        results[algo].success_state = run_algo(pattern_list, m, T, n, opts, algorithms->algo_functions[algo], results + algo);
+        results[algo].success_state = run_algo(pattern_list, m, T, opts, algorithms->algo_functions[algo], results + algo);
 
         if (results[algo].success_state == SUCCESS)
             calculate_algo_statistics(results + algo, opts->num_runs);
@@ -292,18 +293,20 @@ int benchmark_algos_with_patterns(algo_results_t *results, const run_command_opt
 /*
  * Prints statistics about the text contained in T of length n.
  */
-void print_text_info(const unsigned char *T, int n)
+void print_text_info(const unsigned char *T, run_command_opts_t *opts)
 {
-    info("Text buffer of dimension %d byte", n);
+    info("Text buffer of dimension %d byte", opts->text_stats.text_actual_length);
 
-    int freq[SIGMA];
-    compute_frequency(T, n, freq);
+    compute_frequency(T, opts->text_stats.text_actual_length, opts->text_stats.freq);
+    compute_alphabet_info(opts->text_stats.freq, &(opts->text_stats.text_alphabet),
+                          &(opts->text_stats.text_smallest_character_code),
+                          &(opts->text_stats.text_greater_character_code));
+    opts->text_stats.shannon_entropy_byte = compute_shannon_entropy(opts->text_stats.freq, opts->text_stats.text_actual_length);
 
-    int alphabet_size, max_code;
-    compute_alphabet_info(freq, &alphabet_size, &max_code);
-
-    info("Alphabet of %d characters.", alphabet_size);
-    info("Greater chararacter has code %d.\n", max_code);
+    info("Alphabet of %d characters with a shannon entropy of %.*f bits per byte.",
+         opts->text_stats.text_alphabet, opts->precision, opts->text_stats.shannon_entropy_byte);
+    info("Smallest character has code %d and greatest has code %d.",
+         opts->text_stats.text_smallest_character_code, opts->text_stats.text_greater_character_code);
 }
 
 /*
@@ -405,7 +408,7 @@ void free_pattern_matrix(unsigned char **M, size_t num_entries)
  * Benchmarks all algorithms over a text T for all pattern lengths.
  */
 void benchmark_algorithms_with_text(const smart_config_t *smart_config, run_command_opts_t *opts,
-                                    unsigned char *T, int n, const algo_info_t *algorithms)
+                                    unsigned char *T, const algo_info_t *algorithms)
 {
     int max_pattern_length;
     int num_pattern_lengths = get_num_pattern_lengths_to_run(opts, &max_pattern_length);
@@ -420,15 +423,13 @@ void benchmark_algorithms_with_text(const smart_config_t *smart_config, run_comm
     for (int m = opts->pattern_info.pattern_min_len, patt_len_idx = 0; m <= max_pattern_length;
              m = next_pattern_length(&(opts->pattern_info), m), patt_len_idx++)
     {
-        gen_patterns(opts, pattern_list, m, T, n, opts->num_runs);
+        gen_patterns(opts, pattern_list, m, T, opts->text_stats.text_actual_length, opts->num_runs);
         results[patt_len_idx].pattern_length = m;
-        benchmark_algos_with_patterns(results[patt_len_idx].algo_results, opts, T, n, pattern_list, m, algorithms);
+        benchmark_algos_with_patterns(results[patt_len_idx].algo_results, opts, T, pattern_list, m, algorithms);
     }
     opts->finished_date = time(NULL);
 
-    output_benchmark_run_summary(smart_config, opts, algorithms, n);
-    output_benchmark_statistics_csv(smart_config, opts, num_pattern_lengths, results, algorithms, n);
-    output_benchmark_measurements_csv(smart_config, opts, num_pattern_lengths, results, algorithms, n);
+    output_results(smart_config, opts, results, num_pattern_lengths, algorithms);
 
     free_pattern_matrix(pattern_list, opts->num_runs);
     free_benchmark_results(results, num_pattern_lengths, algorithms->num_algos);
@@ -478,8 +479,8 @@ void load_and_run_benchmarks(const smart_config_t *smart_config, run_command_opt
 {
     // Get the text to search in.
     unsigned char *T = (unsigned char *)malloc(get_text_buffer_size(opts->text_size, opts->pattern_info.pattern_max_len));
-    int n = get_text(smart_config, opts, T);
-    print_text_info(T, n);
+    opts->text_stats.text_actual_length = get_text(smart_config, opts, T);
+    print_text_info(T, opts);
 
     // Load the algorithm shared object libraries to benchmark.
     sort_algorithm_names(algorithms);
@@ -496,7 +497,7 @@ void load_and_run_benchmarks(const smart_config_t *smart_config, run_command_opt
     set_time_string(time_format, 26, "%Y:%m:%d %H:%M:%S");
     info("Experimental tests with code %s started on %s", opts->expcode, time_format);
 
-    benchmark_algorithms_with_text(smart_config, opts, T, n, algorithms);
+    benchmark_algorithms_with_text(smart_config, opts, T, algorithms);
 
     set_time_string(time_format, 26, "%Y:%m:%d %H:%M:%S");
     info("Experimental tests with code %s finished on %s", opts->expcode, time_format);
