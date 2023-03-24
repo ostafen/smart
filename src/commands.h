@@ -229,6 +229,19 @@ const char *get_cpu_pin_type_description(enum cpu_pin_type pin_type)
 }
 
 /*
+ * Statistics about the text being searched
+ */
+typedef struct text_statistics
+{
+    int freq[SIGMA];                             // frequency table for characters in text.
+    int text_actual_length;                      // actual length of text used for benchmarking.
+    int text_alphabet;                           // computed alphabet of the text.
+    double shannon_entropy_byte;                 // The shannon entropy of the text at a byte level (bits per byte).
+    int text_smallest_character_code;            // smallest character code in the text.
+    int text_greater_character_code;             // largest character code in the text.
+} text_statistics_t;
+
+/*
  * Options for the run subcommand.
  */
 typedef struct run_command_opts
@@ -239,7 +252,7 @@ typedef struct run_command_opts
     int num_algo_names;                          // Number of algo names recorded.
     enum data_source_type data_source;           // What type of data is to be scanned - files or random.
     const char *data_sources[MAX_DATA_SOURCES];  // A list of files/data_sources to load data from.
-    int text_size;                               // Size of the text buffer for benchmarking.
+    int text_size;                               // Max size of the text buffer for benchmarking.
     int fill_buffer;                             // Boolean flag - whether to replicate data to fill up a buffer.
     int alphabet_size;                           // Size of the alphabet to use when creating random texts.
     pattern_len_info_t pattern_info;             // Information about what pattern lengths to benchmark.
@@ -254,11 +267,13 @@ typedef struct run_command_opts
     int cpu_stats;                               // A bitmask of cpu stats to acquire.  Zero means no stats to gather, 001 = L1 cache, 010 = last cache, 100 = branches.
     int occ;                                     // Boolean flag - whether to report total occurrences.
     int pre;                                     // Boolean flag - whether to report pre-processing time separately.
+    int dif;                                     // Boolean flag - whether to report min-max times by default in the html.
     time_t creation_date;                        // The date/time the experiment was created.
     time_t started_date;                         // The date/time the benchmarking started.
     time_t finished_date;                        // The date time when benchmarking finished.
     char expcode[STR_BUF];                       // A code generated to identify this benchmarking run.
     int precision;                               // number of decimal points to round to for results.  Defaults to 2.
+    text_statistics_t text_stats;                // statistics about the text being searched.
     const char *description;                     // an optional description for the experiment.
 } run_command_opts_t;
 
@@ -297,11 +312,15 @@ void init_run_command_opts(run_command_opts_t *opts)
     opts->fill_buffer = FALSE;
     opts->cpu_stats = FALSE;
     opts->pre = FALSE;
+    opts->dif = FALSE;
     opts->occ = 0;
     opts->precision = DEFAULT_PRECISION;
     opts->description = NULL;
     opts->creation_date = time(NULL);
     opts->finished_date = 0;
+    opts->text_stats.text_actual_length = 0;
+    opts->text_stats.text_alphabet = 0;
+    opts->text_stats.text_greater_character_code = 0;
     snprintf(opts->expcode, STR_BUF, "EXP%d", (int) opts->creation_date);
 }
 
@@ -361,11 +380,7 @@ void print_run_usage_and_exit(const char *command)
     exit(0);
 }
 
-void load_run_options(const char *filename, run_command_opts_t *run_options)
-{
-    //TODO: will allow loading a previous experiment run and replaying it,
-    //      optionally overriding specific parameters on the command line.
-}
+
 
 const char *CHAR_KEY_FMT = "%s\t%c\n";
 const char *STR_KEY_FMT = "%s\t%s\n";
@@ -407,13 +422,40 @@ static char *const SELECTED_ALGORITHMS = "Algorithms in the selected set.";
 static char *const ALGORITHMS_IN_NAMED_SET = "Algorithms in the named set.";
 
 /*
+ * Lists the cpu stats being captured in the cpu_stats bitmask as a comma delimited string.
+ */
+void set_cpu_stat_names(int cpu_stats, char names[MAX_LINE_LEN]) {
+    names[0] = STR_END_CHAR;
+    int written_text = 0;
+
+    if (cpu_stats & CPU_STAT_L1_CACHE)
+    {
+        strcat(names, "first level cache");
+        written_text = 1;
+    }
+    if (cpu_stats & CPU_STAT_LL_CACHE)
+    {
+        if (written_text) strcat(names, ", ");
+        strcat(names, "last level cache");
+        written_text = 1;
+    }
+    if (cpu_stats & CPU_STAT_BRANCHES) {
+        if (written_text) strcat(names, ", ");
+        strcat(names, "branch predictions");
+        written_text = 1;
+    }
+
+    if (!written_text) strcat(names, "none");
+}
+
+/*
  * Saves the run options into a tab delimited key-value pair, with one value on each line.
  */
 void save_run_options(FILE *fp, const run_command_opts_t *run_options)
 {
     fprintf(fp, STR_KEY_FMT, EXPCODE_KEY, run_options->expcode);
     char time_string[26];
-    set_time_string_with_time(time_string, 26, "%Y:%m:%d %H:%M:%S", run_options->creation_date);
+    set_time_string_with_time(time_string, 26, TIME_FORMAT, run_options->creation_date);
     fprintf(fp, STR_KEY_FMT, CREATION_DATETIME, time_string);
     if (run_options->description) fprintf(fp, STR_KEY_FMT, DESCRIPTION_KEY, run_options->description);
 
