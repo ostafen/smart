@@ -1,17 +1,19 @@
 #ifndef SMART_DATA_SOURCES_H
 #define SMART_DATA_SOURCES_H
 
+#include "math.h"
 #include "config.h"
 #include "commands.h"
 
 /*
  * Computes information about the size of the alphabet contained in character frequency table freq, and gives
- * both the number of unique characters, and the maximum character code it contains.
+ * both the number of unique characters, and the minimum and maximum character code it contains.
  */
-void compute_alphabet_info(const int *freq, int *alphabet_size, int *max_code)
+void compute_alphabet_info(const int *freq, int *alphabet_size, int *min_code, int *max_code)
 {
     *alphabet_size = 0;
     *max_code = 0;
+    *min_code = 256;
     for (int c = 0; c < SIGMA; c++)
     {
         if (freq[c] != 0)
@@ -20,8 +22,31 @@ void compute_alphabet_info(const int *freq, int *alphabet_size, int *max_code)
 
             if (c > *max_code)
                 *max_code = c;
+
+            if (c < *min_code)
+                *min_code = c;
         }
     }
+}
+
+/*
+ * Computes the shannon entropy given a character frequency table and size of text.
+ * Result will be a number between 0 and 8, representing the number of bits per byte required to encode the information.
+ */
+double compute_shannon_entropy(const int *freq, const int size)
+{
+    double shannonEntropy = 0.0;
+    double log2 = log(2);
+    for(int j = 0; j < SIGMA; j++)
+    {
+        const int value = freq[j];
+        if (value > 0.0)
+        {
+            const double frequency = (double) value / (double) size;
+            shannonEntropy -= (frequency * (log(frequency) / log2));
+        }
+    }
+    return shannonEntropy;
 }
 
 /*
