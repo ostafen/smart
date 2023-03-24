@@ -380,12 +380,11 @@ void print_run_usage_and_exit(const char *command)
     exit(0);
 }
 
-
-
 const char *CHAR_KEY_FMT = "%s\t%c\n";
 const char *STR_KEY_FMT = "%s\t%s\n";
 const char *INT_KEY_FMT = "%s\t%d\n";
 const char *LONG_KEY_FMT = "%s\t%ld\n";
+const char *DOUBLE_KEY_FMT = "%s\t%*.f\n"; // requires precision of double to be specified as well as value.
 
 static char *const EXPCODE_KEY = "Experiment code";
 static char *const CREATION_DATETIME = "Creation date time";
@@ -516,7 +515,11 @@ void save_run_options(FILE *fp, const run_command_opts_t *run_options)
             if (run_options->data_to_search)
                 fprintf(fp, STR_KEY_FMT, DATA_TO_SEARCH_KEY, run_options->data_to_search);
             else
-                fprintf(fp, STR_KEY_FMT, DATA_TO_SEARCH_KEY, "No data was provided.");
+                fprintf(fp, STR_KEY_FMT, DATA_TO_SEARCH_KEY, "ERROR: No data was provided.");
+            break;
+        }
+        default: {
+            fprintf(fp, STR_KEY_FMT, DATA_TO_SEARCH_KEY, "ERROR: No data was provided.");
             break;
         }
     }
