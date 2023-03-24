@@ -104,5 +104,6 @@
  * Miscellaneous string defines.
  */
 #define STR_END_CHAR '\0'                 // zero char to terminate strings.
+#define TIME_FORMAT "%Y:%m:%d %H:%M:%S"   // format for time strings.
 
 #endif //SMART_DEFINES_H
