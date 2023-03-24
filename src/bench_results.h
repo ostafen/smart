@@ -45,7 +45,6 @@ typedef struct algo_statistics
     double max_pre_time;
     double mean_pre_time;
     double median_pre_time;
-    //TODO: do we want standard deviation of pre-processing?  It's normally a very small time.
 
     double min_total_time;
     double max_total_time;
@@ -53,7 +52,7 @@ typedef struct algo_statistics
     double median_total_time;
     double std_total_time;
 
-    cpu_stats_t sum_cpu_stats;    //TODO: we only provide total sums here across all executions, not a mean.  I think this is OK, but needs normalising?
+    cpu_stats_t sum_cpu_stats;
 } algo_statistics_t;
 
 /*
