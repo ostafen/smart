@@ -494,16 +494,22 @@ void load_and_run_benchmarks(const smart_config_t *smart_config, run_command_opt
     load_test_status(smart_config, algorithms);
 
     // Benchmark the algorithms:
-    char time_format[26];
-    set_time_string(time_format, 26, "%Y:%m:%d %H:%M:%S");
+    char time_format[TIME_FORMAT_STRLEN];
+    set_time_string(time_format, TIME_FORMAT_STRLEN, TIME_FORMAT);
     info("Experimental tests with code %s started on %s", opts->expcode, time_format);
 
     benchmark_algorithms_with_text(smart_config, opts, T, algorithms);
 
-    set_time_string(time_format, 26, "%Y:%m:%d %H:%M:%S");
+    set_time_string(time_format, TIME_FORMAT_STRLEN, TIME_FORMAT);
     info("Experimental tests with code %s finished on %s\n", opts->expcode, time_format);
 
-    if (!opts->save_results)
+    if (opts->save_results)
+    {
+        char experiment_filenames[MAX_PATH_LENGTH];
+        set_experiment_filename(opts, experiment_filenames, "*", "*");
+        info("Results saved to the \"%s\" folder with filenames \"%s\"", smart_config->smart_results_dir, experiment_filenames);
+    }
+    else
         warn("Running with the %s option - benchmark results have not been saved.", FLAG_LONG_NO_SAVE);
 
     // Unload search algorithms and free text.
