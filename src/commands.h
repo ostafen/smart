@@ -203,6 +203,8 @@ static char *const FLAG_SHORT_PATTERN_LENGTHS_SHORT = "-short";
 static char *const FLAG_LONG_PATTERN_LENGTHS_SHORT = "--short-patterns";
 static char *const FLAG_SHORT_PATTERN_LENGTHS_VERY_SHORT = "-vshort";
 static char *const FLAG_LONG_PATTERN_LENGTHS_VERY_SHORT = "--very-short";
+static char *const FLAG_SHORT_NO_SAVE = "-ns";
+static char *const FLAG_LONG_NO_SAVE = "--no-save";
 
 /*
  * Type of data source to use for benchmarking.
@@ -268,6 +270,7 @@ typedef struct run_command_opts
     int occ;                                     // Boolean flag - whether to report total occurrences.
     int pre;                                     // Boolean flag - whether to report pre-processing time separately.
     int dif;                                     // Boolean flag - whether to report min-max times by default in the html.
+    int save_results;                            // Boolean flag - whether to save benchmark results to files.
     time_t creation_date;                        // The date/time the experiment was created.
     time_t started_date;                         // The date/time the benchmarking started.
     time_t finished_date;                        // The date time when benchmarking finished.
@@ -313,7 +316,8 @@ void init_run_command_opts(run_command_opts_t *opts)
     opts->cpu_stats = FALSE;
     opts->pre = FALSE;
     opts->dif = FALSE;
-    opts->occ = 0;
+    opts->occ = FALSE;
+    opts->save_results = TRUE;
     opts->precision = DEFAULT_PRECISION;
     opts->description = NULL;
     opts->creation_date = time(NULL);
@@ -331,7 +335,7 @@ void print_run_usage_and_exit(const char *command)
 {
     print_logo();
 
-    printf("\n usage: %s [algo names...] [-text | -rand | -data | -plen | -inc | -short | -vshort | -pat | -use | -all | -runs | -ts | -fb | -rs | -pre | -occ | -tb | -pin | -cstats | -desc | -h]\n\n", command);
+    printf("\n usage: %s [algo names...] [-text | -rand | -data | -plen | -inc | -short | -vshort | -pat | -use | -all | -runs | -ts | -fb | -rs | -pre | -occ | -tb | -pin | -cstats | -desc | -ns | -h]\n\n", command);
 
     printf("\tYou can specify algorithms to benchmark directly as POSIX regular expressions, e.g. smart run bsdm.* hor ...\n");
     printf("\tIf you do not specify any algorithms on the command line or by another command, the default selected algorithms will be used.\n\n");
@@ -371,8 +375,7 @@ void print_run_usage_and_exit(const char *command)
     print_help_line("If no parameters are provided, defaults to obtaining L1 cache and branch instructions.", "", "", "");
     print_help_line("Note that the number of CPU stats it is possible to obtain simultaneously varies by CPU.", "", "", "");
     print_help_line("An optional description to add to the experiment, which will be included in the filenames of the output.", OPTION_SHORT_DESCRIPTION, OPTION_LONG_DESCRIPTION, "D");
-    //print_help_line("Output results in txt tabular format", FLAG_TEXT_OUTPUT, "", "");
-    //print_help_line("Output results in latex tabular format", FLAG_LATEX_OUTPUT, "", "");
+    print_help_line("Stops results from being saved to files in the results folder.", FLAG_SHORT_NO_SAVE, FLAG_LONG_NO_SAVE, "");
     print_help_line("Gives this help list.", OPTION_SHORT_HELP, OPTION_LONG_HELP, "");
 
     printf("\n\n");

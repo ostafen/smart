@@ -511,6 +511,10 @@ int parse_flag(run_command_opts_t *opts, int curr_arg, int argc, const char **ar
     {
         opts->algo_source = ALL_ALGOS;
     }
+    else if (matches_option(argv[curr_arg], FLAG_SHORT_NO_SAVE, FLAG_LONG_NO_SAVE))
+    {
+        opts->save_results = FALSE;
+    }
     else
     {
         return 0; // did not match.

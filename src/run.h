@@ -429,7 +429,8 @@ void benchmark_algorithms_with_text(const smart_config_t *smart_config, run_comm
     }
     opts->finished_date = time(NULL);
 
-    output_results(smart_config, opts, results, num_pattern_lengths, algorithms);
+    if (opts->save_results)
+        output_results(smart_config, opts, results, num_pattern_lengths, algorithms);
 
     free_pattern_matrix(pattern_list, opts->num_runs);
     free_benchmark_results(results, num_pattern_lengths, algorithms->num_algos);
@@ -500,7 +501,10 @@ void load_and_run_benchmarks(const smart_config_t *smart_config, run_command_opt
     benchmark_algorithms_with_text(smart_config, opts, T, algorithms);
 
     set_time_string(time_format, 26, "%Y:%m:%d %H:%M:%S");
-    info("Experimental tests with code %s finished on %s", opts->expcode, time_format);
+    info("Experimental tests with code %s finished on %s\n", opts->expcode, time_format);
+
+    if (!opts->save_results)
+        warn("Running with the %s option - benchmark results have not been saved.", FLAG_LONG_NO_SAVE);
 
     // Unload search algorithms and free text.
     unload_algos(algorithms);
