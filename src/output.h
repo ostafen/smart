@@ -18,16 +18,24 @@
  */
 
 #include "config.h"
+#include "utils.h"
 #include "commands.h"
 #include "bench_results.h"
 
 static char *const NUM_ALGORITHMS_BENCHMARKED_KEY = "Num algorithms benchmarked";
 static char *const ALGORITHM_BENCHMARKED_KEY = "Algorithm benchmarked";
 static char *const TEXT_LENGTH_KEY = "Text length";
+static char *const TEXT_MIN_CHAR_CODE = "Text minimum character code";
+static char *const TEXT_MAX_CHAR_CODE = "Text maximum character code";
+static char *const TEXT_SHANNON_ENTROPY = "Text shannon entropy";
 static char *const STARTED_BENCHMARKING = "Started benchmarking";
 static char *const FINISHED_BENCHMARKING = "Finished benchmarking";
 
+static const int COLOR_STRING_LENGTH = 22;
 
+/*
+ * Sets the filename of an experiment using the experiment code, an optional description, and a suffix.
+ */
 void set_experiment_filename(const run_command_opts_t *opts, char file_name[MAX_PATH_LENGTH], const char *output_type, const char *suffix)
 {
     if (opts->description)
@@ -40,11 +48,59 @@ void set_experiment_filename(const run_command_opts_t *opts, char file_name[MAX_
     }
 }
 
-double GBs(double time_ms, int num_bytes)
+/*
+ * Opens an experiment file for writing with the given description and suffix.
+ */
+FILE *open_experiment_file_for_writing(const smart_config_t *smart_config, const run_command_opts_t *opts,
+                                       const char *description, const char *suffix)
 {
-    return (double) num_bytes / time_ms * 1000 / GIGA_BYTE;
+    char filename[MAX_PATH_LENGTH];
+    set_experiment_filename(opts, filename, description, suffix);
+
+    char full_path[MAX_PATH_LENGTH];
+    set_full_path_or_exit(full_path, smart_config->smart_results_dir, filename);
+
+    return fopen(full_path, "w");
 }
 
+
+/*
+ * Sets a description of the data source for the search text.
+ */
+void set_data_source_description(const run_command_opts_t *opts, char description[MAX_LINE_LEN])
+{
+    switch (opts->data_source)
+    {
+        case DATA_SOURCE_FILES:
+        {
+            description[0] = STR_END_CHAR;
+            for (int i = 0; i < MAX_DATA_SOURCES && opts->data_sources[i] != NULL; i++)
+            {
+                if (i > 0) strcat(description, ", ");
+                strcat(description, opts->data_sources[i]);
+            }
+            break;
+        }
+        case DATA_SOURCE_RANDOM:
+        {
+            snprintf(description, MAX_LINE_LEN, "Random alphabet %d", opts->alphabet_size);
+            break;
+        }
+        case DATA_SOURCE_USER:
+        {
+            snprintf(description, MAX_LINE_LEN, "%s", "Command line");
+            break;
+        }
+        default: {
+            snprintf(description, MAX_LINE_LEN, "%s", "ERROR: data source not defined.");
+        }
+    }
+}
+
+/*
+ * Repeats a string a number of times separated by tab characters.
+ * This is useful to write rows of a tab separated CSV file with the same value (e.g. "OUT").
+ */
 void write_tabbed_string(FILE *fp, const char *string, int num_repetitions)
 {
     if (num_repetitions > 0)
@@ -61,20 +117,17 @@ void write_tabbed_string(FILE *fp, const char *string, int num_repetitions)
  * Writes out the summary of the experiment run to a text file.
  */
 void output_benchmark_run_summary(const smart_config_t *smart_config, const run_command_opts_t *opts,
-                                  const algo_info_t *algorithms, const int n)
+                                  const algo_info_t *algorithms)
 {
-    char file_name[MAX_PATH_LENGTH];
-    set_experiment_filename(opts, file_name, "experiment", "txt");
-
-    char full_path[MAX_PATH_LENGTH];
-    set_full_path_or_exit(full_path, smart_config->smart_results_dir, file_name);
-
-    FILE *sf = fopen(full_path, "w");
+    FILE *sf = open_experiment_file_for_writing(smart_config, opts, "experiment", "txt");
 
     save_run_options(sf, opts);
 
-    fprintf(sf, INT_KEY_FMT, TEXT_LENGTH_KEY, n);
-    
+    fprintf(sf, INT_KEY_FMT, TEXT_LENGTH_KEY, opts->text_stats.text_actual_length);
+    fprintf(sf, INT_KEY_FMT, TEXT_MIN_CHAR_CODE, opts->text_stats.text_smallest_character_code);
+    fprintf(sf, INT_KEY_FMT, TEXT_MAX_CHAR_CODE, opts->text_stats.text_greater_character_code);
+    fprintf(sf, DOUBLE_KEY_FMT, TEXT_SHANNON_ENTROPY, opts->precision, opts->text_stats.shannon_entropy_byte);
+
     fprintf(sf, INT_KEY_FMT, NUM_ALGORITHMS_BENCHMARKED_KEY, algorithms->num_algos);
     for (int i = 0; i < algorithms->num_algos; i++)
     {
@@ -87,11 +140,11 @@ void output_benchmark_run_summary(const smart_config_t *smart_config, const run_
         fprintf(sf, STR_KEY_FMT, PINNED_CPU_KEY, "not pinned");
 
     char time_string[26];
-    set_time_string_with_time(time_string, 26, "%Y:%m:%d %H:%M:%S", opts->started_date);
+    set_time_string_with_time(time_string, 26, TIME_FORMAT, opts->started_date);
     fprintf(sf, STR_KEY_FMT, STARTED_BENCHMARKING, time_string);
 
     
-    set_time_string_with_time(time_string, 26, "%Y:%m:%d %H:%M:%S", opts->finished_date);
+    set_time_string_with_time(time_string, 26, TIME_FORMAT, opts->finished_date);
     fprintf(sf, STR_KEY_FMT, FINISHED_BENCHMARKING, time_string);
     
     fclose(sf);
@@ -101,18 +154,16 @@ void output_benchmark_run_summary(const smart_config_t *smart_config, const run_
  * Outputs benchmark measurements as a tab separated CSV file.
  */
 void output_benchmark_measurements_csv(const smart_config_t *smart_config, const run_command_opts_t *opts, int num_pattern_lengths,
-                                       benchmark_results_t *results, const algo_info_t *algorithms, const int num_bytes)
+                                       benchmark_results_t *results, const algo_info_t *algorithms)
 {
-    char filename[MAX_PATH_LENGTH];
-    set_experiment_filename(opts, filename, "measurements", "csv");
+    const int MEASUREMENT_COLUMNS = 7;
+    const int CPU_STAT_COLUMNS = 6;
+    const int TOTAL_COLUMNS = MEASUREMENT_COLUMNS + CPU_STAT_COLUMNS;
 
-    char full_path[MAX_PATH_LENGTH];
-    set_full_path_or_exit(full_path, smart_config->smart_results_dir, filename);
+    FILE *rf = open_experiment_file_for_writing(smart_config, opts, "measurements", "csv");
 
-    FILE *rf = fopen(full_path, "w");
-
-    fprintf(rf, "PLEN\tALGORITHM\tMEASUREMENT");
-    fprintf(rf, "\tPRE TIME (ms)\tSEARCH TIME (ms)\tTOTAL TIME (ms)\tPRE TIME (Gb/s)\tSEARCH TIME (Gb/s)\tTOTAL TIME (Gb/s)");
+    fprintf(rf, "EXPERIMENT\tPLEN\tALGORITHM");
+    fprintf(rf, "\tMEASUREMENT\tPRE TIME (ms)\tSEARCH TIME (ms)\tTOTAL TIME (ms)\tPRE TIME (Gb/s)\tSEARCH TIME (Gb/s)\tTOTAL TIME (Gb/s)");
     fprintf(rf, opts->cpu_stats ? "\tL1_CACHE_ACCESS\tL1_CACHE_MISSES\tLL_CACHE_ACCESS\tLL_CACHE_MISSES\tBRANCH INSTRUCTIONS\tBRANCH MISSES\n" : "\n");
 
     // For each pattern length benchmarked:
@@ -134,14 +185,14 @@ void output_benchmark_measurements_csv(const smart_config_t *smart_config, const
                     algo_measurements_t *measurements = &(algo_res->measurements);
                     for (int measurement = 0; measurement < opts->num_runs; measurement++)
                     {
-                        fprintf(rf, "%d\t%s\t%d\t", pat_len, upper_case_name, measurement);
+                        fprintf(rf, "%s\t%d\t%s\t%d\t", opts->expcode, pat_len, upper_case_name, measurement);
                         fprintf(rf, "%f\t%f\t%f\t%f\t%f\t%f",
                                 measurements->pre_times[measurement],
                                 measurements->search_times[measurement],
                                 measurements->pre_times[measurement] + measurements->search_times[measurement],
                                 GBs(measurements->pre_times[measurement], pat_len),
-                                GBs(measurements->search_times[measurement], num_bytes),
-                                GBs(measurements->pre_times[measurement] + measurements->search_times[measurement], pat_len + num_bytes));
+                                GBs(measurements->search_times[measurement], opts->text_stats.text_actual_length),
+                                GBs(measurements->pre_times[measurement] + measurements->search_times[measurement], pat_len + opts->text_stats.text_actual_length));
                         if (opts->cpu_stats)
                         {
                             if (opts->cpu_stats & CPU_STAT_L1_CACHE)
@@ -172,22 +223,22 @@ void output_benchmark_measurements_csv(const smart_config_t *smart_config, const
                 }
                 case CANNOT_SEARCH:
                 {
-                    fprintf(rf, "%d\t%s\t", pat_len, upper_case_name);
-                    write_tabbed_string(rf, "---", opts->cpu_stats ? 13 : 7); //TODO: check this.
+                    fprintf(rf, "%s\t%d\t%s\t", opts->expcode, pat_len, upper_case_name);
+                    write_tabbed_string(rf, "---", opts->cpu_stats ? TOTAL_COLUMNS : MEASUREMENT_COLUMNS);
                     fprintf(rf, "\n");
                     break;
                 }
                 case TIMED_OUT:
                 {
-                    fprintf(rf, "%d\t%s\t", pat_len, upper_case_name);
-                    write_tabbed_string(rf, "OUT", opts->cpu_stats ? 13 : 7); //TODO: check this.
+                    fprintf(rf, "%s\t%d\t%s\t", opts->expcode, pat_len, upper_case_name);
+                    write_tabbed_string(rf, "OUT", opts->cpu_stats ? TOTAL_COLUMNS : MEASUREMENT_COLUMNS);
                     fprintf(rf, "\n");
                     break;
                 }
                 case ERROR:
                 {
-                    fprintf(rf, "%d\t%s\t", pat_len, upper_case_name);
-                    write_tabbed_string(rf, "ERROR", opts->cpu_stats ? 13 : 7); //TODO: check this.
+                    fprintf(rf, "%s\t%d\t%s\t", opts->expcode, pat_len, upper_case_name);
+                    write_tabbed_string(rf, "ERROR", opts->cpu_stats ? TOTAL_COLUMNS : MEASUREMENT_COLUMNS);
                     fprintf(rf, "\n");
                     break;
                 }
@@ -200,19 +251,26 @@ void output_benchmark_measurements_csv(const smart_config_t *smart_config, const
 
 /*
  * Outputs benchmark statistics as a tab separated CSV file.
+ *
+ * It records the minimum, maximum, mean and median timings for pre-processing, search and their total.
+ * For search, it also records the standard deviation of the mean timings.
+ *
+ * Times are also given in Gigabytes / second, which is a more portable metric as it takes into account the length
+ * of text which was searched.  If different experiments have different size texts, then only timings in Gb/s would
+ * be comparable between them.
+ *
+ * Any CPU statistics captured will be output as additional columns on the end if they are present.
  */
 void output_benchmark_statistics_csv(const smart_config_t *smart_config, const run_command_opts_t *opts, int num_pattern_lengths,
-                                     benchmark_results_t *results, const algo_info_t *algorithms, const int num_bytes)
+                                     benchmark_results_t *results, const algo_info_t *algorithms)
 {
-    char filename[MAX_PATH_LENGTH];
-    set_experiment_filename(opts, filename, "statistics", "csv");
+    FILE *rf = open_experiment_file_for_writing(smart_config, opts, "statistics", "csv");
 
-    char full_path[MAX_PATH_LENGTH];
-    set_full_path_or_exit(full_path, smart_config->smart_results_dir, filename);
+    const int MEASUREMENT_COLUMNS = 18;
+    const int CPU_STAT_COLUMNS = 6;
+    const int TOTAL_COLUMNS = MEASUREMENT_COLUMNS + CPU_STAT_COLUMNS;
 
-    FILE *rf = fopen(full_path, "w");
-
-    fprintf(rf, "PLEN\tALGORITHM");
+    fprintf(rf, "EXPERIMENT\tPLEN\tALGORITHM");
     fprintf(rf, "\tMIN PRE TIME (ms)\tMAX PRE TIME (ms)\tMEAN PRE TIME (ms)\tMEDIAN PRE TIME (ms)");
     fprintf(rf, "\tMIN SEARCH TIME (ms)\tMAX SEARCH TIME (ms)\tMEAN SEARCH TIME (ms)\tSTD DEVIATION\tMEDIAN SEARCH TIME (ms)");
     fprintf(rf, "\tMIN TOTAL TIME (ms)\tMAX TOTAL TIME (ms)\tMEAN TOTAL TIME (ms)\tTOTAL STD DEVIATION\tMEDIAN TOTAL TIME (ms");
@@ -229,7 +287,7 @@ void output_benchmark_statistics_csv(const smart_config_t *smart_config, const r
         {
             char upper_case_name[ALGO_NAME_LEN];
             set_upper_case_algo_name(upper_case_name, algorithms->algo_names[algo_no]);
-            fprintf(rf, "%d\t%s\t", pat_len, upper_case_name);
+            fprintf(rf, "%s\t%d\t%s\t", opts->expcode, pat_len, upper_case_name);
 
             algo_results_t *algo_res = &(results[pattern_len_no].algo_results[algo_no]);
             switch (algo_res->success_state)
@@ -253,8 +311,8 @@ void output_benchmark_statistics_csv(const smart_config_t *smart_config, const r
                             opts->precision, stats->std_total_time,
                             opts->precision, stats->median_total_time);
                     fprintf(rf, "\t%.*f\t%.*f\t%.*f\t%.*f",
-                            opts->precision, GBs(stats->mean_search_time, num_bytes),
-                            opts->precision, GBs(stats->median_search_time, num_bytes),
+                            opts->precision, GBs(stats->mean_search_time, opts->text_stats.text_actual_length),
+                            opts->precision, GBs(stats->median_search_time, opts->text_stats.text_actual_length),
                             opts->precision, GBs(stats->mean_pre_time + stats->mean_search_time, pat_len),
                             opts->precision, GBs(stats->median_pre_time + stats->median_search_time, pat_len));
                     if (opts->cpu_stats)
@@ -278,17 +336,17 @@ void output_benchmark_statistics_csv(const smart_config_t *smart_config, const r
                 }
                 case CANNOT_SEARCH:
                 {
-                    write_tabbed_string(rf, "---", opts->cpu_stats ? 24 : 18); //TODO: check this.
+                    write_tabbed_string(rf, "---", opts->cpu_stats ? TOTAL_COLUMNS : MEASUREMENT_COLUMNS);
                     break;
                 }
                 case TIMED_OUT:
                 {
-                    write_tabbed_string(rf, "OUT", opts->cpu_stats ? 24 : 18); //TODO: check this.
+                    write_tabbed_string(rf, "OUT", opts->cpu_stats ? TOTAL_COLUMNS : MEASUREMENT_COLUMNS);
                     break;
                 }
                 case ERROR:
                 {
-                    write_tabbed_string(rf, "ERROR", opts->cpu_stats ? 24 : 18); //TODO: check this.
+                    write_tabbed_string(rf, "ERROR", opts->cpu_stats ? TOTAL_COLUMNS : MEASUREMENT_COLUMNS);
                     break;
                 }
             }
@@ -299,879 +357,973 @@ void output_benchmark_statistics_csv(const smart_config_t *smart_config, const r
     fclose(rf);
 }
 
-
-
-/*********************************************************************************************************
- * Old output code.  Will bring back functions from here if required.
-
-char colors[100][8];
-int num_colors = 100;
-
-char dec2hex(int v)
-{
-	if (v < 10)
-		return '0' + v;
-	if (v == 10)
-		return 'a';
-	if (v == 11)
-		return 'b';
-	if (v == 12)
-		return 'c';
-	if (v == 13)
-		return 'd';
-	if (v == 14)
-		return 'e';
-	if (v == 15)
-		return 'f';
-	return '0';
-}
-
-void computeRandomColors(char colors[100][8])
-{
-	srand(time(NULL));
-	for (int i = 0; i < 100; i++)
-	{
-		int j = 0;
-		colors[i][j++] = '#';
-		colors[i][j++] = dec2hex((rand() % 14));
-		colors[i][j++] = dec2hex((rand() % 14));
-		colors[i][j++] = dec2hex((rand() % 14));
-		colors[i][j++] = dec2hex((rand() % 14));
-		colors[i][j++] = dec2hex((rand() % 14));
-		colors[i][j++] = dec2hex((rand() % 14));
-		colors[i][j] = '\0';
-	}
-}
-
-int outputPHP(double TIME[NumAlgo][NumPatt], double BEST[NumAlgo][NumPatt], double WORST[NumAlgo][NumPatt], double STD[NumAlgo][NumPatt],
-			  int alpha, char *filename, char *expcode, int dif, int std)
-{
-	int i, il, algo;
-	FILE *fp;
-	char outname[100];
-	// printing results in txt format
-	strcpy(outname, "results/");
-	strcat(outname, expcode);
-	// mkdir(outname,S_IROTH);
-	strcat(outname, "/");
-	strcat(outname, filename);
-	strcat(outname, ".php");
-	printf("\tSaving data on %s/%s.php\n", expcode, filename);
-	if (!(fp = fopen(outname, "w")))
-	{
-		printf("\tError in writing file %s/%s.txt\n", expcode, filename);
-		return 0;
-	}
-	fprintf(fp, "<?\n$%s = array(\n", filename);
-	fprintf(fp, "\t\"PATT\" => array(");
-	for (il = 0; il < NumPatt; il++)
-		if (PATT_SIZE[il] >= MINLEN && PATT_SIZE[il] <= MAXLEN)
-		{
-			fprintf(fp, "\"%d\", ", PATT_SIZE[il]);
-		}
-	fprintf(fp, "),\n");
-	for (algo = 0; algo < NumAlgo; algo++)
-	{
-		if (EXECUTE[algo])
-		{
-			fprintf(fp, "\t\"%s\" => array(", str2upper(ALGO_NAME[algo]));
-			for (il = 0; il < NumPatt; il++)
-				if (PATT_SIZE[il] >= MINLEN && PATT_SIZE[il] <= MAXLEN)
-				{
-					if (TIME[algo][il] == 0)
-						fprintf(fp, "\"VOID\", ");
-					else
-						fprintf(fp, "\"%.2f\", ", TIME[algo][il]);
-				}
-			fprintf(fp, "),\n");
-			if (dif)
-			{
-				fprintf(fp, "\t\"%s.best\" => array(", str2upper(ALGO_NAME[algo]));
-				for (il = 0; il < NumPatt; il++)
-					if (PATT_SIZE[il] >= MINLEN && PATT_SIZE[il] <= MAXLEN)
-					{
-						if (TIME[algo][il] == 0)
-							fprintf(fp, "\"0.1\", ");
-						else
-							fprintf(fp, "\"%.2f\", ", BEST[algo][il]);
-					}
-				fprintf(fp, "),\n");
-				fprintf(fp, "\t\"%s.worst\" => array(", str2upper(ALGO_NAME[algo]));
-				for (il = 0; il < NumPatt; il++)
-					if (PATT_SIZE[il] >= MINLEN && PATT_SIZE[il] <= MAXLEN)
-					{
-						if (TIME[algo][il] == 0)
-							fprintf(fp, "\"0.1\", ");
-						else
-							fprintf(fp, "\"%.2f\", ", WORST[algo][il]);
-					}
-				fprintf(fp, "),\n");
-			}
-			if (std)
-			{
-				fprintf(fp, "\t\"%s.std\" => array(", str2upper(ALGO_NAME[algo]));
-				for (il = 0; il < NumPatt; il++)
-					if (PATT_SIZE[il] >= MINLEN && PATT_SIZE[il] <= MAXLEN)
-					{
-						if (TIME[algo][il] == 0)
-							fprintf(fp, "\"VOID\", ");
-						else
-							fprintf(fp, "\"%.2f\", ", STD[algo][il]);
-					}
-				fprintf(fp, "),\n");
-			}
-		}
-	}
-	fprintf(fp, ");\n?>");
-	fclose(fp);
-
-	return 1;
-}
-
-int outputTXT(double TIME[NumAlgo][NumPatt], int alpha, char *filename, char *expcode, char *time_format)
-{
-	int i, il, algo;
-	FILE *fp;
-	char outname[100];
-	// printing results in txt format
-	strcpy(outname, "results/");
-	strcat(outname, expcode);
-	// mkdir(outname,S_IROTH);
-	strcat(outname, "/");
-	strcat(outname, filename);
-	strcat(outname, ".txt");
-	printf("\tSaving data on %s/%s.txt\n", expcode, filename);
-	if (!(fp = fopen(outname, "w")))
-	{
-		printf("\tError in writing file %s/%s.txt\n", expcode, filename);
-		return 0;
-	}
-	for (algo = 0; algo < NumAlgo; algo++)
-	{
-		if (EXECUTE[algo])
-		{
-			int first = 1;
-			fprintf(fp, "%s", str2upper(ALGO_NAME[algo]));
-			for (i = 0; i < 20 - strlen(ALGO_NAME[algo]); i++)
-				fprintf(fp, " ");
-
-			for (il = 0; il < NumPatt; il++)
-				if (PATT_SIZE[il] >= MINLEN && PATT_SIZE[il] <= MAXLEN)
-				{
-					if (!first)
-						fprintf(fp, "\t");
-					first = 0;
-					if (TIME[algo][il] == 0)
-						fprintf(fp, "-");
-					else
-						fprintf(fp, "%.2f", TIME[algo][il]);
-				}
-			fprintf(fp, "\n");
-		}
-	}
-	fclose(fp);
-
-	return 1;
-}
-
-int outputLatex(double TIME[NumAlgo][NumPatt], int alpha, char *filename, char *expcode, char *time_format)
-{
-	int i, j, il, algo;
-	FILE *fp;
-	char outname[100];
-	// printing results in latex format
-	strcpy(outname, "results/");
-	strcat(outname, expcode);
-	// mkdir(outname,S_IROTH);
-	strcat(outname, "/");
-	strcat(outname, filename);
-	strcat(outname, ".tex");
-	printf("\tSaving data on %s/%s.tex\n", expcode, filename);
-	if (!(fp = fopen(outname, "w")))
-	{
-		printf("\tError in writing file %s/%s.txt\n", expcode, filename);
-		return 0;
-	}
-	int start = 0;
-	while (PATT_SIZE[start] < MINLEN)
-		start++;
-	int end = start;
-	while (PATT_SIZE[end] <= MAXLEN)
-		end++;
-	fprintf(fp, "\\begin{tabular}{|l|");
-	for (j = start; j < end; j++)
-		fprintf(fp, "l");
-	fprintf(fp, "|}\n\\hline\n");
-	fprintf(fp, "$m$");
-	for (j = start; j < end; j++)
-		fprintf(fp, " & $%d$", PATT_SIZE[j]);
-	fprintf(fp, "\\\\\n");
-	for (algo = 0; algo < NumAlgo; algo++)
-	{
-		if (EXECUTE[algo])
-		{
-			int first = 1;
-			fprintf(fp, "\\textsc{%s}", str2upper(ALGO_NAME[algo]));
-			for (il = 0; il < NumPatt; il++)
-				if (PATT_SIZE[il] >= MINLEN && PATT_SIZE[il] <= MAXLEN)
-				{
-					if (TIME[algo][il] == 0)
-						fprintf(fp, " & -");
-					else
-						fprintf(fp, " & %.2f", TIME[algo][il]);
-				}
-			fprintf(fp, "\\\\\n");
-		}
-	}
-	fprintf(fp, "\\hline\n\\end{tabular}");
-	fclose(fp);
-	return 1;
-}
-
-int outputXML(double TIME[NumAlgo][NumPatt], int alpha, char *filename, char *expcode)
-{
-	int i, il, algo;
-	FILE *fp;
-	char outname[100];
-	// finds the best result for each pattern length
-	double BEST[NumPatt];
-	for (il = 0; il < NumPatt; il++)
-		if (PATT_SIZE[il] >= MINLEN && PATT_SIZE[il] <= MAXLEN)
-		{
-			double best = 999999.0;
-			for (algo = 0; algo < NumAlgo; algo++)
-				if (EXECUTE[algo] && TIME[algo][il] < best && TIME[algo][il] > 0.1)
-					best = TIME[algo][il];
-			BEST[il] = best;
-		}
-	// printing results in xml format
-	strcpy(outname, "results/");
-	strcat(outname, expcode);
-	mkdir(outname, S_IROTH);
-	strcat(outname, "/");
-	strcat(outname, filename);
-	strcat(outname, ".xml");
-	printf("\tSaving data on %s/%s.xml\n", expcode, filename);
-	if (!(fp = fopen(outname, "w")))
-	{
-		printf("\tError in writing file %s/%s.xml\n", expcode, filename);
-		return 0;
-	}
-	fprintf(fp, "<RESULTS>\n\t<CODE>%s</CODE>\n\t<TEXT>%s</TEXT>\n", expcode, filename);
-	for (algo = 0; algo < NumAlgo; algo++)
-	{
-		if (EXECUTE[algo])
-		{
-			fprintf(fp, "\t<ALGO>\n\t\t<NAME>%s</NAME>\n", str2upper(ALGO_NAME[algo]));
-			// for(i=0; i<20-strlen(ALGO_NAME[algo]); i++) fprintf(fp," ");
-			for (il = 0; il < NumPatt; il++)
-				if (PATT_SIZE[il] >= MINLEN && PATT_SIZE[il] <= MAXLEN)
-				{
-					if (TIME[algo][il] == 0)
-						fprintf(fp, "\t\t<DATA>-</DATA>\n");
-					fprintf(fp, "\t\t<DATA>\n");
-					fprintf(fp, "\t\t\t<SEARCH>%.2f</SEARCH>\n", TIME[algo][il]);
-					fprintf(fp, "\t\t</DATA>\n");
-				}
-			fprintf(fp, "\t</ALGO>\n");
-		}
-	}
-	fprintf(fp, "\t<BEST>\n");
-	for (il = 0; il < NumPatt; il++)
-		if (PATT_SIZE[il] >= MINLEN && PATT_SIZE[il] <= MAXLEN)
-		{
-			fprintf(fp, "\t\t<DATA>%.2f</DATA>\n", BEST[il]);
-		}
-	fprintf(fp, "\t</BEST>\n");
-	fprintf(fp, "</RESULTS>");
-	fclose(fp);
-	return 1;
-}
-
-void appendFilesContent(char *source, FILE *target)
-{
-	char c;
-	FILE *fp = fopen(source, "r");
-	while ((c = getc(fp)) != EOF)
-		putc(c, target);
-	fclose(fp);
-}
-
-void printSTD(double TIME[NumAlgo][NumPatt],
-			  double BEST[NumAlgo][NumPatt],
-			  double WORST[NumAlgo][NumPatt],
-			  double STD[NumAlgo][NumPatt],
-			  int algo, char *expcode, FILE *fp)
-{
-
-	int i;
-	double dymax = 0.0;
-	for (int il = 0; il < NumPatt; il++)
-		if (PATT_SIZE[il] >= MINLEN && PATT_SIZE[il] <= MAXLEN)
-		{
-			if (WORST[algo][il] > dymax)
-				dymax = WORST[algo][il];
-			if (TIME[algo][il] + STD[algo][il] > dymax)
-				dymax = TIME[algo][il] + STD[algo][il];
-		}
-	int ymax = dymax + 1.0;
-
-	fprintf(fp, "<div class=\"chart_container_small\"><div class=\"chart_title\">%s algorithm</div>\n", str2upper(ALGO_NAME[algo]));
-	fprintf(fp, "<div><canvas class=\"exp_chart_small\" id=\"cvs%d\" width=\"460\" height=\"250\">[No canvas support]</canvas>", algo);
-	fprintf(fp, "<div class=\"caption_small\">Detailed plot of the running times relative to the <b>%s algorithm</b>. ", str2upper(ALGO_NAME[algo]));
-	fprintf(fp, "The plot reports the mean and the distribution of the running times.");
-	fprintf(fp, "</div>\n");
-	fprintf(fp, "</div>\n");
-	fprintf(fp, "</div>\n");
-
-	fprintf(fp, "<script>function loadChart%d() { ", algo);
-
-	fprintf(fp, "var data = [");
-	for (int il = 0; il < NumPatt; il++)
-		if (PATT_SIZE[il] >= MINLEN && PATT_SIZE[il] <= MAXLEN)
-		{
-			if (TIME[algo][il] == 0)
-				fprintf(fp, ",");
-			else
-				fprintf(fp, "%.2f,", TIME[algo][il]);
-		}
-	fprintf(fp, "];\n");
-
-	fprintf(fp, "var std1 = [");
-	for (int il = 0; il < NumPatt; il++)
-		if (PATT_SIZE[il] >= MINLEN && PATT_SIZE[il] <= MAXLEN)
-		{
-			if (TIME[algo][il] == 0)
-				fprintf(fp, ",");
-			else
-				fprintf(fp, "%.2f,", TIME[algo][il] - STD[algo][il]);
-		}
-	fprintf(fp, "];\n");
-
-	fprintf(fp, "var std2 = [");
-	for (int il = 0; il < NumPatt; il++)
-		if (PATT_SIZE[il] >= MINLEN && PATT_SIZE[il] <= MAXLEN)
-		{
-			if (TIME[algo][il] == 0)
-				fprintf(fp, ",");
-			else
-				fprintf(fp, "%.2f,", TIME[algo][il] + STD[algo][il]);
-		}
-	fprintf(fp, "];\n");
-
-	fprintf(fp, "var bound1 = [");
-	for (int il = 0; il < NumPatt; il++)
-		if (PATT_SIZE[il] >= MINLEN && PATT_SIZE[il] <= MAXLEN)
-		{
-			if (TIME[algo][il] == 0)
-				fprintf(fp, ",");
-			else
-				fprintf(fp, "%.2f,", WORST[algo][il]);
-		}
-	fprintf(fp, "];\n");
-
-	fprintf(fp, "var bound2 = [");
-	for (int il = 0; il < NumPatt; il++)
-		if (PATT_SIZE[il] >= MINLEN && PATT_SIZE[il] <= MAXLEN)
-		{
-			if (TIME[algo][il] == 0)
-				fprintf(fp, ",");
-			else
-				fprintf(fp, "%.2f,", BEST[algo][il]);
-		}
-	fprintf(fp, "];\n");
-
-	fprintf(fp, "var line3 = new RGraph.Line({\n\
-            id: 'cvs%d',\n\
-            data: [bound1, bound2],\n\
-            options: {\n\
-                noxaxis: true,\n\
-                textSize: 14,\n\
-                filled: true,\n\
-                filledRange: true,\n\
-                fillstyle: 'rgba(255,0,0,0.1)',\n\
-                colors: ['rgba(0,0,0,0)'],\n\
-                linewidth: 0,\n\
-                ylabels: false,\n\
-                noaxes: true,\n\
-                ymax: %d,\n\
-                hmargin: 5,\n\
-                spline: true,\n\
-                gutterLeft: 40,\n\
-                tickmarks: null,\n\
-            }\n\
-        }).draw();\n",
-			algo, ymax);
-
-	fprintf(fp, "var line2 = new RGraph.Line({\n\
-            id: 'cvs%d',\n\
-            data: [std1, std2],\n\
-            options: {\n\
-                noxaxis: true,\n\
-                textSize: 14,\n\
-                filled: true,\n\
-                filledRange: true,\n\
-                fillstyle: 'rgba(255,0,0,0.2)',\n\
-                colors: ['rgba(0,0,0,0)'],\n\
-                linewidth: 0,\n\
-                ylabels: false,\n\
-                noaxes: true,\n\
-                ymax: %d,\n\
-                hmargin: 5,\n\
-                spline: true,\n\
-                gutterLeft: 40,\n\
-                tickmarks: null,\n\
-            }\n\
-        }).draw();\n",
-			algo, ymax);
-
-	fprintf(fp, "var line = new RGraph.Line({\n\
-            id: 'cvs%d',\n\
-            data: data,\n\
-            options: {\n\
-            	textFont: 'Yantramanav',\n\
-            	textSize: '8',\n\
-            	textColor: '#444',\n\
-                BackgroundBarcolor1: 'white',\n\
-                BackgroundBarcolor2: 'red',\n\
-                BackgroundGridColor: 'rgba(238,238,238,1)',\n\
-                linewidth: 1,\n\
-                filled: false,\n\
-                hmargin: 5,\n\
-                shadow: false,\
-                tickmarks: 'circle',\n\
-                ymax: %d,\n\
-                spline: true,\n\
-                gutterLeft: 40,\n\
-                tickmarks: null,\n\
-                labels: [",
-			algo, ymax);
-	for (int il = 0; il < NumPatt; il++)
-		if (PATT_SIZE[il] >= MINLEN && PATT_SIZE[il] <= MAXLEN)
-			fprintf(fp, "'%d',", PATT_SIZE[il]);
-	fprintf(fp, "],\n");
-	fprintf(fp, "colors: ['#000000'],\n");
-	fprintf(fp, "} }).draw();");
-
-	fprintf(fp, "}</script>");
-}
-
-void printMulti(double TIME[NumAlgo][NumPatt],
-				FILE *fp, int w, int h, char *title, int code)
-{
-
-	int i, algo, il;
-	double dymax = 0.0;
-	for (algo = 0; algo < NumAlgo; algo++)
-	{
-		for (int il = 0; il < NumPatt; il++)
-			if (PATT_SIZE[il] >= MINLEN && PATT_SIZE[il] <= MAXLEN)
-			{
-				if (TIME[algo][il] > dymax)
-					dymax = TIME[algo][il];
-			}
-	}
-	int ymax = dymax + 1.0;
-
-	fprintf(fp, "<div class=\"chart_container_small\" style=\"height:300px\"><div class=\"chart_title\">%s</div>\n", title);
-	fprintf(fp, "<div><canvas class=\"exp_chart_small\" id=\"cvs%d\" width=\"%d\" height=\"%d\">[No canvas support]</canvas>", code, w, h);
-	fprintf(fp, "</div>\n");
-	fprintf(fp, "</div>\n");
-
-	fprintf(fp, "<script>function multiChart%d() { var data = [", code);
-	for (algo = 0; algo < NumAlgo; algo++)
-	{
-		if (EXECUTE[algo])
-		{
-			fprintf(fp, "[");
-			for (il = 0; il < NumPatt; il++)
-				if (PATT_SIZE[il] >= MINLEN && PATT_SIZE[il] <= MAXLEN)
-				{
-					if (TIME[algo][il] == 0)
-						fprintf(fp, ",");
-					else
-						fprintf(fp, "%.2f,", TIME[algo][il]);
-				}
-			fprintf(fp, "],\n");
-		}
-	}
-	fprintf(fp, "]; \n\
-        var line = new RGraph.Line({\n\
-            id: 'cvs%d',\n\
-            data: data,\n\
-            options: {\n\
-            	textFont: 'Yantramanav',\n\
-            	textSize: '8',\n\
-            	textColor: '#444',\n\
-                BackgroundBarcolor1: 'white',\n\
-                BackgroundBarcolor2: 'red',\n\
-                BackgroundGridColor: 'rgba(238,238,238,1)',\n\
-                linewidth: 1,\n\
-                filled: false,\n\
-                fillstyle: ['red','blue','#0f0'],\n\
-                hmargin: 5,\n\
-                shadow: false,\
-                tickmarks: 'circle',\n\
-                spline: true,\n\
-                gutterLeft: 40,\n\
-                labels: [",
-			code);
-	for (il = 0; il < NumPatt; il++)
-		if (PATT_SIZE[il] >= MINLEN && PATT_SIZE[il] <= MAXLEN)
-			fprintf(fp, "'%d',", PATT_SIZE[il]);
-	fprintf(fp, "],\n");
-	fprintf(fp, "colors: [");
-	for (i = 0; i < num_colors; i++)
-		fprintf(fp, "'%s',", colors[i]);
-	fprintf(fp, "],\n");
-	fprintf(fp, "} }).draw();\n");
-
-	fprintf(fp, "}</script>");
-}
-
-int outputHTML2(double PRE_TIME[NumAlgo][NumPatt],
-				double TIME[NumAlgo][NumPatt],
-				double BEST[NumAlgo][NumPatt],
-				double WORST[NumAlgo][NumPatt],
-				double STD[NumAlgo][NumPatt],
-				int pre, int dif, int alpha, int n, int volte, char *filename, char *expcode, char *time_format)
-{
-	int i, il, algo;
-	FILE *fp;
-	char outname[100];
-
-	computeRandomColors(colors);
-
-	double OPTIMAL[NumPatt];
-	for (il = 0; il < NumPatt; il++)
-		if (PATT_SIZE[il] >= MINLEN && PATT_SIZE[il] <= MAXLEN)
-		{
-			OPTIMAL[il] = 0.0;
-			for (algo = 0; algo < NumAlgo; algo++)
-				if (EXECUTE[algo])
-				{
-					if (OPTIMAL[il] == 0.0 || (OPTIMAL[il] > TIME[algo][il] && TIME[algo][il] > 0.0))
-						OPTIMAL[il] = TIME[algo][il];
-				}
-		}
-
-	// printing results in html format
-	strcpy(outname, "results/");
-	strcat(outname, expcode);
-	mkdir(outname, S_IROTH);
-	strcat(outname, "/");
-	strcat(outname, filename);
-	strcat(outname, ".html");
-	printf("\tSaving data on %s/%s.html\n", expcode, filename);
-	if (!(fp = fopen(outname, "w")))
-	{
-		printf("\tError in writing file %s/%s.html\n", expcode, filename);
-		return 0;
-	}
-	fprintf(fp, "<!DOCTYPE html><html><head>");
-	fprintf(fp, "<script src=\"../js/RGraph.common.core.js\"></script>");
-	fprintf(fp, "<script src=\"../js/RGraph.common.effects.js\"></script>");
-	fprintf(fp, "<script src=\"../js/RGraph.line.js\"></script>");
-	fprintf(fp, "<script src=\"../js/RGraph.bar.js\"></script>");
-	fprintf(fp, "<script src=\"../RGraph.common.dynamic.js\"></script>");
-	fprintf(fp, "<script src=\"../RGraph.common.tooltips.js\"></script>");
-	fprintf(fp, "<script src=\"../js/Smart.TimeResultFormatting.js\"></script>");
-	fprintf(fp, "<link href='https://fonts.googleapis.com/css?family=Dosis:300' rel='stylesheet' type='text/css'>");
-	fprintf(fp, "<link href='https://fonts.googleapis.com/css?family=Yantramanav:400,100,700' rel='stylesheet' type='text/css'>");
-	fprintf(fp, "<link rel=\"stylesheet\" type=\"text/css\" href=\"../style.css\">");
-	fprintf(fp, "<title>SMART Experimental Results %s: %s</title>", expcode, filename);
-	fprintf(fp, "</head><body>");
-
-	fprintf(fp, "<div class=\"main_container\">");
-	fprintf(fp, "<h1>SMART<span class=\"subtitle\">String Matching Algorithms Research Tool<span></h1>");
-	fprintf(fp, "<h3>by Simone Faro - <span class=\"link\">www.dmi.unict.it/~faro/smart/</span> - <span class=\"link\">email: faro@dmi.unict.it</span></h3>");
-	fprintf(fp, "<div class=\"name\">");
-	fprintf(fp, "<h2><b>Report of Experimental Results</b></h2>");
-	fprintf(fp, "<h2>Test Code %s</h2>", expcode);
-	fprintf(fp, "<h2>Date %s</h2>", time_format);
-	fprintf(fp, "<h2>Text %s (alphabet : %d - size : %d bytes)</h2>", filename, alpha, n);
-	fprintf(fp, "</div>");
-
-	fprintf(fp, "<table id=\"resultTable\" class=\"exp_table\">\n");
-	fprintf(fp, "<tr><td class=\"length\"></td>");
-	for (il = 0; il < NumPatt; il++)
-		if (PATT_SIZE[il] >= MINLEN && PATT_SIZE[il] <= MAXLEN)
-		{
-			fprintf(fp, "<td class=\"length\">%d</td>", PATT_SIZE[il]);
-		}
-	fprintf(fp, "<tr>");
-	const char *preVisible = pre ? "block" : "none";
-	const char *difVisible = dif ? "block" : "none";
-	for (algo = 0; algo < NumAlgo; algo++)
-		if (EXECUTE[algo])
-		{
-			fprintf(fp, "<tr>\n");
-			fprintf(fp, "<td class=\"algo\"><b>%s</b></td>\n", str2upper(ALGO_NAME[algo]));
-			for (il = 0; il < NumPatt; il++)
-				if (PATT_SIZE[il] >= MINLEN && PATT_SIZE[il] <= MAXLEN)
-				{
-					int best = 0;
-					if (TIME[algo][il] == OPTIMAL[il])
-						best = 1;
-					fprintf(fp, "<td><center>");
-					fprintf(fp, "<div class=\"pre_time\" style=\"display:%s\">%.2f</div>", preVisible, PRE_TIME[algo][il]);
-					if (TIME[algo][il] == 0)
-						fprintf(fp, "<div class=\"search_time\">-</div>");
-					else
-					{
-						if (!best)
-							fprintf(fp, "<div class=\"search_time\">%.2f</div>", TIME[algo][il]);
-						else
-							fprintf(fp, "<div class=\"search_time_best\"><b>%.2f</b></div>", TIME[algo][il]);
-					}
-					fprintf(fp, "<div class=\"dif\" style=\"display:%s\">%.2f - %.2f</div>", difVisible, BEST[algo][il], WORST[algo][il]);
-					fprintf(fp, "</center></td>");
-				}
-			fprintf(fp, "</tr>\n");
-		}
-	fprintf(fp, "</table>\n");
-	fprintf(fp, "<div class=\"caption\"><b>Table 1.</b> Running times of experimental tests n.%s. Each time value is the mean of %d runs. ", expcode, volte);
-	if (pre)
-		fprintf(fp, "The table reports also the mean of the preprocessing time (above each time value). ");
-	if (dif)
-		fprintf(fp, "In addition the worst and best running times are reported (below each time value). ");
-	fprintf(fp, "Running times are in milliseconds.\n");
-	fprintf(fp, "<br><div class=\"controlHorizontalFloat\">\n"
-				"<input type=\"radio\" id=\"best\" name=\"resultformat\" value=\"best\" checked onclick=\"setBestColors(document)\">\n"
-				"<label for=\"best\">Best mean times</label></div>\n"
-				"<div class=\"controlHorizontalFloat\">\n"
-				"<input type=\"radio\" id=\"heatMap5\" name=\"resultformat\" value=\"hm5\" onclick=\"heatMapGray(document.getElementById('resultTable'), 95)\">\n"
-				"<label for=\"heatMap5\">Heatmap top 5%%</label></div>\n"
-				"<div class=\"controlHorizontalFloat\">\n"
-				"<input type=\"radio\" id=\"heatMap10\" name=\"resultformat\" value=\"hm10\" onclick=\"heatMapGray(document.getElementById('resultTable'), 90)\">\n"
-				"<label for=\"heatMap25\">Heatmap top 10%%</label></div>\n"
-				"<div class=\"controlHorizontalFloat\">\n"
-				"<input type=\"radio\" id=\"heatMap25\" name=\"resultformat\" value=\"hm25\" onclick=\"heatMapGray(document.getElementById('resultTable'), 75)\">\n"
-				"<label for=\"heatMap25\">Heatmap top 25%%</label></div>\n"
-				"<div class=\"controlHorizontalFloat\">\n"
-				"<input type=\"radio\" id=\"heatMap50\" name=\"resultformat\" value=\"hm50\" onclick=\"heatMapGray(document.getElementById('resultTable'), 50)\">\n"
-				"<label for=\"heatMap50\">Heatmap top 50%%</label></div><div class=\"clearHorizontalFloat\"></div>\n"
-				"<div class=\"controlHorizontalFloat\">\n");
-	fprintf(fp, "<input type=\"checkbox\" id=\"pretime\" name=\"pretime\" value=\"pretime\" %s onclick=\"showDivs(document, 'pre_time', this.checked)\">\n", (pre ? "checked" : ""));
-	fprintf(fp, "<label for=\"pretime\">Show pre-processing times</label></div>\n"
-				"<div class=\"controlHorizontalFloat\">\n");
-	fprintf(fp, "<input type=\"checkbox\" id=\"bestworst\" name=\"bestworst\" value=\"bestworst\" %s onclick=\"showDivs(document, 'dif', this.checked)\">\n", (dif ? "checked" : ""));
-	fprintf(fp, "<label for=\"bestworst\">Show best and worst running times</label></div><br></div><p>\n");
-	fprintf(fp, "<div class=\"chart_container\"><div class=\"chart_title\">Average Running Times</div>\n");
-	fprintf(fp, "<canvas class=\"exp_chart\" id=\"cvs\" width=\"780\" height=\"400\">[No canvas support]</canvas>");
-	fprintf(fp, "<div style=\"padding-top:40px\">");
-	int col = 0;
-	for (algo = 0; algo < NumAlgo; algo++)
-		if (EXECUTE[algo])
-			fprintf(fp, "<div class=\"didascalia\"><div class=\"line\" style=\"background-color:%s\"></div class=\"label\"> %s</div>\n", colors[col++], str2upper(ALGO_NAME[algo]));
-	fprintf(fp, "</div><br/><br/>");
-	fprintf(fp, "<div class=\"caption\"><b>Chart 1.</b> Plot of the running times of experimental tests n.%s. ", expcode);
-	fprintf(fp, "The x axes reports the length of the pattern (in a log scale) while the y axes reports the running time in milliseconds. ");
-	fprintf(fp, "</div>\n");
-	fprintf(fp, "</div>\n");
-
-	printMulti(WORST, fp, 480, 250, "Worst Running Times", 2);
-	printMulti(BEST, fp, 480, 250, "Best Running Times", 3);
-
-	for (algo = 0; algo < NumAlgo; algo++)
-	{
-		if (EXECUTE[algo])
-			printSTD(TIME, BEST, WORST, STD, algo, expcode, fp);
-	}
-
-	double dymax = 0.0;
-	for (algo = 0; algo < NumAlgo; algo++)
-		if (EXECUTE[algo])
-			for (int il = 0; il < NumPatt; il++)
-				if (PATT_SIZE[il] >= MINLEN && PATT_SIZE[il] <= MAXLEN)
-				{
-					if (TIME[algo][il] > dymax)
-						dymax = TIME[algo][il];
-				}
-	int ymax = dymax + 1.0;
-
-	fprintf(fp, "<script>window.onload = (function () { var data = [");
-	for (algo = 0; algo < NumAlgo; algo++)
-	{
-		if (EXECUTE[algo])
-		{
-			fprintf(fp, "[");
-			for (il = 0; il < NumPatt; il++)
-				if (PATT_SIZE[il] >= MINLEN && PATT_SIZE[il] <= MAXLEN)
-				{
-					if (TIME[algo][il] == 0)
-						fprintf(fp, ",");
-					else
-						fprintf(fp, "%.2f,", TIME[algo][il]);
-				}
-			fprintf(fp, "],\n");
-		}
-	}
-	fprintf(fp, "]; \n\
-        var line = new RGraph.Line({\n\
-            id: 'cvs',\n\
-            data: data,\n\
-            options: {\n\
-            	textFont: 'Yantramanav',\n\
-            	textSize: '8',\n\
-            	textColor: '#444',\n\
-                BackgroundBarcolor1: 'white',\n\
-                BackgroundBarcolor2: 'red',\n\
-                BackgroundGridColor: 'rgba(238,238,238,1)',\n\
-                linewidth: 1,\n\
-                filled: false,\n\
-                fillstyle: ['red','blue','#0f0'],\n\
-                hmargin: 5,\n\
-                shadow: false,\
-                tickmarks: 'circle',\n\
-                spline: true,\n\
-                ymax: %d,\n\
-                gutterLeft: 40,\n\
-                labels: [",
-			ymax);
-	for (il = 0; il < NumPatt; il++)
-		if (PATT_SIZE[il] >= MINLEN && PATT_SIZE[il] <= MAXLEN)
-			fprintf(fp, "'%d',", PATT_SIZE[il]);
-	fprintf(fp, "],\n");
-	fprintf(fp, "colors: [");
-	for (i = 0; i < num_colors; i++)
-		fprintf(fp, "'%s',", colors[i]);
-	fprintf(fp, "],\n");
-	fprintf(fp, "} }).draw();\n");
-
-	for (algo = 0; algo < NumAlgo; algo++)
-	{
-		if (EXECUTE[algo])
-			fprintf(fp, "loadChart%d();\n", algo);
-	}
-	fprintf(fp, "multiChart2(); multiChart3();\n");
-	fprintf(fp, "});</script>");
-
-	fprintf(fp, "</div>");
-	fprintf(fp, "</body></html>");
-	fclose(fp);
-	return 1;
-}
-
-int outputHTML(double PRE_TIME[NumAlgo][NumPatt], double TIME[NumAlgo][NumPatt], int pre, int alpha, char *filename, char *expcode, char *time_format)
-{
-	int i, il, algo;
-	FILE *fp;
-	char outname[100];
-	// printing results in html format
-	strcpy(outname, "results/");
-	strcat(outname, expcode);
-	mkdir(outname, S_IROTH);
-	strcat(outname, "/");
-	strcat(outname, filename);
-	strcat(outname, ".html");
-	printf("\tSaving data on %s/%s.html\n", expcode, filename);
-	if (!(fp = fopen(outname, "w")))
-	{
-		printf("\tError in writing file %s/%s.html\n", expcode, filename);
-		return 0;
-	}
-	fprintf(fp, "<html>\n\
-		<head>\n\
-		\t<title>SMART: experimental results %s on %s</title>\n\
-		\t<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\" />\n\
-		\t<link href=\"../style.css\" rel=\"stylesheet\" type=\"text/css\" />\n\
-		</head>\n\
-		<body>\n\
-		\t<script type=\"text/javascript\">\n\
-		\t\tif (window.XMLHttpRequest) {\n\
-		\t\t\t// code for IE7+, Firefox, Chrome, Opera, Safari\n\
-	  	\t\t\txmlhttp=new XMLHttpRequest();\n\
-		\t\t}\n\
-		\t\telse {\n\
-		\t\t\t// code for IE6, IE5\n\
-  		\t\t\txmlhttp=new ActiveXObject(\"Microsoft.XMLHTTP\");\n\
-		\t\t}\n\
-		\t\txmlhttp.open(\"GET\",\"%s.xml\",false);\n\
-		\t\txmlhttp.send();\n\
-		\t\txmlDoc=xmlhttp.responseXML; \n\
-		\t\tdocument.write(\"<h2>SMART: experimental results %s on %s</h2><br>Results computed on %s<br/>\");\n\
-		\t\tdocument.write(\"<table align=\\\"center\\\">\");\n",
-			expcode, filename, filename, expcode, filename, time_format);
-	fprintf(fp, "document.write(\"<tr><td></td>\");\n");
-	for (i = 0; PATT_SIZE[i] > 0; i++)
-		if (PATT_SIZE[i] >= MINLEN && PATT_SIZE[i] <= MAXLEN)
-			fprintf(fp, "document.write(\"<td><b>%d</b></td>\");\n", PATT_SIZE[i]);
-	fprintf(fp, "document.write(\"</tr>\");\n");
-	fprintf(fp, "\
-		\t\tvar best=xmlDoc.getElementsByTagName(\"BEST\");\n\
-		\t\tvar bestvalues = best[0].getElementsByTagName(\"DATA\");\n\
-		\t\tvar x=xmlDoc.getElementsByTagName(\"ALGO\");\n\
-		\t\tfor (i=0;i<x.length;i++) { \n\
-		\t\t\tdocument.write(\"<tr><td><b>\");\n\
-  		\t\t\tdocument.write(x[i].getElementsByTagName(\"NAME\")[0].childNodes[0].nodeValue);\n\
-  		\t\t\tdocument.write(\"</b></td>\");\n\
-		\t\t\tvar times = x[i].getElementsByTagName(\"DATA\");\n\
-		\t\t\tfor (j=0;j<times.length;j++) { \n\
-  		\t\t\t\tdocument.write(\"<td>\");\n\
-		\t\t\tvar y = times[j].getElementsByTagName(\"SEARCH\");\n\
-		\t\t\tfor (k=0;k<y.length;k++) { \n\
-		\t\t\t\tif(y[k].childNodes[0].nodeValue==bestvalues[j].childNodes[0].nodeValue) document.write(\"<b><u>\");\n\
-  		\t\t\t\tif(y[k].childNodes[0].nodeValue<0.05) document.write(\"--\");\n\
-  		\t\t\t\telse document.write(y[k].childNodes[0].nodeValue);\n\
-		\t\t\t\tif(y[k].childNodes[0].nodeValue==bestvalues[j].childNodes[0].nodeValue) document.write(\"</u></b>\");\n\
-  		\t\t\t\tdocument.write(\"</td>\");\n\
-		\t\t\t}\n\
-		\t\t\t}\n\
-  		\t\t\tdocument.write(\"</tr>\");\n\
-		\t\t}\n\
-		\t\tdocument.write(\"</table>\");\n\
-		\t</script>\n\
-		</body>\n\
-		</html>");
-	fclose(fp);
-	return 1;
-}
-
-int outputINDEX(char list_of_filenames[NumSetting][50], int num_buffers, char *expcode)
-{
-	int i, sett, il, algo;
-	FILE *fp;
-	char outname[100];
-	// printing results in html format
-	strcpy(outname, "results/");
-	strcat(outname, expcode);
-	mkdir(outname, S_IROTH);
-	strcat(outname, "/index.html");
-	printf("\tWriting %s/index.html\n", expcode);
-	if (!(fp = fopen(outname, "w")))
-	{
-		printf("\tError in writing file %s/index.html\n", expcode);
-		return 0;
-	}
-	fprintf(fp, "<html>\n\
-		\t<head>\n\
-		\t\t<title>SMART: experimental results %s</title>\n\
-		\t\t<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\" />\n\
-		\t\t<link href=\"../style.css\" rel=\"stylesheet\" type=\"text/css\" />\n\
-		\t</head>\n\
-		\t<body>\n\
-		\t\t<h2>SMART: experimental results %s</h2><br>\n\
-		\t\t<table align=\"center\">\n",
-			expcode, expcode);
-	if (strcmp(list_of_filenames[0], "all"))
-	{
-		for (int k = 0; k < num_buffers; k++)
-			fprintf(fp, "\t\t\t<tr><td><a href=\"%s.html\">Experimental results on %s</a></td></tr>\n", list_of_filenames[k], list_of_filenames[k]);
-	}
-	else
-		for (sett = 0; sett < NumSetting; sett++)
-		{
-			fprintf(fp, "\t\t\t<tr><td><a href=\"%s.html\">Experimental results on %s</a></td></tr>\n", SETTING_BUFFER[sett], SETTING_BUFFER[sett]);
-		}
-	fprintf(fp, "\t\t</table>\n\
-		\t</body>\n\
-		</html>");
-	printf("\n");
-	fclose(fp);
-	return 1;
-}
-
- **********************************************************
- * End of old output code.
+/*
+ * Builds an array of the best times in a table for each column.
  */
+void find_best_times(int rows, int cols, double table[rows][cols], double best_times[cols])
+{
+    // Find the best times:
+    for (int col = 0; col < cols; col++)
+    {
+        for (int row = 0; row < rows; row++)
+        {
+            if (row == 0 || table[row][col] < best_times[col])
+                best_times[col] = table[row][col];
+        }
+    }
+}
+
+/*
+ * Writes a tab separated statistics table.
+ */
+void write_text_statistics_table(FILE *fp, int rows, int cols, double table[rows][cols],
+                                 const algo_info_t *algorithms,
+                                 const run_command_opts_t *opts, benchmark_results_t *results,
+                                 const char *description)
+{
+    // Write column headers:
+    fprintf(fp, "%s", "m");
+    for (int patt_no = 0; patt_no < cols; patt_no++)
+        fprintf(fp, "\t%d", results[patt_no].pattern_length);
+    fprintf(fp, "\n");
+
+    // Write rows:
+    for (int row = 0; row < rows; row++)
+    {
+        char upper_case_name[ALGO_NAME_LEN];
+        set_upper_case_algo_name(upper_case_name, algorithms->algo_names[row]);
+        fprintf(fp, "%s", upper_case_name);
+        for (int col = 0; col < cols; col++)
+        {
+            double value = table[row][col];
+            if (value > 0)
+                fprintf(fp, "\t%.*f", opts->precision, value);
+            else
+                fprintf(fp, "\t-");
+        }
+
+        fprintf(fp, "\n");
+    }
+
+    fprintf(fp, "\nTable: %s\n\n\n", description);
+}
+
+/*
+ * Writes a statistics table out in latex format, using the \best{#} command to highlight the best times.
+ */
+void write_latex_statistics_table(FILE *fp, int rows, int cols, double table[rows][cols], const double best_times[cols],
+                                  const algo_info_t *algorithms, const run_command_opts_t *opts, benchmark_results_t *results,
+                                  const char *description)
+{
+    // Write latex tabular table definition:
+    fprintf(fp, "\\begin{tabular}{|l|");
+    for (int col = 0; col < cols; col++)
+        fprintf(fp, "%s", "l");
+    fprintf(fp, "|}\n\\hline\n");
+
+    // Write latex column headers:
+    fprintf(fp, "$m$");
+    for (int col = 0; col < cols; col++)
+        fprintf(fp, " & $%d$", results[col].pattern_length);
+    fprintf(fp, "\\\\\n");
+
+    // Write rows:
+    for (int row = 0; row < rows; row++)
+    {
+        char upper_case_name[ALGO_NAME_LEN];
+        set_upper_case_algo_name(upper_case_name, algorithms->algo_names[row]);
+        fprintf(fp, "\\textsc{%s}", upper_case_name);
+
+        for (int col = 0; col < cols; col++) {
+            if (table[row][col] < 0) {
+                fprintf(fp, "%s", " & -");
+            } else if (table[row][col] <= best_times[col]) {
+                fprintf(fp, " & \\best{%.*f}", opts->precision, table[row][col]);
+            } else
+            {
+                fprintf(fp, " & %.*f", opts->precision, table[row][col]);
+            }
+        }
+
+        fprintf(fp, "\\\\\n");
+    }
+    fprintf(fp, "\\hline\n\\end{tabular}");
+    fprintf(fp, "\n\\caption{%s}\n\n\n", description);
+}
+
+/*
+ * Writes a Markdown summary of a statistics table.
+ */
+void write_markdown_statistics_table(FILE *fp, int rows, int cols, double table[rows][cols], const double best_times[cols],
+                                     const algo_info_t *algorithms,
+                                    const run_command_opts_t *opts, benchmark_results_t *results,
+                                    const char *description)
+{
+    // Write column headers:
+    fprintf(fp, "%s", "m");
+    for (int patt_no = 0; patt_no < cols; patt_no++)
+        fprintf(fp, " | %d", results[patt_no].pattern_length);
+    fprintf(fp, "\n---");
+    for (int patt_no = 0; patt_no < cols; patt_no++)
+        fprintf(fp, "%s", " | ---");
+    fprintf(fp, "\n");
+
+    // Write rows:
+    for (int row = 0; row < rows; row++)
+    {
+        char upper_case_name[ALGO_NAME_LEN];
+        set_upper_case_algo_name(upper_case_name, algorithms->algo_names[row]);
+        fprintf(fp, "%s", upper_case_name);
+        for (int col = 0; col < cols; col++)
+        {
+            if (table[row][col] < 0) {
+                fprintf(fp, "%s", " | -");
+            } else if (table[row][col] <= best_times[col]) {
+                fprintf(fp, " | **%.*f**", opts->precision, table[row][col]);
+            } else
+            {
+                fprintf(fp, " | %.*f", opts->precision, table[row][col]);
+            }
+        }
+
+        fprintf(fp, "\n");
+    }
+
+    fprintf(fp, "\nTable: %s\n\n\n", description);
+}
+
+/*
+ * Writes an HTML summary of a statistics table.
+ */
+void write_html_statistics_table(FILE *fp, int rows, int cols, double table[rows][cols], const double best_times[cols],
+                                 const algo_info_t *algorithms, const run_command_opts_t *opts, benchmark_results_t *results,
+                                 const char *description)
+{
+    // Write column headers:
+    fprintf(fp, "%s", "<table>\n");
+    fprintf(fp, "<caption style=\"caption-side:bottom\">%s</caption>", description);
+    fprintf(fp, "<tr><th>m</th>");
+    for (int patt_no = 0; patt_no < cols; patt_no++)
+        fprintf(fp, "<th>%d</th>", results[patt_no].pattern_length);
+    fprintf(fp, "</tr>\n");
+
+    // Write rows:
+    for (int row = 0; row < rows; row++)
+    {
+        char upper_case_name[ALGO_NAME_LEN];
+        set_upper_case_algo_name(upper_case_name, algorithms->algo_names[row]);
+        fprintf(fp, "<tr><th>%s</th>", upper_case_name);
+        for (int col = 0; col < cols; col++)
+        {
+            if (table[row][col] < 0) {
+                fprintf(fp, "%s", "<th>-</th>");
+            } else if (table[row][col] <= best_times[col]) {
+                fprintf(fp, "<th><b>%.*f</b></th>", opts->precision, table[row][col]);
+            } else
+            {
+                fprintf(fp, "<th>%.*f</th>", opts->precision, table[row][col]);
+            }
+        }
+
+        fprintf(fp, "</tr>\n");
+    }
+
+    fprintf(fp, "</table>\n\n");
+}
+
+/*
+ * Writes an XML summary of a statistics table.
+ */
+void write_xml_statistics_table(FILE *fp, int rows, int cols, double table[rows][cols], double best_times[cols],
+                                 const algo_info_t *algorithms, const run_command_opts_t *opts, benchmark_results_t *results,
+                                 const char *description)
+{
+    // Write column headers:
+    char data_source[MAX_LINE_LEN];
+    set_data_source_description(opts, data_source);
+
+    fprintf(fp, "<RESULTS>\n\t<CODE>%s</CODE>\n\t<TEXT>%s</TEXT>\n", opts->expcode, data_source);
+    fprintf(fp, "\t<DESCRIPTION>%s</DESCRIPTION>\n", description);
+
+    // Write times for algorithms:
+    for (int row = 0; row < rows; row++)
+    {
+        char upper_case_name[ALGO_NAME_LEN];
+        set_upper_case_algo_name(upper_case_name, algorithms->algo_names[row]);
+        fprintf(fp, "\t<ALGO>\n\t\t<NAME>%s</NAME>\n", upper_case_name);
+
+        for (int col = 0; col < cols; col++)
+        {
+            if (table[row][col] < 0) {
+                fprintf(fp, "%s", "\t\t<DATA>-</DATA>\n");
+            }
+            else
+            {
+                fprintf(fp, "\t\t<DATA><SEARCH>%.*f</SEARCH></DATA>\n", opts->precision, table[row][col]);
+            }
+        }
+
+        fprintf(fp, "\t</ALGO>\n");
+    }
+
+    // Write best times:
+    fprintf(fp, "\t<BEST>\n");
+    for (int col = 0; col < cols; col++)
+    {
+        if (best_times[col] > 0)
+            fprintf(fp, "\t\t<DATA>%.*f</DATA>\n", opts->precision, best_times[col]);
+        else
+            fprintf(fp, "\t\t<DATA>-</DATA>\n");
+    }
+    fprintf(fp, "\t</BEST>\n</RESULTS>\n\n");
+}
+
+/*
+ * Builds tables of statistics with the algorithms as rows and the patterns as columns,
+ * for the mean and median search time, and the mean and median total times (search + preprocessing).
+ */
+void build_statistics_tables(int rows, int cols,
+                             double mean_search[rows][cols], double median_search[rows][cols],
+                             double mean_total_search[rows][cols], double median_total_search[rows][cols],
+                             double best_search[rows][cols], double worst_search[rows][cols],
+                             double mean_pre_time[rows][cols], double median_pre_time[rows][cols],
+                             double best_pre_time[rows][cols], double worst_pre_time[rows][cols],
+                             double standard_deviation[rows][cols],
+                             const run_command_opts_t *opts, int num_pattern_lengths,
+                             benchmark_results_t *results, const algo_info_t *algorithms)
+{
+    // For each pattern length benchmarked:
+    for (int pattern_len_no = 0; pattern_len_no < num_pattern_lengths; pattern_len_no++)
+    {
+        // For each algorithm:
+        for (int algo_no = 0; algo_no < algorithms->num_algos; algo_no++)
+        {
+            algo_results_t *algo_res = &(results[pattern_len_no].algo_results[algo_no]);
+            switch (algo_res->success_state)
+            {
+                case SUCCESS:
+                {
+                    algo_statistics_t *stats = &(algo_res->statistics);
+                    mean_search[algo_no][pattern_len_no] = stats->mean_search_time;
+                    median_search[algo_no][pattern_len_no] = stats->median_search_time;
+                    mean_total_search[algo_no][pattern_len_no] = stats->mean_total_time;
+                    median_total_search[algo_no][pattern_len_no] = stats->median_total_time;
+                    best_search[algo_no][pattern_len_no] = stats->min_search_time,
+                    worst_search[algo_no][pattern_len_no] = stats->max_search_time;
+                    mean_pre_time[algo_no][pattern_len_no] = stats->mean_pre_time;
+                    median_pre_time[algo_no][pattern_len_no] = stats->median_pre_time;
+                    best_pre_time[algo_no][pattern_len_no] = stats->min_pre_time;
+                    worst_pre_time[algo_no][pattern_len_no] = stats->max_pre_time;
+                    standard_deviation[algo_no][pattern_len_no] = stats->std_search_time;
+                    break;
+                }
+                case CANNOT_SEARCH:
+                {
+                    mean_search[algo_no][pattern_len_no] = -1;
+                    median_search[algo_no][pattern_len_no] = -1;
+                    mean_total_search[algo_no][pattern_len_no] = -1;
+                    median_total_search[algo_no][pattern_len_no] = -1;
+                    best_search[algo_no][pattern_len_no] = -1;
+                    worst_search[algo_no][pattern_len_no] = -1;
+                    mean_pre_time[algo_no][pattern_len_no] = -1;
+                    median_pre_time[algo_no][pattern_len_no] = -1;
+                    best_pre_time[algo_no][pattern_len_no] = -1;
+                    worst_pre_time[algo_no][pattern_len_no] = -1;
+                    standard_deviation[algo_no][pattern_len_no] = -1;
+                    break;
+                }
+                case TIMED_OUT:
+                {
+                    mean_search[algo_no][pattern_len_no] = -2;
+                    median_search[algo_no][pattern_len_no] = -2;
+                    mean_total_search[algo_no][pattern_len_no] = -2;
+                    median_total_search[algo_no][pattern_len_no] = -2;
+                    best_search[algo_no][pattern_len_no] = -2;
+                    worst_search[algo_no][pattern_len_no] = -2;
+                    mean_pre_time[algo_no][pattern_len_no] = -2;
+                    median_pre_time[algo_no][pattern_len_no] = -2;
+                    best_pre_time[algo_no][pattern_len_no] = -2;
+                    worst_pre_time[algo_no][pattern_len_no] = -2;
+                    standard_deviation[algo_no][pattern_len_no] = -2;
+                    break;
+                }
+                case ERROR:
+                {
+                    mean_search[algo_no][pattern_len_no] = -3;
+                    median_search[algo_no][pattern_len_no] = -3;
+                    mean_total_search[algo_no][pattern_len_no] = -3;
+                    median_total_search[algo_no][pattern_len_no] = -3;
+                    best_search[algo_no][pattern_len_no] = -3;
+                    worst_search[algo_no][pattern_len_no] = -3;
+                    mean_pre_time[algo_no][pattern_len_no] = -3;
+                    median_pre_time[algo_no][pattern_len_no] = -3;
+                    best_pre_time[algo_no][pattern_len_no] = -3;
+                    worst_pre_time[algo_no][pattern_len_no] = -3;
+                    standard_deviation[algo_no][pattern_len_no] = -3;
+                }
+            }
+        }
+    }
+}
+
+/*
+ * Outputs benchmark statistic tables for mean, median, best and worst statistics in a variety of text formats.
+ */
+void output_benchmark_statistic_tables(const smart_config_t *smart_config, const run_command_opts_t *opts,
+                                       const algo_info_t *algorithms, benchmark_results_t *results, int rows, int cols,
+                                       double mean_search_time_table[rows][cols], double mean_best_times[cols],
+                                       double median_search_time_table[rows][cols], double median_best_times[cols],
+                                       double mean_total_time_table[rows][cols], double mean_best_total_times[cols],
+                                       double median_total_time_table[rows][cols], double median_best_total_times[cols],
+                                       double best_time_table[rows][cols], double best_times[cols],
+                                       double worst_time_table[rows][cols], double best_worst_times[cols])
+{
+    FILE *rf = open_experiment_file_for_writing(smart_config, opts, "text tables", "txt");
+
+    fprintf(rf, "\nStatistics tables for experiment: %s\n", opts->expcode);
+    fprintf(rf, "\nTables are provided in tab-separated CSV, LaTex, Markdown, HTML and XML formats.\n");
+
+    fprintf(rf, "\n\nTab-separated CSV tables:\n---------------------\n\n");
+    write_text_statistics_table(rf, rows, cols, mean_search_time_table, algorithms, opts, results, "Mean search times");
+    write_text_statistics_table(rf, rows, cols, median_search_time_table, algorithms, opts, results, "Median search times");
+    write_text_statistics_table(rf, rows, cols, mean_total_time_table, algorithms, opts, results, "Mean total search times");
+    write_text_statistics_table(rf, rows, cols, median_total_time_table, algorithms, opts, results, "Median total search times");
+    write_text_statistics_table(rf, rows, cols, best_time_table, algorithms, opts, results, "Best times");
+    write_text_statistics_table(rf, rows, cols, worst_time_table, algorithms, opts, results, "Worst times");
+
+    fprintf(rf, "\n\nLatex tables:\n-------------\n\nn");
+    fprintf(rf, "Place these commands in your tex file to define the format for best scores and algorithm parameters.\n");
+    fprintf(rf, "\\newcommand{\\best}[1]{\\textbf{\\underline{#1}}}\n\\newcommand{\\param}[1]{$^{(#1)}$}\n\n");
+    write_latex_statistics_table(rf, rows, cols, mean_search_time_table, mean_best_times, algorithms, opts, results, "Mean search times");
+    write_latex_statistics_table(rf, rows, cols, median_search_time_table, median_best_times, algorithms, opts, results, "Median search times");
+    write_latex_statistics_table(rf, rows, cols, mean_total_time_table, mean_best_total_times, algorithms, opts, results, "Mean total search times");
+    write_latex_statistics_table(rf, rows, cols, median_total_time_table, median_best_total_times, algorithms, opts, results, "Median total search times");
+    write_latex_statistics_table(rf, rows, cols, best_time_table, best_times, algorithms, opts, results, "Best times");
+    write_latex_statistics_table(rf, rows, cols, worst_time_table, best_worst_times, algorithms, opts, results, "Worst times");
+
+    fprintf(rf, "\n\nMarkdown tables:\n----------------\n\n");
+    write_markdown_statistics_table(rf, rows, cols, mean_search_time_table, mean_best_times, algorithms, opts, results, "Mean search times");
+    write_markdown_statistics_table(rf, rows, cols, median_search_time_table, median_best_times, algorithms, opts, results, "Median search times");
+    write_markdown_statistics_table(rf, rows, cols, mean_total_time_table, mean_best_total_times, algorithms, opts, results, "Mean total search times");
+    write_markdown_statistics_table(rf, rows, cols, median_total_time_table, median_best_total_times, algorithms, opts, results, "Median total search times");
+    write_markdown_statistics_table(rf, rows, cols, best_time_table, best_times, algorithms, opts, results, "Best times");
+    write_markdown_statistics_table(rf, rows, cols, worst_time_table, best_worst_times, algorithms, opts, results, "Worst times");
+
+    fprintf(rf, "\n\nHTML tables:\n------------\n\n");
+    write_html_statistics_table(rf, rows, cols, mean_search_time_table, mean_best_times, algorithms, opts, results, "Mean search times");
+    write_html_statistics_table(rf, rows, cols, median_search_time_table, median_best_times, algorithms, opts, results, "Median search times");
+    write_html_statistics_table(rf, rows, cols, mean_total_time_table, mean_best_total_times, algorithms, opts, results, "Mean total search times");
+    write_html_statistics_table(rf, rows, cols, median_total_time_table, median_best_total_times, algorithms, opts, results, "Median total search times");
+    write_html_statistics_table(rf, rows, cols, best_time_table, best_times, algorithms, opts, results, "Best times");
+    write_html_statistics_table(rf, rows, cols, worst_time_table, best_worst_times, algorithms, opts, results, "Worst times");
+
+    fprintf(rf, "\n\nXML tables:\n-----------\n\n");
+    write_xml_statistics_table(rf, rows, cols, mean_search_time_table, mean_best_times, algorithms, opts, results, "Mean search times");
+    write_xml_statistics_table(rf, rows, cols, median_search_time_table, median_best_times, algorithms, opts, results, "Median search times");
+    write_xml_statistics_table(rf, rows, cols, mean_total_time_table, mean_best_total_times, algorithms, opts, results, "Mean total search times");
+    write_xml_statistics_table(rf, rows, cols, median_total_time_table, median_best_total_times, algorithms, opts, results, "Median total search times");
+    write_xml_statistics_table(rf, rows, cols, best_time_table, best_times, algorithms, opts, results, "Best times");
+    write_xml_statistics_table(rf, rows, cols, worst_time_table, best_worst_times, algorithms, opts, results, "Worst times");
+
+    fclose(rf);
+}
+
+/*
+ * Computes a semi-random color palette using the golden ratio to produce colors which are
+ * not right next to one another, making them easier to distinguish than a fully random color palette,
+ * which will tend to have some colors clustered quite closely together by chance.
+ */
+void computeGoldenRatioColors(char colors[MAX_SELECT_ALGOS][COLOR_STRING_LENGTH])
+{
+    const double golden_ratio_conjugate = 0.618033988749895;
+    double value = (double) rand() / RAND_MAX;
+    for (int i = 0; i < MAX_SELECT_ALGOS; i++)
+    {
+        value += golden_ratio_conjugate;
+        value = fmod(value, 1.0);
+        double hue = value * 360;
+        snprintf(colors[i], COLOR_STRING_LENGTH, "hsl(%.0f,50%%,50%%)", hue);
+    }
+}
+
+/*
+ * Writes out an interactive HTML table of results.  Best results are highlighted.
+ *
+ * The caption contains radio buttons to control the heat map, and checkboxes to control whether pre-processing or
+ * the min-max times are also shown in the table.
+ */
+void write_html_table(FILE *fp, const int table_id, const char *table_description, int rows, int cols,
+                      double table[rows][cols], const double best_times[cols],
+                      double pre_time[rows][cols], double best_search_times[rows][cols], double worst_search_times[rows][cols],
+                      const run_command_opts_t *opts, benchmark_results_t *results, const algo_info_t *algorithms)
+{
+    fprintf(fp, "<table id=\"resultTable%d\" class=\"exp_table\">\n", table_id);
+    fprintf(fp, "<tr><td class=\"length\"></td>");
+    for (int col = 0; col < cols; col++)
+    {
+        fprintf(fp, "<td class=\"length\">%d</td>",  results[col].pattern_length);
+    }
+    fprintf(fp, "</tr>");
+
+    const char *preVisible = opts->pre ? "block" : "none";
+    const char *difVisible = opts->dif ? "block" : "none";
+
+    for (int row = 0; row < rows; row++)
+    {
+        fprintf(fp, "<tr>\n");
+        char upper_case_name[ALGO_NAME_LEN];
+        set_upper_case_algo_name(upper_case_name, algorithms->algo_names[row]);
+        fprintf(fp, "<td class=\"algo\"><b>%s</b></td>\n", upper_case_name);
+
+        for (int col = 0; col < cols; col++)
+        {
+            fprintf(fp, "<td><center>");
+
+            if (pre_time[row][col] >= 0)
+                fprintf(fp, "<div class=\"pre_time\" style=\"display:%s\">%.*f</div>", preVisible, opts->precision, pre_time[row][col]);
+            else
+                fprintf(fp, "<div class=\"pre_time\" style=\"display:%s\">-</div>", preVisible);
+
+            if (table[row][col] < 0)
+            {
+                fprintf(fp, "<div class=\"search_time\">-</div>");
+            }
+            else if (table[row][col] <= best_times[col])
+            {
+                fprintf(fp, "<div class=\"search_time_best\"><b>%.*f</b></div>", opts->precision, table[row][col]);
+            }
+            else
+            {
+                fprintf(fp, "<div class=\"search_time\">%.*f</div>",  opts->precision, table[row][col]);
+            }
+
+            if (best_search_times[row][col] >= 0 && worst_search_times[row][col] >= 0)
+                fprintf(fp, "<div class=\"dif\" style=\"display:%s\">%.*f - %.*f</div>", difVisible,
+                        opts->precision, best_search_times[row][col], opts->precision, worst_search_times[row][col]);
+            else
+                fprintf(fp, "<div class=\"dif\" style=\"display:%s\">-</div>", difVisible);
+
+            fprintf(fp, "</center></td>");
+        }
+        fprintf(fp, "</tr>\n");
+    }
+    fprintf(fp, "</table>\n");
+    fprintf(fp, "<div class=\"caption\"><b>Table %d.</b> %s running times of experimental tests n.%s. Each time value is taken from %d runs. ",
+            table_id, table_description, opts->expcode, opts->num_runs);
+
+    if (opts->pre)
+         fprintf(fp, "The table reports also the mean of the preprocessing time (above each time value). ");
+
+    if (opts->dif)
+         fprintf(fp, "In addition the worst and best running times are reported (below each time value). ");
+
+    fprintf(fp, "Running times are in milliseconds.\n");
+
+    fprintf(fp, "<br><div class=\"controlHorizontalFloat\">\n"
+                "<input type=\"radio\" id=\"best\" name=\"resultformat%d\" value=\"best\" checked onclick=\"setBestTableColors(document.getElementById('resultTable%d')\">\n"
+                "<label for=\"best\">Best times</label></div>\n"
+                "<div class=\"controlHorizontalFloat\">\n"
+                "<input type=\"radio\" id=\"heatMap5\" name=\"resultformat%d\" value=\"hm5\" onclick=\"heatMapGray(document.getElementById('resultTable%d'), 95)\">\n"
+                "<label for=\"heatMap5\">Heatmap top 5%%</label></div>\n"
+                "<div class=\"controlHorizontalFloat\">\n"
+                "<input type=\"radio\" id=\"heatMap10\" name=\"resultformat%d\" value=\"hm10\" onclick=\"heatMapGray(document.getElementById('resultTable%d'), 90)\">\n"
+                "<label for=\"heatMap25\">Heatmap top 10%%</label></div>\n"
+                "<div class=\"controlHorizontalFloat\">\n"
+                "<input type=\"radio\" id=\"heatMap25\" name=\"resultformat%d\" value=\"hm25\" onclick=\"heatMapGray(document.getElementById('resultTable%d'), 75)\">\n"
+                "<label for=\"heatMap25\">Heatmap top 25%%</label></div>\n"
+                "<div class=\"controlHorizontalFloat\">\n"
+                "<input type=\"radio\" id=\"heatMap50\" name=\"resultformat%d\" value=\"hm50\" onclick=\"heatMapGray(document.getElementById('resultTable%d'), 50)\">\n"
+                "<label for=\"heatMap50\">Heatmap top 50%%</label></div><div class=\"clearHorizontalFloat\"></div>\n",
+                table_id, table_id, table_id, table_id, table_id, table_id, table_id, table_id, table_id, table_id);
+
+    fprintf(fp, "<div class=\"controlHorizontalFloat\">\n");
+    fprintf(fp, "<input type=\"checkbox\" id=\"pretime%d\" name=\"pretime%d\" value=\"pretime\" %s onclick=\"showChildDivs(document.getElementById('resultTable%d'), 'pre_time', this.checked)\">\n",
+            table_id, table_id, (opts->pre ? "checked" : ""), table_id);
+    fprintf(fp, "<label for=\"pretime%d\">Show pre-processing times</label></div>\n", table_id);
+
+    fprintf(fp, "<div class=\"controlHorizontalFloat\">\n");
+    fprintf(fp, "<input type=\"checkbox\" id=\"bestworst%d\" name=\"bestworst%d\" value=\"bestworst\" %s onclick=\"showChildDivs(document.getElementById('resultTable%d'), 'dif', this.checked)\">\n",
+            table_id, table_id, (opts->dif ? "checked" : ""), table_id);
+    fprintf(fp, "<label for=\"bestworst%d\">Show best and worst running times</label></div><br></div><p>\n", table_id);
+
+    fprintf(fp, "</div><br><p>\n");
+}
+
+/*
+ * Writes out an HTML header for an experiment report.
+ */
+void write_html_report_header(FILE *fp, const run_command_opts_t *opts)
+{
+    fprintf(fp, "<!DOCTYPE html><html><head>");
+    fprintf(fp, "<script src=\"./js/RGraph.common.core.js\"></script>");
+    fprintf(fp, "<script src=\"./js/RGraph.common.effects.js\"></script>");
+    fprintf(fp, "<script src=\"./js/RGraph.line.js\"></script>");
+    fprintf(fp, "<script src=\"./js/RGraph.bar.js\"></script>");
+    fprintf(fp, "<script src=\"./RGraph.common.dynamic.js\"></script>");
+    fprintf(fp, "<script src=\"./RGraph.common.tooltips.js\"></script>");
+    fprintf(fp, "<script src=\"./js/Smart.TimeResultFormatting.js\"></script>");
+    fprintf(fp, "<link href='https://fonts.googleapis.com/css?family=Dosis:300' rel='stylesheet' type='text/css'>");
+    fprintf(fp, "<link href='https://fonts.googleapis.com/css?family=Yantramanav:400,100,700' rel='stylesheet' type='text/css'>");
+    fprintf(fp, "<link rel=\"stylesheet\" type=\"text/css\" href=\"./js/style.css\">");
+    char data_source[MAX_LINE_LEN];
+    set_data_source_description(opts, data_source);
+    fprintf(fp, "<title>SMART Experimental Results %s: %s</title>", opts->expcode, data_source);
+    fprintf(fp, "</head>");
+}
+
+/*
+ * Writes out an HTML description of the experiment.
+ */
+void write_html_experiment_description(FILE *fp, const run_command_opts_t *opts) {
+    fprintf(fp, "<h1>SMART<span class=\"subtitle\">String Matching Algorithms Research Tool<span></h1>");
+    fprintf(fp, "<h3>by Simone Faro - <span class=\"link\">www.dmi.unict.it/~faro/smart/</span> - <span class=\"link\">email: faro@dmi.unict.it</span></h3>");
+    fprintf(fp, "<div class=\"name\">");
+    fprintf(fp, "<h2><b>Report of Experimental Results</b></h2>");
+    fprintf(fp, "<h2>Test Code %s</h2>", opts->expcode);
+    char time_string[26];
+    set_time_string_with_time(time_string, 26, TIME_FORMAT, opts->creation_date);
+    fprintf(fp, "<h2>Date %s</h2>", time_string);
+
+    switch (opts->data_source)
+    {
+        case DATA_SOURCE_FILES:
+        {
+            char data_source[MAX_LINE_LEN];
+            set_data_source_description(opts, data_source);
+            fprintf(fp, "<h2>Text %s (alphabet : %d - shannon entropy : %.2f - size : %d bytes)</h2>",
+                    data_source, opts->text_stats.text_alphabet, opts->text_stats.shannon_entropy_byte, opts->text_stats.text_actual_length);
+            break;
+        }
+        case DATA_SOURCE_RANDOM:
+        {
+            fprintf(fp, "<h2>Text randomly generated with seed: %ld (alphabet : %d - shannon entropy : %.2f - size : %d bytes)</h2>",
+                    opts->random_seed, opts->text_stats.text_alphabet, opts->text_stats.shannon_entropy_byte, opts->text_stats.text_actual_length);
+            break;
+        }
+        case DATA_SOURCE_USER:
+        {
+            fprintf(fp, "<h2>Text provided on the command line (alphabet : %d - shannon entropy : %.2f - size : %d bytes)</h2>",
+                    opts->text_stats.text_alphabet, opts->text_stats.shannon_entropy_byte, opts->text_stats.text_actual_length);
+            break;
+        }
+        default: {
+            fprintf(fp, "<h2>ERROR: no data source was defined.</h2>");
+            break;
+        }
+    }
+    fprintf(fp, "</div><div class=\"divClear\"/><p>");
+}
+
+/*
+ * Writes a chart comparing performance of all algorithms, with different lines for each algorithm.
+ */
+void write_html_chart(FILE *fp, int chart_id, const char *title, int rows, int cols, double table[rows][cols],
+                      const char colors [MAX_SELECT_ALGOS][COLOR_STRING_LENGTH],//const char colors[100][8],
+                      const benchmark_results_t *results, const run_command_opts_t *opts, const algo_info_t *algorithms)
+{
+    // Chart with a key
+    fprintf(fp, "<div class=\"chart_container\"><div class=\"chart_title\">%s</div>\n", title);
+    fprintf(fp, "<canvas class=\"exp_chart\" id=\"cvs%d\" width=\"780\" height=\"400\">[No canvas support]</canvas>",
+            chart_id);
+
+    fprintf(fp, "<div style=\"padding-top:40px\">");
+
+    int color = 0;
+    for (int row = 0; row < rows; row++)
+    {
+        char upper_case_name[ALGO_NAME_LEN];
+        set_upper_case_algo_name(upper_case_name, algorithms->algo_names[row]);
+        fprintf(fp, "<div class=\"didascalia\"><div class=\"line\" style=\"background-color:%s\"></div class=\"label\"> %s</div>\n",
+                colors[color++], upper_case_name);
+    }
+    fprintf(fp, "</div><br/><br/>\n");
+
+    // Caption:
+    fprintf(fp, "<div class=\"caption\"><b>Chart %d.</b><p>Plot of the running times of experimental tests n.%s. ",
+            chart_id, opts->expcode);
+    fprintf(fp, "The x axes reports the length of the pattern while the y axes reports the running time in milliseconds. ");
+    fprintf(fp, "</div>\n");
+    fprintf(fp, "</div><br><p>\n");
+
+    // Script to render the chart with the data:
+    fprintf(fp,"<script>function multiChart%d() { var data = [", chart_id);
+    for (int row = 0; row < rows; row++)
+    {
+        fprintf(fp,"[");
+        for (int col = 0; col < cols; col++)
+        {
+            if (table[row][col] < 0)
+                fprintf(fp, ",");
+            else
+                fprintf(fp, "%.*f,", opts->precision, table[row][col]);
+        }
+        fprintf(fp,"],\n");
+    }
+    fprintf(fp,"]; \n\
+        var line = new RGraph.Line({\n\
+            id: 'cvs%d',\n\
+            data: data,\n\
+            options: {\n\
+            	textFont: 'Yantramanav',\n\
+            	textSize: '8',\n\
+            	textColor: '#444',\n\
+                BackgroundBarcolor1: 'white',\n\
+                BackgroundBarcolor2: 'red',\n\
+                BackgroundGridColor: 'rgba(238,238,238,1)',\n\
+                linewidth: 1,\n\
+                filled: false,\n\
+                fillstyle: ['red','blue','#0f0'],\n\
+                hmargin: 5,\n\
+                shadow: false,\
+                tickmarks: 'circle',\n\
+                spline: true,\n\
+                gutterLeft: 40,\n\
+                labels: [", chart_id);
+
+    for (int col = 0; col < cols; col++)
+        fprintf(fp, "'%d',",results[col].pattern_length);
+    fprintf(fp,"],\n");
+
+    fprintf(fp, "colors: [");
+    for(int col = 0; col < color; col++) fprintf(fp, "'%s',", colors[col]);
+    fprintf(fp,"],\n");
+    fprintf(fp,"} }).draw();\n");
+    fprintf(fp,"}</script>\n");
+}
+
+/*
+ * Writes an HTML javascript chart for each algorithm benchmarked.
+ *
+ * Each chart shows the mean performance of a single algorithm, with the minimum and maximum,
+ * and the standard deviation of the search times given as shaded areas around the mean line.
+ */
+void write_html_algo_charts(FILE *fp, int rows, int cols,
+                           double times[rows][cols], double stddev[rows][cols],
+                           double worst[rows][cols], double best[rows][cols],
+                           const benchmark_results_t *results, const run_command_opts_t *opts, const algo_info_t *algorithms)
+{
+    for (int algo = 0; algo < rows; algo++) {
+        char upper_case_name[ALGO_NAME_LEN];
+        set_upper_case_algo_name(upper_case_name, algorithms->algo_names[algo]);
+
+        fprintf(fp, "<div class=\"chart_container_small\"><div class=\"chart_title\">%s algorithm</div>\n",
+                upper_case_name);
+        fprintf(fp,
+                "<div><canvas class=\"exp_chart_small\" id=\"ac%d\" width=\"460\" height=\"250\">[No canvas support]</canvas>",
+                algo);
+        fprintf(fp,
+                "<div class=\"caption_small\">Detailed plot of the running times relative to the <b>%s algorithm</b>. ",
+                upper_case_name);
+        fprintf(fp, "The plot reports the mean and the distribution of the running times.");
+        fprintf(fp, "</div></div></div>\n");
+
+        fprintf(fp, "<script> function loadAlgoChart%d() { var data = [", algo);
+        for (int col = 0; col < cols; col++) {
+            if (times[algo][col] <= 0)
+                fprintf(fp, ",");
+            else
+                fprintf(fp, "%.*f,", opts->precision, times[algo][col]);
+        }
+        fprintf(fp, "];\n");
+
+        fprintf(fp, "var std1 = [");
+        for (int col = 0; col < cols; col++) {
+            if (times[algo][col] <= 0)
+                fprintf(fp, ",");
+            else {
+                // Prevent search time going below zero.
+                // Subtracting the standard deviation from the mean when the data distribution is not Guassian can result
+                // in a negative value.  Search algorithms data distributions are generally skewed to the right.  A lot of
+                // similar fast search times but also a longer tail of slower results.  These are not purely Guassian.
+                double value = MAX(0, times[algo][col] - stddev[algo][col]);
+                fprintf(fp, "%.*f,", opts->precision, value);
+            }
+        }
+        fprintf(fp, "];\n");
+
+        fprintf(fp, "var std2 = [");
+        for (int col = 0; col < cols; col++) {
+            if (times[algo][col] <= 0)
+                fprintf(fp, ",");
+            else
+                fprintf(fp, "%.*f,", opts->precision, times[algo][col] + stddev[algo][col]);
+        }
+        fprintf(fp, "];\n");
+
+        fprintf(fp, "var bound1 = [");
+        for (int col = 0; col < cols; col++) {
+            if (times[algo][col] <= 0)
+                fprintf(fp, ",");
+            else
+                fprintf(fp, "%.*f,", opts->precision, worst[algo][col]);
+        }
+        fprintf(fp, "];\n");
+
+        fprintf(fp, "var bound2 = [");
+        for (int col = 0; col < cols; col++) {
+            if (times[algo][col] <= 0)
+                fprintf(fp, ",");
+            else
+                fprintf(fp, "%.*f,", opts->precision, best[algo][col]);
+        }
+        fprintf(fp, "];\n");
+
+        double dymax = 0.0;
+        for (int col = 0; col < cols; col++) {
+            if (worst[algo][col] > dymax)
+                dymax = worst[algo][col];
+            if (times[algo][col] + stddev[algo][col] > dymax)
+                dymax = times[algo][col] + stddev[algo][col];
+        }
+        int ymax = dymax + 1.0;
+
+        fprintf(fp, "var line3 = new RGraph.Line({\n\
+                id: 'ac%d',\n\
+                data: [bound1, bound2],\n\
+                options: {\n\
+                    noxaxis: true,\n\
+                    textSize: 14,\n\
+                    filled: true,\n\
+                    filledRange: true,\n\
+                    fillstyle: 'rgba(255,0,0,0.1)',\n\
+                    colors: ['rgba(0,0,0,0)'],\n\
+                    linewidth: 0,\n\
+                    ylabels: false,\n\
+                    noaxes: true,\n\
+                    ymax: %d,\n\
+                    hmargin: 5,\n\
+                    spline: true,\n\
+                    gutterLeft: 40,\n\
+                    tickmarks: null,\n\
+                }\n\
+            }).draw();\n",
+                algo, ymax);
+
+        fprintf(fp, "var line2 = new RGraph.Line({\n\
+                id: 'ac%d',\n\
+                data: [std1, std2],\n\
+                options: {\n\
+                    noxaxis: true,\n\
+                    textSize: 14,\n\
+                    filled: true,\n\
+                    filledRange: true,\n\
+                    fillstyle: 'rgba(255,0,0,0.2)',\n\
+                    colors: ['rgba(0,0,0,0)'],\n\
+                    linewidth: 0,\n\
+                    ylabels: false,\n\
+                    noaxes: true,\n\
+                    ymax: %d,\n\
+                    hmargin: 5,\n\
+                    spline: true,\n\
+                    gutterLeft: 40,\n\
+                    tickmarks: null,\n\
+                }\n\
+            }).draw();\n",
+                algo, ymax);
+
+        fprintf(fp, "var line = new RGraph.Line({\n\
+                id: 'ac%d',\n\
+                data: data,\n\
+                options: {\n\
+                    textFont: 'Yantramanav',\n\
+                    textSize: '8',\n\
+                    textColor: '#444',\n\
+                    BackgroundBarcolor1: 'white',\n\
+                    BackgroundBarcolor2: 'red',\n\
+                    BackgroundGridColor: 'rgba(238,238,238,1)',\n\
+                    linewidth: 1,\n\
+                    filled: false,\n\
+                    hmargin: 5,\n\
+                    shadow: false,\
+                    tickmarks: 'circle',\n\
+                    ymax: %d,\n\
+                    spline: true,\n\
+                    gutterLeft: 40,\n\
+                    tickmarks: null,\n\
+                    labels: [",
+                algo, ymax);
+
+        for (int col = 0; col < cols; col++) {
+            fprintf(fp, "'%d',", results[col].pattern_length);
+        }
+        fprintf(fp, "],\n");
+
+        fprintf(fp, "colors: ['#000000'],\n");
+        fprintf(fp, "} }).draw();");
+
+        fprintf(fp, "}</script>\n");
+    }
+}
+
+/*
+ * Outputs an HTML report containing interactive tables and charts of the mean, median, best and worst results.
+ */
+void output_html_report(const smart_config_t *smart_config, const run_command_opts_t *opts,
+                        benchmark_results_t *results, const algo_info_t *algorithms, int rows, int cols,
+                        double mean_search_time_table[rows][cols], double mean_best_times[cols],
+                        double median_search_time_table[rows][cols], double median_best_times[cols],
+                        double mean_total_time_table[rows][cols], double mean_best_total_times[cols],
+                        double median_total_time_table[rows][cols], double median_best_total_times[cols],
+                        double best_time_table[rows][cols], double best_best_times[cols],
+                        double worst_time_table[rows][cols], double best_worst_times[cols],
+                        double mean_pre_time[rows][cols], double median_pre_time[rows][cols],
+                        double best_pre_time[rows][cols], double worst_pre_time[rows][cols],
+                        double standard_deviation[rows][cols])
+{
+    FILE *fp = open_experiment_file_for_writing(smart_config, opts, "report", "html");
+
+    // Compute a reasonably nice palette of colors for the lines in the charts:
+    char line_colors[MAX_SELECT_ALGOS][COLOR_STRING_LENGTH];
+    computeGoldenRatioColors(line_colors); // gives nicer separation of colors than a purely random palette.
+
+    // Write the HTML header and description of the experiment:
+    write_html_report_header(fp, opts);
+    fprintf(fp, "<body><div class=\"main_container\">");
+    write_html_experiment_description(fp, opts);
+
+    // Write tables and charts for the mean, median, best and worst search times:
+    fprintf(fp, "<br><p><h2><b>Mean search times<b></h2><p>\n");
+    write_html_table(fp, 1, "Mean search", rows, cols,
+                     mean_search_time_table, mean_best_times,
+                     mean_pre_time, best_time_table, worst_time_table,
+                     opts, results, algorithms);
+    write_html_chart(fp, 1, "Mean search times", rows, cols, mean_search_time_table, line_colors, results, opts, algorithms);
+
+    fprintf(fp, "<br><p><h2><b>Mean search and preprocessing times<b></h2><p>\n");
+    write_html_table(fp, 2, "Mean search and preprocessing", rows, cols,
+                     mean_total_time_table, mean_best_total_times, mean_pre_time, best_time_table, worst_time_table,
+                     opts, results, algorithms);
+    write_html_chart(fp, 2, "Mean search and preprocessing search times", rows, cols, mean_total_time_table, line_colors, results, opts, algorithms);
+
+    fprintf(fp, "<br><p><h2><b>Median search times<b></h2><p>\n");
+    write_html_table(fp, 3, "Median search", rows, cols,
+                     median_search_time_table, median_best_times, median_pre_time, best_time_table, worst_time_table,
+                     opts, results, algorithms);
+    write_html_chart(fp, 3, "Median search times", rows, cols, median_search_time_table, line_colors, results, opts, algorithms);
+
+    fprintf(fp, "<br><p><h2><b>Median search and preprocessing times<b></h2><p>\n");
+    write_html_table(fp, 4, "Median search and preprocessing", rows, cols,
+                     median_total_time_table, median_best_total_times, median_pre_time, best_time_table, worst_time_table,
+                     opts, results, algorithms);
+    write_html_chart(fp, 4, "Median search and preprocessing times", rows, cols, median_total_time_table, line_colors, results, opts, algorithms);
+
+    fprintf(fp, "<br><p><h2><b>Best search times<b></h2><p>\n");
+    write_html_table(fp, 5, "Best search", rows, cols,
+                     best_time_table, best_best_times, best_pre_time, best_time_table, worst_time_table,
+                     opts, results, algorithms);
+    write_html_chart(fp, 5, "Best search times", rows, cols, best_time_table, line_colors, results, opts, algorithms);
+
+    fprintf(fp, "<br><p><h2><b>Worst search times<b></h2><p>\n");
+    write_html_table(fp, 6, "Worst search", rows, cols,
+                     worst_time_table, best_worst_times, worst_pre_time, best_time_table, worst_time_table,
+                     opts, results, algorithms);
+    write_html_chart(fp, 6, "Worst search times", rows, cols, worst_time_table, line_colors, results, opts, algorithms);
+
+    fprintf(fp, "<br><p><h2><b>Algorithm performance<b></h2><p>\n");
+    write_html_algo_charts(fp, rows, cols, mean_total_time_table,
+                     standard_deviation, worst_time_table, best_time_table,
+                           results, opts, algorithms);
+
+    // Draw the charts when the window loads:
+    fprintf(fp,"\n<script>window.onload = function() {\n");
+    fprintf(fp, "multiChart1(); multiChart2(); multiChart3(); multiChart4(); multiChart5(); multiChart6();\n");
+    for (int algo = 0; algo < rows; algo++)
+    {
+        fprintf(fp, "loadAlgoChart%d(); ", algo);
+    }
+    fprintf(fp, "}\n</script>\n");
+
+    // Close the HTML document and file.
+    fprintf(fp, "</div><br><p></body></html>");
+    fclose(fp);
+}
+
+/*
+ * Outputs the results of benchmarking to various files.
+ *
+ * There are currently no options to control what files are output - all of them will always be written.
+ *
+ * It's actually quite frustrating to complete a good run and realise that you had forgotten to add
+ * the option that wrote the results out in the format you needed.  These files are not very large,
+ * so I think it is better to simply write out all useful information for an experiment every time.
+ *
+ *  1. A summary of all the run options and text statistics in a two-column tab separated format.
+ *  2. A CSV file (tab separated) of all the running statistics captured during benchmarking.
+ *  3. A CSV file (tab separated) of the raw measurements taken during benchmarking.
+ *  4. An HTML report containing statistics tables and charts of the mean, median, best and worst times for all algorithms.
+ *  5. A single text file containing the mean, median best and worst times rendered into various text formats, including:
+ *     CSV (tab-separated), LaTeX, Markdown, HTML and XML.
+ */
+void output_results(const smart_config_t *smart_config, run_command_opts_t *opts, benchmark_results_t  *results,
+                    int num_pattern_lengths, const algo_info_t *algorithms)
+{
+    // Output the summary of the experiment, statistics and raw measurements as tab-separated CSV files.
+    output_benchmark_run_summary(smart_config, opts, algorithms);
+    output_benchmark_statistics_csv(smart_config, opts, num_pattern_lengths, results, algorithms);
+    output_benchmark_measurements_csv(smart_config, opts, num_pattern_lengths, results, algorithms);
+
+    // Build statistics tables with algorithms as rows and columns as pattern lengths:
+    int rows = algorithms->num_algos;
+    int cols = num_pattern_lengths;
+    double (*mean_search_time_table)[cols] = malloc(sizeof(double[rows][cols]));
+    double (*median_search_time_table)[cols] = malloc(sizeof(double[rows][cols]));
+    double (*mean_total_time_table)[cols] = malloc(sizeof(double[rows][cols]));
+    double (*median_total_time_table)[cols] = malloc(sizeof(double[rows][cols]));
+    double (*best_time_table)[cols] = malloc(sizeof(double[rows][cols]));
+    double (*worst_time_table)[cols] = malloc(sizeof(double[rows][cols]));
+    double (*mean_pre_time_table)[cols] = malloc(sizeof(double[rows][cols]));
+    double (*median_pre_time_table)[cols] = malloc(sizeof(double[rows][cols]));
+    double (*best_pre_time_table)[cols] = malloc(sizeof(double[rows][cols]));
+    double (*worst_pre_time_table)[cols] = malloc(sizeof(double[rows][cols]));
+    double (*standard_deviation)[cols] = malloc(sizeof(double[rows][cols]));
+
+    build_statistics_tables(rows, cols, mean_search_time_table, median_search_time_table,
+                            mean_total_time_table, median_total_time_table,
+                            best_time_table, worst_time_table,
+                            mean_pre_time_table, median_pre_time_table,
+                            best_pre_time_table, worst_pre_time_table, standard_deviation,
+                            opts, num_pattern_lengths, results, algorithms);
+
+    // Get the best times for each of the tables for each pattern length.
+    double best_mean_times[cols], best_median_times[cols], best_mean_total_times[cols], best_median_total_times[cols];
+    double best_best_times[cols], best_worst_times[cols];
+    find_best_times(rows, cols, mean_search_time_table, best_mean_times);
+    find_best_times(rows, cols, median_search_time_table, best_median_times);
+    find_best_times(rows, cols, mean_total_time_table, best_mean_total_times);
+    find_best_times(rows, cols, median_total_time_table, best_median_total_times);
+    find_best_times(rows, cols, best_time_table, best_best_times);
+    find_best_times(rows, cols, worst_time_table, best_worst_times);
+
+    // Write out the statistics tables in TSV text, LaTex, Markdown, HTML and XML formats.
+    output_benchmark_statistic_tables(smart_config, opts, algorithms, results, rows, cols,
+                                      mean_search_time_table, best_mean_times,
+                                      median_search_time_table, best_median_times,
+                                      mean_total_time_table, best_mean_total_times,
+                                      median_total_time_table, best_median_total_times,
+                                      best_time_table, best_best_times,
+                                      worst_time_table, best_worst_times);
+
+    // Write out an HTML report:
+    output_html_report(smart_config, opts, results, algorithms, rows, cols,
+                       mean_search_time_table, best_mean_times,
+                       median_search_time_table, best_median_times,
+                       mean_total_time_table, best_mean_total_times,
+                       median_total_time_table, best_median_total_times,
+                       best_time_table, best_best_times, worst_time_table, best_worst_times,
+                       mean_pre_time_table, median_pre_time_table,
+                       best_pre_time_table, worst_pre_time_table, standard_deviation);
+
+    free(mean_search_time_table);
+    free(mean_total_time_table);
+    free(median_search_time_table);
+    free(median_total_time_table);
+    free(best_time_table);
+    free(worst_time_table);
+    free(mean_pre_time_table);
+    free(median_pre_time_table);
+    free(best_pre_time_table);
+    free(worst_pre_time_table);
+    free(standard_deviation);
+}
+
+
