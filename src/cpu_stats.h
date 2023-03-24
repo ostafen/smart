@@ -28,33 +28,6 @@ static const int CPU_STAT_LL_CACHE = 0x02;
 static const int CPU_STAT_BRANCHES = 0x04;
 
 /*
- * Lists the cpu stats being captured in the cpu_stats bitmask as a comma delimited string.
- */
-void set_cpu_stat_names(int cpu_stats, char names[MAX_LINE_LEN]) {
-    names[0] = STR_END_CHAR;
-    int written_text = 0;
-
-    if (cpu_stats & CPU_STAT_L1_CACHE)
-    {
-        strcat(names, "first level cache");
-        written_text = 1;
-    }
-    if (cpu_stats & CPU_STAT_LL_CACHE)
-    {
-        if (written_text) strcat(names, ", ");
-        strcat(names, "last level cache");
-        written_text = 1;
-    }
-    if (cpu_stats & CPU_STAT_BRANCHES) {
-        if (written_text) strcat(names, ", ");
-        strcat(names, "branch predictions");
-        written_text = 1;
-    }
-
-    if (!written_text) strcat(names, "none");
-}
-
-/*
  * Holds the file descriptors for CPU performance events.
  */
 typedef struct cpu_perf_events
