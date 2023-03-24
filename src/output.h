@@ -33,6 +33,14 @@ static char *const FINISHED_BENCHMARKING = "Finished benchmarking";
 
 static const int COLOR_STRING_LENGTH = 22;
 
+enum measurement_unit {MILLISECONDS, GIGABYTES_PER_SECOND};
+
+
+const char *unit_description(enum measurement_unit unit)
+{
+    return unit == MILLISECONDS ? "Results in ms." : "Results in Gb/s.";
+}
+
 /*
  * Sets the filename of an experiment using the experiment code, an optional description, and a suffix.
  */
@@ -139,12 +147,12 @@ void output_benchmark_run_summary(const smart_config_t *smart_config, const run_
     else
         fprintf(sf, STR_KEY_FMT, PINNED_CPU_KEY, "not pinned");
 
-    char time_string[26];
-    set_time_string_with_time(time_string, 26, TIME_FORMAT, opts->started_date);
+    char time_string[TIME_FORMAT_STRLEN];
+    set_time_string_with_time(time_string, TIME_FORMAT_STRLEN, TIME_FORMAT, opts->started_date);
     fprintf(sf, STR_KEY_FMT, STARTED_BENCHMARKING, time_string);
 
     
-    set_time_string_with_time(time_string, 26, TIME_FORMAT, opts->finished_date);
+    set_time_string_with_time(time_string, TIME_FORMAT_STRLEN, TIME_FORMAT, opts->finished_date);
     fprintf(sf, STR_KEY_FMT, FINISHED_BENCHMARKING, time_string);
     
     fclose(sf);
@@ -374,12 +382,12 @@ void find_best_times(int rows, int cols, double table[rows][cols], double best_t
 }
 
 /*
- * Writes a tab separated statistics table.
+ * Writes a tab separated statistics table using either milliseconds or gigabytes per second.
  */
-void write_text_statistics_table(FILE *fp, int rows, int cols, double table[rows][cols],
-                                 const algo_info_t *algorithms,
-                                 const run_command_opts_t *opts, benchmark_results_t *results,
-                                 const char *description)
+void write_text_statistics_table_as(FILE *fp, int rows, int cols, double table[rows][cols],
+                                    const algo_info_t *algorithms,
+                                    const run_command_opts_t *opts, benchmark_results_t *results,
+                                    const char *description, enum measurement_unit unit)
 {
     // Write column headers:
     fprintf(fp, "%s", "m");
@@ -397,7 +405,11 @@ void write_text_statistics_table(FILE *fp, int rows, int cols, double table[rows
         {
             double value = table[row][col];
             if (value > 0)
+            {
+                if (unit == GIGABYTES_PER_SECOND)
+                    value = GBs(value, opts->text_stats.text_actual_length);
                 fprintf(fp, "\t%.*f", opts->precision, value);
+            }
             else
                 fprintf(fp, "\t-");
         }
@@ -405,15 +417,28 @@ void write_text_statistics_table(FILE *fp, int rows, int cols, double table[rows
         fprintf(fp, "\n");
     }
 
-    fprintf(fp, "\nTable: %s\n\n\n", description);
+    fprintf(fp, "\nTable: %s. %s\n\n\n", description, unit_description(unit));
+}
+
+/*
+ * Writes a tab separated statistics table.
+ */
+void write_text_statistics_table(FILE *fp, int rows, int cols, double table[rows][cols],
+                                 const algo_info_t *algorithms,
+                                 const run_command_opts_t *opts, benchmark_results_t *results,
+                                 const char *description)
+{
+    write_text_statistics_table_as(fp, rows, cols, table, algorithms, opts, results, description, MILLISECONDS);
+    write_text_statistics_table_as(fp, rows, cols, table, algorithms, opts, results, description, GIGABYTES_PER_SECOND);
 }
 
 /*
  * Writes a statistics table out in latex format, using the \best{#} command to highlight the best times.
+ * Either writes out milliseconds or gigabytes per second as the measurement.
  */
-void write_latex_statistics_table(FILE *fp, int rows, int cols, double table[rows][cols], const double best_times[cols],
-                                  const algo_info_t *algorithms, const run_command_opts_t *opts, benchmark_results_t *results,
-                                  const char *description)
+void write_latex_statistics_table_as(FILE *fp, int rows, int cols, double table[rows][cols], const double best_times[cols],
+                                    const algo_info_t *algorithms, const run_command_opts_t *opts, benchmark_results_t *results,
+                                    const char *description, enum measurement_unit unit)
 {
     // Write latex tabular table definition:
     fprintf(fp, "\\begin{tabular}{|l|");
@@ -437,27 +462,45 @@ void write_latex_statistics_table(FILE *fp, int rows, int cols, double table[row
         for (int col = 0; col < cols; col++) {
             if (table[row][col] < 0) {
                 fprintf(fp, "%s", " & -");
-            } else if (table[row][col] <= best_times[col]) {
-                fprintf(fp, " & \\best{%.*f}", opts->precision, table[row][col]);
-            } else
+            }
+            else
             {
-                fprintf(fp, " & %.*f", opts->precision, table[row][col]);
+                double value = unit == MILLISECONDS ? table[row][col] : GBs(table[row][col], opts->text_stats.text_actual_length);
+                if (table[row][col] <= best_times[col]) {
+
+                    fprintf(fp, " & \\best{%.*f}", opts->precision, value);
+                }
+                else
+                {
+                    fprintf(fp, " & %.*f", opts->precision, value);
+                }
             }
         }
 
         fprintf(fp, "\\\\\n");
     }
     fprintf(fp, "\\hline\n\\end{tabular}");
-    fprintf(fp, "\n\\caption{%s}\n\n\n", description);
+    fprintf(fp, "\n\\caption{%s. %s}\n\n\n", description, unit_description(unit));
+}
+
+/*
+ * Writes a statistics table out in latex format, using the \best{#} command to highlight the best times.
+ */
+void write_latex_statistics_table(FILE *fp, int rows, int cols, double table[rows][cols], const double best_times[cols],
+                                  const algo_info_t *algorithms, const run_command_opts_t *opts, benchmark_results_t *results,
+                                  const char *description)
+{
+    write_latex_statistics_table_as(fp, rows, cols, table, best_times, algorithms, opts, results, description, MILLISECONDS);
+    write_latex_statistics_table_as(fp, rows, cols, table, best_times, algorithms, opts, results, description, GIGABYTES_PER_SECOND);
 }
 
 /*
  * Writes a Markdown summary of a statistics table.
  */
-void write_markdown_statistics_table(FILE *fp, int rows, int cols, double table[rows][cols], const double best_times[cols],
-                                     const algo_info_t *algorithms,
-                                    const run_command_opts_t *opts, benchmark_results_t *results,
-                                    const char *description)
+void write_markdown_statistics_table_as(FILE *fp, int rows, int cols, double table[rows][cols], const double best_times[cols],
+                                        const algo_info_t *algorithms,
+                                        const run_command_opts_t *opts, benchmark_results_t *results,
+                                        const char *description, enum measurement_unit unit)
 {
     // Write column headers:
     fprintf(fp, "%s", "m");
@@ -478,30 +521,47 @@ void write_markdown_statistics_table(FILE *fp, int rows, int cols, double table[
         {
             if (table[row][col] < 0) {
                 fprintf(fp, "%s", " | -");
-            } else if (table[row][col] <= best_times[col]) {
-                fprintf(fp, " | **%.*f**", opts->precision, table[row][col]);
             } else
             {
-                fprintf(fp, " | %.*f", opts->precision, table[row][col]);
+                double value = unit == MILLISECONDS ? table[row][col] : GBs(table[row][col], opts->text_stats.text_actual_length);
+                if (table[row][col] <= best_times[col]) {
+                    fprintf(fp, " | **%.*f**", opts->precision, value);
+                }
+                else
+                {
+                    fprintf(fp, " | %.*f", opts->precision, value);
+                }
             }
         }
 
         fprintf(fp, "\n");
     }
 
-    fprintf(fp, "\nTable: %s\n\n\n", description);
+    fprintf(fp, "\nTable: %s. %s\n\n\n", description, unit_description(unit));
 }
 
 /*
- * Writes an HTML summary of a statistics table.
+ * Writes a Markdown summary of a statistics table, as both milliseconds and gigabytes per second.
  */
-void write_html_statistics_table(FILE *fp, int rows, int cols, double table[rows][cols], const double best_times[cols],
-                                 const algo_info_t *algorithms, const run_command_opts_t *opts, benchmark_results_t *results,
-                                 const char *description)
+void write_markdown_statistics_table(FILE *fp, int rows, int cols, double table[rows][cols], const double best_times[cols],
+                                     const algo_info_t *algorithms,
+                                    const run_command_opts_t *opts, benchmark_results_t *results,
+                                    const char *description)
+{
+    write_markdown_statistics_table_as(fp, rows, cols, table, best_times, algorithms, opts, results, description, MILLISECONDS);
+    write_markdown_statistics_table_as(fp, rows, cols, table, best_times, algorithms, opts, results, description, GIGABYTES_PER_SECOND);
+}
+
+/*
+ * Writes an HTML summary of a statistics table in either milliseconds or gigabytes per second.
+ */
+void write_html_statistics_table_as(FILE *fp, int rows, int cols, double table[rows][cols], const double best_times[cols],
+                                    const algo_info_t *algorithms, const run_command_opts_t *opts, benchmark_results_t *results,
+                                    const char *description, enum measurement_unit unit)
 {
     // Write column headers:
     fprintf(fp, "%s", "<table>\n");
-    fprintf(fp, "<caption style=\"caption-side:bottom\">%s</caption>", description);
+    fprintf(fp, "<caption style=\"caption-side:bottom\">%s. %s</caption>", description, unit_description(unit));
     fprintf(fp, "<tr><th>m</th>");
     for (int patt_no = 0; patt_no < cols; patt_no++)
         fprintf(fp, "<th>%d</th>", results[patt_no].pattern_length);
@@ -517,11 +577,16 @@ void write_html_statistics_table(FILE *fp, int rows, int cols, double table[rows
         {
             if (table[row][col] < 0) {
                 fprintf(fp, "%s", "<th>-</th>");
-            } else if (table[row][col] <= best_times[col]) {
-                fprintf(fp, "<th><b>%.*f</b></th>", opts->precision, table[row][col]);
             } else
             {
-                fprintf(fp, "<th>%.*f</th>", opts->precision, table[row][col]);
+                double value = unit == MILLISECONDS ? table[row][col] : GBs(table[row][col], opts->text_stats.text_actual_length);
+                if (table[row][col] <= best_times[col]) {
+                    fprintf(fp, "<th><b>%.*f</b></th>", opts->precision, value);
+                }
+                else
+                {
+                    fprintf(fp, "<th>%.*f</th>", opts->precision, value);
+                }
             }
         }
 
@@ -532,18 +597,30 @@ void write_html_statistics_table(FILE *fp, int rows, int cols, double table[rows
 }
 
 /*
- * Writes an XML summary of a statistics table.
+ * Writes an HTML summary of a statistics table in both milliseconds and gigabytes per second.
  */
-void write_xml_statistics_table(FILE *fp, int rows, int cols, double table[rows][cols], double best_times[cols],
+void write_html_statistics_table(FILE *fp, int rows, int cols, double table[rows][cols], const double best_times[cols],
                                  const algo_info_t *algorithms, const run_command_opts_t *opts, benchmark_results_t *results,
                                  const char *description)
 {
+    write_html_statistics_table_as(fp, rows, cols, table, best_times, algorithms, opts, results, description, MILLISECONDS);
+    write_html_statistics_table_as(fp, rows, cols, table, best_times, algorithms, opts, results, description, GIGABYTES_PER_SECOND);
+}
+
+/*
+ * Writes an XML summary of a statistics table in either milliseconds or Gigabytes per second.
+ */
+void write_xml_statistics_table_as(FILE *fp, int rows, int cols, double table[rows][cols], double best_times[cols],
+                                   const algo_info_t *algorithms, const run_command_opts_t *opts, benchmark_results_t *results,
+                                   const char *description, enum measurement_unit unit)
+{
+
     // Write column headers:
     char data_source[MAX_LINE_LEN];
     set_data_source_description(opts, data_source);
 
     fprintf(fp, "<RESULTS>\n\t<CODE>%s</CODE>\n\t<TEXT>%s</TEXT>\n", opts->expcode, data_source);
-    fprintf(fp, "\t<DESCRIPTION>%s</DESCRIPTION>\n", description);
+    fprintf(fp, "\t<DESCRIPTION>%s. %s</DESCRIPTION>\n", description, unit_description(unit));
 
     // Write times for algorithms:
     for (int row = 0; row < rows; row++)
@@ -559,7 +636,8 @@ void write_xml_statistics_table(FILE *fp, int rows, int cols, double table[rows]
             }
             else
             {
-                fprintf(fp, "\t\t<DATA><SEARCH>%.*f</SEARCH></DATA>\n", opts->precision, table[row][col]);
+                fprintf(fp, "\t\t<DATA><SEARCH>%.*f</SEARCH></DATA>\n", opts->precision,
+                        unit == MILLISECONDS ? table[row][col] : GBs(table[row][col], opts->text_stats.text_actual_length));
             }
         }
 
@@ -576,6 +654,17 @@ void write_xml_statistics_table(FILE *fp, int rows, int cols, double table[rows]
             fprintf(fp, "\t\t<DATA>-</DATA>\n");
     }
     fprintf(fp, "\t</BEST>\n</RESULTS>\n\n");
+}
+
+/*
+ * Writes an XML summary of a statistics table.
+ */
+void write_xml_statistics_table(FILE *fp, int rows, int cols, double table[rows][cols], double best_times[cols],
+                                 const algo_info_t *algorithms, const run_command_opts_t *opts, benchmark_results_t *results,
+                                 const char *description)
+{
+    write_xml_statistics_table_as(fp, rows, cols, table, best_times, algorithms, opts, results, description, MILLISECONDS);
+    write_xml_statistics_table_as(fp, rows, cols, table, best_times, algorithms, opts, results, description, GIGABYTES_PER_SECOND);
 }
 
 /*
@@ -683,7 +772,7 @@ void output_benchmark_statistic_tables(const smart_config_t *smart_config, const
     fprintf(rf, "\nStatistics tables for experiment: %s\n", opts->expcode);
     fprintf(rf, "\nTables are provided in tab-separated CSV, LaTex, Markdown, HTML and XML formats.\n");
 
-    fprintf(rf, "\n\nTab-separated CSV tables:\n---------------------\n\n");
+    fprintf(rf, "\n\nTab-separated CSV tables:\n-------------------------\n\n");
     write_text_statistics_table(rf, rows, cols, mean_search_time_table, algorithms, opts, results, "Mean search times");
     write_text_statistics_table(rf, rows, cols, median_search_time_table, algorithms, opts, results, "Median search times");
     write_text_statistics_table(rf, rows, cols, mean_total_time_table, algorithms, opts, results, "Mean total search times");
@@ -880,8 +969,8 @@ void write_html_experiment_description(FILE *fp, const run_command_opts_t *opts)
     fprintf(fp, "<div class=\"name\">");
     fprintf(fp, "<h2><b>Report of Experimental Results</b></h2>");
     fprintf(fp, "<h2>Test Code %s</h2>", opts->expcode);
-    char time_string[26];
-    set_time_string_with_time(time_string, 26, TIME_FORMAT, opts->creation_date);
+    char time_string[TIME_FORMAT_STRLEN];
+    set_time_string_with_time(time_string, TIME_FORMAT_STRLEN, TIME_FORMAT, opts->creation_date);
     fprintf(fp, "<h2>Date %s</h2>", time_string);
 
     switch (opts->data_source)
