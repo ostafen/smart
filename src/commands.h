@@ -387,7 +387,7 @@ const char *CHAR_KEY_FMT = "%s\t%c\n";
 const char *STR_KEY_FMT = "%s\t%s\n";
 const char *INT_KEY_FMT = "%s\t%d\n";
 const char *LONG_KEY_FMT = "%s\t%ld\n";
-const char *DOUBLE_KEY_FMT = "%s\t%*.f\n"; // requires precision of double to be specified as well as value.
+const char *DOUBLE_KEY_FMT = "%s\t%.*f\n"; // requires precision of double to be specified as well as value.
 
 static char *const EXPCODE_KEY = "Experiment code";
 static char *const CREATION_DATETIME = "Creation date time";
@@ -456,8 +456,8 @@ void set_cpu_stat_names(int cpu_stats, char names[MAX_LINE_LEN]) {
 void save_run_options(FILE *fp, const run_command_opts_t *run_options)
 {
     fprintf(fp, STR_KEY_FMT, EXPCODE_KEY, run_options->expcode);
-    char time_string[26];
-    set_time_string_with_time(time_string, 26, TIME_FORMAT, run_options->creation_date);
+    char time_string[TIME_FORMAT_STRLEN];
+    set_time_string_with_time(time_string, TIME_FORMAT_STRLEN, TIME_FORMAT, run_options->creation_date);
     fprintf(fp, STR_KEY_FMT, CREATION_DATETIME, time_string);
     if (run_options->description) fprintf(fp, STR_KEY_FMT, DESCRIPTION_KEY, run_options->description);
 
