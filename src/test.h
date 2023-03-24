@@ -1150,7 +1150,7 @@ void get_algonames_to_test(algo_info_t *algorithms, const test_command_opts_t *o
     case NAMED_SET_ALGOS:
     {
         char set_filename[STR_BUF];
-        snprintf(set_filename, STR_BUF, "%s.algos", opts->named_set); //TODO: should we put the file name in here like the run command does?  make parser do the work.
+        snprintf(set_filename, STR_BUF, "%s.algos", opts->named_set);
         read_algo_names_from_file(smart_config, algorithms, set_filename);
         merge_regex_algos(smart_config, opts, algorithms);
         break;
