@@ -677,7 +677,7 @@ void build_statistics_tables(int rows, int cols,
                              double best_search[rows][cols], double worst_search[rows][cols],
                              double mean_pre_time[rows][cols], double median_pre_time[rows][cols],
                              double best_pre_time[rows][cols], double worst_pre_time[rows][cols],
-                             double standard_deviation[rows][cols],
+                             double standard_deviation[rows][cols], double standard_deviation_gbs[rows][cols],
                              const run_command_opts_t *opts, int num_pattern_lengths,
                              benchmark_results_t *results, const algo_info_t *algorithms)
 {
@@ -704,6 +704,7 @@ void build_statistics_tables(int rows, int cols,
                     best_pre_time[algo_no][pattern_len_no] = stats->min_pre_time;
                     worst_pre_time[algo_no][pattern_len_no] = stats->max_pre_time;
                     standard_deviation[algo_no][pattern_len_no] = stats->std_search_time;
+                    standard_deviation_gbs[algo_no][pattern_len_no] = stats->std_search_time_gbs;
                     break;
                 }
                 case CANNOT_SEARCH:
@@ -719,6 +720,7 @@ void build_statistics_tables(int rows, int cols,
                     best_pre_time[algo_no][pattern_len_no] = -1;
                     worst_pre_time[algo_no][pattern_len_no] = -1;
                     standard_deviation[algo_no][pattern_len_no] = -1;
+                    standard_deviation_gbs[algo_no][pattern_len_no] = -1;
                     break;
                 }
                 case TIMED_OUT:
@@ -734,6 +736,7 @@ void build_statistics_tables(int rows, int cols,
                     best_pre_time[algo_no][pattern_len_no] = -2;
                     worst_pre_time[algo_no][pattern_len_no] = -2;
                     standard_deviation[algo_no][pattern_len_no] = -2;
+                    standard_deviation_gbs[algo_no][pattern_len_no] = -3;
                     break;
                 }
                 case ERROR:
@@ -749,6 +752,7 @@ void build_statistics_tables(int rows, int cols,
                     best_pre_time[algo_no][pattern_len_no] = -3;
                     worst_pre_time[algo_no][pattern_len_no] = -3;
                     standard_deviation[algo_no][pattern_len_no] = -3;
+                    standard_deviation_gbs[algo_no][pattern_len_no] = -3;
                 }
             }
         }
@@ -879,11 +883,17 @@ void write_html_table(FILE *fp, const int table_id, const char *table_descriptio
             }
             else if (table[row][col] <= best_times[col])
             {
-                fprintf(fp, "<div class=\"search_time_best\"><b>%.*f</b></div>", opts->precision, table[row][col]);
+//                fprintf(fp, "<div class=\"search_time_best\"><b>%.*f</b></div>", opts->precision, table[row][col]);
+                fprintf(fp, "<div class=\"search_time_best\"><b> <div class=\"result_in_ms\" style=\"display:block\">%.*f</div><div class=\"result_in_gbs\" style=\"display:none\">%.*f</div>  </b></div>",
+                        opts->precision, table[row][col], opts->precision,
+                        GBs(table[row][col], opts->text_stats.text_actual_length));
             }
             else
             {
-                fprintf(fp, "<div class=\"search_time\">%.*f</div>",  opts->precision, table[row][col]);
+//                fprintf(fp, "<div class=\"search_time\">%.*f</div>",  opts->precision, table[row][col]);
+                fprintf(fp, "<div class=\"search_time\"> <div class=\"result_in_ms\" style=\"display:block\">%.*f</div><div class=\"result_in_gbs\" style=\"display:none\">%.*f</div> </div>",
+                        opts->precision, table[row][col], opts->precision,
+                        GBs(table[row][col], opts->text_stats.text_actual_length));
             }
 
             if (best_search_times[row][col] >= 0 && worst_search_times[row][col] >= 0)
@@ -900,16 +910,15 @@ void write_html_table(FILE *fp, const int table_id, const char *table_descriptio
     fprintf(fp, "<div class=\"caption\"><b>Table %d.</b> %s running times of experimental tests n.%s. Each time value is taken from %d runs. ",
             table_id, table_description, opts->expcode, opts->num_runs);
 
+    //TODO: do we need these descriptions given we have check boxes to control their display?
     if (opts->pre)
          fprintf(fp, "The table reports also the mean of the preprocessing time (above each time value). ");
 
     if (opts->dif)
          fprintf(fp, "In addition the worst and best running times are reported (below each time value). ");
 
-    fprintf(fp, "Running times are in milliseconds.\n");
-
     fprintf(fp, "<br><div class=\"controlHorizontalFloat\">\n"
-                "<input type=\"radio\" id=\"best\" name=\"resultformat%d\" value=\"best\" checked onclick=\"setBestTableColors(document.getElementById('resultTable%d')\">\n"
+                "<input type=\"radio\" id=\"best\" name=\"resultformat%d\" value=\"best\" checked onclick=\"setBestTableColors(document.getElementById('resultTable%d'))\">\n"
                 "<label for=\"best\">Best times</label></div>\n"
                 "<div class=\"controlHorizontalFloat\">\n"
                 "<input type=\"radio\" id=\"heatMap5\" name=\"resultformat%d\" value=\"hm5\" onclick=\"heatMapGray(document.getElementById('resultTable%d'), 95)\">\n"
@@ -1017,6 +1026,7 @@ void write_html_chart(FILE *fp, int chart_id, const char *title, int rows, int c
 
     fprintf(fp, "<div style=\"padding-top:40px\">");
 
+    // Draw key for chart:
     int color = 0;
     for (int row = 0; row < rows; row++)
     {
@@ -1035,7 +1045,11 @@ void write_html_chart(FILE *fp, int chart_id, const char *title, int rows, int c
     fprintf(fp, "</div><br><p>\n");
 
     // Script to render the chart with the data:
-    fprintf(fp,"<script>function multiChart%d() { var data = [", chart_id);
+    fprintf(fp,"<script>function multiChart%d(useMs) {\n", chart_id);
+
+    // Millisecond data:
+    double dymax = 0.0;
+    fprintf(fp, "var dataMs = [");
     for (int row = 0; row < rows; row++)
     {
         fprintf(fp,"[");
@@ -1044,12 +1058,44 @@ void write_html_chart(FILE *fp, int chart_id, const char *title, int rows, int c
             if (table[row][col] < 0)
                 fprintf(fp, ",");
             else
+            {
                 fprintf(fp, "%.*f,", opts->precision, table[row][col]);
+                if (table[row][col] > dymax) dymax = table[row][col];
+            }
         }
         fprintf(fp,"],\n");
     }
-    fprintf(fp,"]; \n\
-        var line = new RGraph.Line({\n\
+    fprintf(fp,"];\n");
+    int ymaxMs = dymax + 1.0;
+
+    // Gigabytes per second data:
+    fprintf(fp, "var dataGbs = [");
+    dymax = 0.0;
+    for (int row = 0; row < rows; row++)
+    {
+        fprintf(fp,"[");
+        for (int col = 0; col < cols; col++)
+        {
+            if (table[row][col] < 0)
+                fprintf(fp, "0,");
+            else
+            {
+                double gbs = GBs(table[row][col], opts->text_stats.text_actual_length);
+                fprintf(fp, "%.*f,", opts->precision, gbs);
+                if (gbs > dymax) dymax = gbs;
+            }
+
+        }
+        fprintf(fp,"],\n");
+    }
+    fprintf(fp,"];\n");
+    int ymaxGbs = dymax + 1.0;
+
+    // Choose which data to use and draw lines:
+    fprintf(fp, "var data = useMs ? dataMs : dataGbs;\n");
+    fprintf(fp, "var ymax = useMs ? %d : %d;\n", ymaxMs, ymaxGbs);
+    fprintf(fp, "var units = useMs ? \"ms\" : \"Gb/s\";");
+    fprintf(fp,"var line = new RGraph.Line({\n\
             id: 'cvs%d',\n\
             data: data,\n\
             options: {\n\
@@ -1063,19 +1109,26 @@ void write_html_chart(FILE *fp, int chart_id, const char *title, int rows, int c
                 filled: false,\n\
                 fillstyle: ['red','blue','#0f0'],\n\
                 hmargin: 5,\n\
-                shadow: false,\
+                shadow: false,\n\
                 tickmarks: 'circle',\n\
                 spline: true,\n\
                 gutterLeft: 40,\n\
-                labels: [", chart_id);
+                yaxisScaleMax: ymax,\n\
+                yaxisTitle: units,\n\
+                xaxisTitle: 'Pattern lengths',\n\
+                xaxisLabels: [", chart_id);
 
+    // Write x-axis pattern length labels:
     for (int col = 0; col < cols; col++)
         fprintf(fp, "'%d',",results[col].pattern_length);
     fprintf(fp,"],\n");
 
+    // Write the line colors:
     fprintf(fp, "colors: [");
     for(int col = 0; col < color; col++) fprintf(fp, "'%s',", colors[col]);
     fprintf(fp,"],\n");
+
+    // Draw and close the script.
     fprintf(fp,"} }).draw();\n");
     fprintf(fp,"}</script>\n");
 }
@@ -1087,7 +1140,7 @@ void write_html_chart(FILE *fp, int chart_id, const char *title, int rows, int c
  * and the standard deviation of the search times given as shaded areas around the mean line.
  */
 void write_html_algo_charts(FILE *fp, int rows, int cols,
-                           double times[rows][cols], double stddev[rows][cols],
+                           double times[rows][cols], double stddev[rows][cols], double stddev_gbs[rows][cols],
                            double worst[rows][cols], double best[rows][cols],
                            const benchmark_results_t *results, const run_command_opts_t *opts, const algo_info_t *algorithms)
 {
@@ -1106,7 +1159,10 @@ void write_html_algo_charts(FILE *fp, int rows, int cols,
         fprintf(fp, "The plot reports the mean and the distribution of the running times.");
         fprintf(fp, "</div></div></div>\n");
 
-        fprintf(fp, "<script> function loadAlgoChart%d() { var data = [", algo);
+        fprintf(fp, "<script> function loadAlgoChart%d(useMs) {\n", algo);
+
+        // Write out data in milliseconds:
+        fprintf(fp, "var data = [");
         for (int col = 0; col < cols; col++) {
             if (times[algo][col] <= 0)
                 fprintf(fp, ",");
@@ -1115,6 +1171,17 @@ void write_html_algo_charts(FILE *fp, int rows, int cols,
         }
         fprintf(fp, "];\n");
 
+        // Write out data in Gigabytes per second:
+        fprintf(fp, "var datagbs = [");
+        for (int col = 0; col < cols; col++) {
+            if (times[algo][col] <= 0)
+                fprintf(fp, ",");
+            else
+                fprintf(fp, "%.*f,", opts->precision, GBs(times[algo][col], opts->text_stats.text_actual_length));
+        }
+        fprintf(fp, "];\n");
+
+        // Write out standard deviation lower bound in milliseconds:
         fprintf(fp, "var std1 = [");
         for (int col = 0; col < cols; col++) {
             if (times[algo][col] <= 0)
@@ -1130,6 +1197,26 @@ void write_html_algo_charts(FILE *fp, int rows, int cols,
         }
         fprintf(fp, "];\n");
 
+        //TODO: lower bound of standard is not zero?- it is the best time the algorithm achieved for that point.
+        //      we can't dip below the best time achieved really, it's not informative.
+
+        // Write out standard deviation data lower bound in gigabytes per second:
+        fprintf(fp, "var std1gbs = [");
+        for (int col = 0; col < cols; col++) {
+            if (times[algo][col] <= 0)
+                fprintf(fp, ",");
+            else {
+                // Prevent search time going below zero.
+                // Subtracting the standard deviation from the mean when the data distribution is not Guassian can result
+                // in a negative value.  Search algorithms data distributions are generally skewed to the right.  A lot of
+                // similar fast search times but also a longer tail of slower results.  These are not purely Guassian.
+                double value = MAX(0, GBs(times[algo][col], opts->text_stats.text_actual_length) - stddev_gbs[algo][col]);
+                fprintf(fp, "%.*f,", opts->precision, value);
+            }
+        }
+        fprintf(fp, "];\n");
+
+        // Write out standard deviation upper bound in milliseconds:
         fprintf(fp, "var std2 = [");
         for (int col = 0; col < cols; col++) {
             if (times[algo][col] <= 0)
@@ -1139,6 +1226,17 @@ void write_html_algo_charts(FILE *fp, int rows, int cols,
         }
         fprintf(fp, "];\n");
 
+        // Write out standard deviation upper bound in Gigabytes per second:
+        fprintf(fp, "var std2gbs = [");
+        for (int col = 0; col < cols; col++) {
+            if (times[algo][col] <= 0)
+                fprintf(fp, ",");
+            else
+                fprintf(fp, "%.*f,", opts->precision, GBs(times[algo][col], opts->text_stats.text_actual_length) + stddev_gbs[algo][col]);
+        }
+        fprintf(fp, "];\n");
+
+        // Write upper bound in ms:
         fprintf(fp, "var bound1 = [");
         for (int col = 0; col < cols; col++) {
             if (times[algo][col] <= 0)
@@ -1148,6 +1246,17 @@ void write_html_algo_charts(FILE *fp, int rows, int cols,
         }
         fprintf(fp, "];\n");
 
+        // Write upper bound in gbs:
+        fprintf(fp, "var bound1gbs = [");
+        for (int col = 0; col < cols; col++) {
+            if (times[algo][col] <= 0)
+                fprintf(fp, ",");
+            else
+                fprintf(fp, "%.*f,", opts->precision, GBs(worst[algo][col], opts->text_stats.text_actual_length));
+        }
+        fprintf(fp, "];\n");
+
+        // Writer lower bound in ms.
         fprintf(fp, "var bound2 = [");
         for (int col = 0; col < cols; col++) {
             if (times[algo][col] <= 0)
@@ -1157,62 +1266,71 @@ void write_html_algo_charts(FILE *fp, int rows, int cols,
         }
         fprintf(fp, "];\n");
 
-        double dymax = 0.0;
+        // Write lower bound in GB/s
+        fprintf(fp, "var bound2gbs = [");
         for (int col = 0; col < cols; col++) {
-            if (worst[algo][col] > dymax)
-                dymax = worst[algo][col];
-            if (times[algo][col] + stddev[algo][col] > dymax)
-                dymax = times[algo][col] + stddev[algo][col];
+            if (times[algo][col] <= 0)
+                fprintf(fp, ",");
+            else
+                fprintf(fp, "%.*f,", opts->precision, GBs(best[algo][col], opts->text_stats.text_actual_length));
         }
-        int ymax = dymax + 1.0;
+        fprintf(fp, "];\n");
 
+        double dymaxMs = 0.0, dymaxGbs = 0.0;
+        for (int col = 0; col < cols; col++) {
+            if (worst[algo][col] > dymaxMs)
+                dymaxMs = worst[algo][col];
+            if (times[algo][col] + stddev[algo][col] > dymaxMs)
+                dymaxMs = times[algo][col] + stddev[algo][col];
+            double gbs = GBs(best[algo][col], opts->text_stats.text_actual_length);
+            if (gbs > dymaxGbs)
+                dymaxGbs = gbs;
+            if (gbs + stddev_gbs[algo][col] > dymaxGbs)
+                dymaxGbs = gbs + stddev_gbs[algo][col];
+        }
+        int ymaxMs = dymaxMs + 1.0;
+        int ymaxGbs = dymaxGbs + 1.0;
+
+        fprintf(fp, "var mean_data = useMs ? data : datagbs;\n");
+        fprintf(fp, "var bound_data = useMs ? [bound1, bound2] : [bound2gbs, bound1gbs];\n");
+        fprintf(fp, "var std_data = useMs ? [std1, std2] : [std1gbs, std2gbs];\n");
+        fprintf(fp, "var ymax = useMs ? %d : %d;\n", ymaxMs, ymaxGbs);
+        fprintf(fp, "var units = useMs ? \"ms\" : \"Gb/s\";");
         fprintf(fp, "var line3 = new RGraph.Line({\n\
                 id: 'ac%d',\n\
-                data: [bound1, bound2],\n\
+                data: bound_data,\n\
                 options: {\n\
-                    noxaxis: true,\n\
-                    textSize: 14,\n\
+                    spline: true,\n\
                     filled: true,\n\
                     filledRange: true,\n\
-                    fillstyle: 'rgba(255,0,0,0.1)',\n\
+                    filledColors: 'rgba(255,0,0,0.1)',\n\
                     colors: ['rgba(0,0,0,0)'],\n\
-                    linewidth: 0,\n\
-                    ylabels: false,\n\
-                    noaxes: true,\n\
-                    ymax: %d,\n\
-                    hmargin: 5,\n\
-                    spline: true,\n\
-                    gutterLeft: 40,\n\
-                    tickmarks: null,\n\
+                    tickmarksStyle: null,\n\
+                    yaxisScaleMax: ymax,\n\
+                    yaxisScale: false,\n\
                 }\n\
             }).draw();\n",
-                algo, ymax);
+                algo);
 
         fprintf(fp, "var line2 = new RGraph.Line({\n\
                 id: 'ac%d',\n\
-                data: [std1, std2],\n\
+                data: std_data,\n\
                 options: {\n\
-                    noxaxis: true,\n\
-                    textSize: 14,\n\
+                    spline: true,\n\
                     filled: true,\n\
                     filledRange: true,\n\
-                    fillstyle: 'rgba(255,0,0,0.2)',\n\
+                    filledColors: 'rgba(255,0,0,0.2)',\n\
                     colors: ['rgba(0,0,0,0)'],\n\
-                    linewidth: 0,\n\
-                    ylabels: false,\n\
-                    noaxes: true,\n\
-                    ymax: %d,\n\
-                    hmargin: 5,\n\
-                    spline: true,\n\
-                    gutterLeft: 40,\n\
-                    tickmarks: null,\n\
+                    tickmarksStyle: null,\n\
+                    yaxisScaleMax: ymax,\n\
+                    yaxisScale: false,\n\
                 }\n\
             }).draw();\n",
-                algo, ymax);
+                algo);
 
         fprintf(fp, "var line = new RGraph.Line({\n\
                 id: 'ac%d',\n\
-                data: data,\n\
+                data: mean_data,\n\
                 options: {\n\
                     textFont: 'Yantramanav',\n\
                     textSize: '8',\n\
@@ -1223,14 +1341,18 @@ void write_html_algo_charts(FILE *fp, int rows, int cols,
                     linewidth: 1,\n\
                     filled: false,\n\
                     hmargin: 5,\n\
-                    shadow: false,\
+                    shadow: false,\n\
                     tickmarks: 'circle',\n\
-                    ymax: %d,\n\
+                    yaxisScaleMax: ymax,\n\
+                    ylabels: false,\n\
                     spline: true,\n\
                     gutterLeft: 40,\n\
                     tickmarks: null,\n\
-                    labels: [",
-                algo, ymax);
+                    yaxisTitle: units,\n\
+                    yaxisTitleOffsetx: 8,\n\
+                    xaxisTitle: 'Pattern lengths',\n\
+                    xaxisLabels: [",
+                algo);
 
         for (int col = 0; col < cols; col++) {
             fprintf(fp, "'%d',", results[col].pattern_length);
@@ -1242,6 +1364,19 @@ void write_html_algo_charts(FILE *fp, int rows, int cols,
 
         fprintf(fp, "}</script>\n");
     }
+}
+
+/*
+ * Writes radio buttons to choose between displaying in milliseconds (ms) or gigabytes per second (Gb/s).
+ */
+void write_html_result_unit_choice(FILE *fp)
+{
+    fprintf(fp, "<br><div class=\"controlHorizontalFloat\">\n");
+    fprintf(fp, "<input type=\"radio\" id=\"msUnit\" name=\"resultUnitType\" value=\"ms\" checked onclick=\"setPageUnits()\">\n"
+                "<label for=\"msUnit\">Show results in milliseconds (ms)</label></div>\n");
+    fprintf(fp, "<div class=\"controlHorizontalFloat\">\n");
+    fprintf(fp, "<input type=\"radio\" id=\"gbsUnit\" name=\"resultUnitType\" value=\"gbs\" onclick=\"setPageUnits()\">\n"
+                "<label for=\"gbsUnit\">Show results in gigabytes per second (Gb/s)</label></div><div class=\"clearHorizontalFloat\"></div>\n");
 }
 
 /*
@@ -1257,7 +1392,7 @@ void output_html_report(const smart_config_t *smart_config, const run_command_op
                         double worst_time_table[rows][cols], double best_worst_times[cols],
                         double mean_pre_time[rows][cols], double median_pre_time[rows][cols],
                         double best_pre_time[rows][cols], double worst_pre_time[rows][cols],
-                        double standard_deviation[rows][cols])
+                        double standard_deviation[rows][cols], double standard_deviation_gbs[rows][cols])
 {
     FILE *fp = open_experiment_file_for_writing(smart_config, opts, "report", "html");
 
@@ -1265,10 +1400,11 @@ void output_html_report(const smart_config_t *smart_config, const run_command_op
     char line_colors[MAX_SELECT_ALGOS][COLOR_STRING_LENGTH];
     computeGoldenRatioColors(line_colors); // gives nicer separation of colors than a purely random palette.
 
-    // Write the HTML header and description of the experiment:
+    // Write the HTML header, description of the experiment and controls for result units:
     write_html_report_header(fp, opts);
     fprintf(fp, "<body><div class=\"main_container\">");
     write_html_experiment_description(fp, opts);
+    write_html_result_unit_choice(fp);
 
     // Write tables and charts for the mean, median, best and worst search times:
     fprintf(fp, "<br><p><h2><b>Mean search times<b></h2><p>\n");
@@ -1310,17 +1446,40 @@ void output_html_report(const smart_config_t *smart_config, const run_command_op
 
     fprintf(fp, "<br><p><h2><b>Algorithm performance<b></h2><p>\n");
     write_html_algo_charts(fp, rows, cols, mean_total_time_table,
-                     standard_deviation, worst_time_table, best_time_table,
+                     standard_deviation, standard_deviation_gbs, worst_time_table, best_time_table,
                            results, opts, algorithms);
 
-    // Draw the charts when the window loads:
-    fprintf(fp,"\n<script>window.onload = function() {\n");
-    fprintf(fp, "multiChart1(); multiChart2(); multiChart3(); multiChart4(); multiChart5(); multiChart6();\n");
+    // Script to draw all charts:
+    fprintf(fp,"\n<script> function drawCharts() {\n");
+    fprintf(fp, "let useMilliseconds = document.getElementById('msUnit').checked;\n");
+
+    // Redraw multi line charts:
+    for (int chartNo = 1; chartNo <= 6; chartNo++)
+    {
+        fprintf(fp, "const canvas%d = document.getElementById('cvs%d'); ", chartNo, chartNo);
+        fprintf(fp, "const context%d = canvas%d.getContext('2d'); ", chartNo, chartNo);
+        fprintf(fp, "context%d.clearRect(0, 0, canvas%d.width, canvas%d.height);\n", chartNo, chartNo, chartNo);
+        fprintf(fp, "multiChart%d(useMilliseconds);\n", chartNo);
+    }
+
+    // Redraw individual algo charts:
     for (int algo = 0; algo < rows; algo++)
     {
-        fprintf(fp, "loadAlgoChart%d(); ", algo);
+        fprintf(fp, "const cnv%d = document.getElementById('ac%d'); ", algo, algo);
+        fprintf(fp, "const ctx%d = cnv%d.getContext('2d'); ", algo, algo);
+        fprintf(fp, "ctx%d.clearRect(0, 0, cnv%d.width, cnv%d.height);\n", algo, algo, algo);
+        fprintf(fp, "loadAlgoChart%d(useMilliseconds);\n", algo);
     }
     fprintf(fp, "}\n</script>\n");
+
+    // Script to set the page to milliseconds or gigabytes per second:
+    fprintf(fp, "<script> function setPageUnits() {\n");
+    fprintf(fp, "setResultUnits(document, document.getElementById('msUnit').checked);\n");
+    fprintf(fp, "drawCharts();");
+    fprintf(fp, "}\n</script>\n");
+
+    // Draw all charts when window loads:
+    fprintf(fp,"\n<script>window.onload = drawCharts();</script>\n");
 
     // Close the HTML document and file.
     fprintf(fp, "</div><br><p></body></html>");
@@ -1365,12 +1524,13 @@ void output_results(const smart_config_t *smart_config, run_command_opts_t *opts
     double (*best_pre_time_table)[cols] = malloc(sizeof(double[rows][cols]));
     double (*worst_pre_time_table)[cols] = malloc(sizeof(double[rows][cols]));
     double (*standard_deviation)[cols] = malloc(sizeof(double[rows][cols]));
+    double (*standard_deviation_gbs)[cols] = malloc(sizeof(double[rows][cols]));
 
     build_statistics_tables(rows, cols, mean_search_time_table, median_search_time_table,
                             mean_total_time_table, median_total_time_table,
                             best_time_table, worst_time_table,
                             mean_pre_time_table, median_pre_time_table,
-                            best_pre_time_table, worst_pre_time_table, standard_deviation,
+                            best_pre_time_table, worst_pre_time_table, standard_deviation, standard_deviation_gbs,
                             opts, num_pattern_lengths, results, algorithms);
 
     // Get the best times for each of the tables for each pattern length.
@@ -1400,7 +1560,7 @@ void output_results(const smart_config_t *smart_config, run_command_opts_t *opts
                        median_total_time_table, best_median_total_times,
                        best_time_table, best_best_times, worst_time_table, best_worst_times,
                        mean_pre_time_table, median_pre_time_table,
-                       best_pre_time_table, worst_pre_time_table, standard_deviation);
+                       best_pre_time_table, worst_pre_time_table, standard_deviation, standard_deviation_gbs);
 
     free(mean_search_time_table);
     free(mean_total_time_table);
@@ -1413,6 +1573,7 @@ void output_results(const smart_config_t *smart_config, run_command_opts_t *opts
     free(best_pre_time_table);
     free(worst_pre_time_table);
     free(standard_deviation);
+    free(standard_deviation_gbs);
 }
 
 
