@@ -1,8 +1,8 @@
 body {
 	font-family: 'Yantramanav', 'sans serif';
-	font-size: 10px;
+	font-size: 12px;
 	font-weight: 400;
-	color: #444444;
+	color: #222222;
 }
 
 h1 {
@@ -29,7 +29,7 @@ h2 {
 }
 
 h3 {
-	color: #444444;
+	color: #222222;
 	font-size: 14px;
 	margin-bottom: 3px;
 	line-height: 8px;
@@ -205,6 +205,14 @@ td{
 	clear: left;
 }
 
+.results_in_ms {
+	display: block;
+}
+
+.results_in_gbs {
+	display: block;
+}
+
 .chart_container {
 	width:1000px;
 	height:430px;
@@ -255,5 +263,5 @@ td{
 	float:left;
 	width:16px;
 	font-size:10px;
-	color:#444444;
+	color:#222222;
 }
