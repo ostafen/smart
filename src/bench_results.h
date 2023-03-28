@@ -39,7 +39,8 @@ typedef struct algo_statistics
     double max_search_time;
     double mean_search_time;
     double median_search_time;
-    double std_search_time;
+    double std_search_time;       // standard deviation of search times expressed in milliseconds.
+    double std_search_time_gbs;   // standard deviation of search times expressed in gigabytes per second.
 
     double min_pre_time;
     double max_pre_time;
@@ -168,7 +169,7 @@ double compute_std(double avg, double *T, int n)
  * Calculates statistics for an algorithm for a given pattern length, given the measurements taken for that
  * algorithm over a number of runs.
  */
-void calculate_algo_statistics(algo_results_t *results, int num_measurements)
+void calculate_algo_statistics(algo_results_t *results, int num_measurements, int text_length)
 {
     // Compute total of pre and search times:
     double *total_times = malloc(sizeof(double) * num_measurements);
@@ -192,6 +193,13 @@ void calculate_algo_statistics(algo_results_t *results, int num_measurements)
                                                       results->measurements.search_times, num_measurements);
     results->statistics.mean_total_time = compute_average(total_times, num_measurements);
     results->statistics.std_total_time = compute_std(results->statistics.mean_total_time, total_times, num_measurements);
+
+    // Compute standard deviation for Gigabytes per second:
+    double gbs[num_measurements];
+    for (int i = 0; i < num_measurements; i++)
+        gbs[i] = GBs(results->measurements.search_times[i], text_length);
+    double mean_gbs = compute_average(gbs, num_measurements);
+    results->statistics.std_search_time_gbs = compute_std(mean_gbs, gbs, num_measurements);
 
     // Compute median pre, search and total times:
     results->statistics.median_pre_time = compute_median(results->measurements.pre_times, num_measurements);
