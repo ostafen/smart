@@ -164,6 +164,22 @@ void set_filename_suffix_or_exit(char fullname[MAX_PATH_LENGTH], const char *fil
 }
 
 /*
+ * returns "true" if the value is not zero, and "false" if the value is zero.
+ */
+const char *true_false(int value)
+{
+    return value ? "true" : "false";
+}
+
+/*
+ * Returns a rate in Gigabytes per second, given a time in milliseconds and the number of bytes scanned in that time.
+ */
+double GBs(double time_ms, int num_bytes)
+{
+    return (double) num_bytes / time_ms * 1000 / GIGA_BYTE;
+}
+
+/*
  * Copies the string in path into the to_path, up to the limit of MAX_PATH_LENGTH.
  * Returns true (1) if it copied the path successfully (even empty), and false (0) if it could not copy the full path.
  */
@@ -366,7 +382,7 @@ void set_env_var_or_default(char path_to_set[MAX_PATH_LENGTH], const char *env_v
 }
 
 /*
- * Sets a time string using the time string format.
+ * Sets a time string to the current date time using the time string format.
  */
 void set_time_string(char *time_string, int size, const char * time_format)
 {
@@ -374,6 +390,16 @@ void set_time_string(char *time_string, int size, const char * time_format)
     struct tm *tm_info;
     time(&date_timer);
     tm_info = localtime(&date_timer);
+    strftime(time_string, size, time_format, tm_info);
+}
+
+/*
+ * Sets a time string using the time string format using the time provided.
+ */
+void set_time_string_with_time(char *time_string, int size, const char * time_format, time_t time_to_format)
+{
+    struct tm *tm_info;
+    tm_info = localtime(&time_to_format);
     strftime(time_string, size, time_format, tm_info);
 }
 
@@ -542,27 +568,6 @@ unsigned long long hash_keyed_file(const char *key, const char file_path[MAX_PAT
     }
 
     return hash_result;
-}
-
-/*
- * Generates a random text and stores it in the buffer of size bufsize, with an alphabet of sigma.
- * Returns the size of the random data (which will be bufsize).
- */
-int gen_random_text(const int sigma, unsigned char *buffer, const int bufsize)
-{
-    // An alphabet of one means all symbols are the same - so just set zero.
-    if (sigma == 1)
-    {
-        memset(buffer, 0, bufsize);
-    }
-    else
-    {
-        for (int i = 0; i < bufsize; i++)
-        {
-            buffer[i] = rand() % sigma;
-        }
-    }
-    return bufsize;
 }
 
 /*

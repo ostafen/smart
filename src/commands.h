@@ -9,6 +9,8 @@
  * Commands
  */
 
+#include "cpu_stats.h"
+
 /*
  * Main commands.
  */
@@ -201,11 +203,8 @@ static char *const FLAG_SHORT_PATTERN_LENGTHS_SHORT = "-short";
 static char *const FLAG_LONG_PATTERN_LENGTHS_SHORT = "--short-patterns";
 static char *const FLAG_SHORT_PATTERN_LENGTHS_VERY_SHORT = "-vshort";
 static char *const FLAG_LONG_PATTERN_LENGTHS_VERY_SHORT = "--very-short";
-
-
-static char *const FLAG_TEXT_OUTPUT = "-txt";     //TODO: output of results.
-static char *const FLAG_LATEX_OUTPUT = "-tex";    //TODO: output of results.
-static char *const FLAG_PHP_OUTPUT = "-php";      //TODO: output of results.
+static char *const FLAG_SHORT_NO_SAVE = "-ns";
+static char *const FLAG_LONG_NO_SAVE = "--no-save";
 
 /*
  * Type of data source to use for benchmarking.
@@ -218,6 +217,33 @@ enum data_source_type{DATA_SOURCE_NOT_DEFINED, DATA_SOURCE_FILES, DATA_SOURCE_RA
 enum cpu_pin_type{PINNING_OFF, PIN_LAST_CPU, PIN_SPECIFIED_CPU};
 
 /*
+ * Returns a human-readable description of the cpu pin types.
+ */
+const char *get_cpu_pin_type_description(enum cpu_pin_type pin_type)
+{
+    switch (pin_type)
+    {
+        case PINNING_OFF: return "Pinning off";
+        case PIN_LAST_CPU: return "Pin last CPU";
+        case PIN_SPECIFIED_CPU: return "Pin specified CPU";
+    }
+    error_and_exit("Unknown cpu pin type: %d", pin_type);
+}
+
+/*
+ * Statistics about the text being searched
+ */
+typedef struct text_statistics
+{
+    int freq[SIGMA];                             // frequency table for characters in text.
+    int text_actual_length;                      // actual length of text used for benchmarking.
+    int text_alphabet;                           // computed alphabet of the text.
+    double shannon_entropy_byte;                 // The shannon entropy of the text at a byte level (bits per byte).
+    int text_smallest_character_code;            // smallest character code in the text.
+    int text_greater_character_code;             // largest character code in the text.
+} text_statistics_t;
+
+/*
  * Options for the run subcommand.
  */
 typedef struct run_command_opts
@@ -228,7 +254,7 @@ typedef struct run_command_opts
     int num_algo_names;                          // Number of algo names recorded.
     enum data_source_type data_source;           // What type of data is to be scanned - files or random.
     const char *data_sources[MAX_DATA_SOURCES];  // A list of files/data_sources to load data from.
-    int text_size;                               // Size of the text buffer for benchmarking.
+    int text_size;                               // Max size of the text buffer for benchmarking.
     int fill_buffer;                             // Boolean flag - whether to replicate data to fill up a buffer.
     int alphabet_size;                           // Size of the alphabet to use when creating random texts.
     pattern_len_info_t pattern_info;             // Information about what pattern lengths to benchmark.
@@ -239,22 +265,20 @@ typedef struct run_command_opts
     const char *data_to_search;                  // text to use for simple benchmarking.  If not specified normal data sources are used.
     enum cpu_pin_type cpu_pinning;               // What kind of cpu pinning to use.
     int cpu_to_pin;                              // The number of the cpu to pin, if specified by the user, -1 otherwise.
+    int pinnned_cpu;                             // The CPU which was actually pinned.
     int cpu_stats;                               // A bitmask of cpu stats to acquire.  Zero means no stats to gather, 001 = L1 cache, 010 = last cache, 100 = branches.
     int occ;                                     // Boolean flag - whether to report total occurrences.
     int pre;                                     // Boolean flag - whether to report pre-processing time separately.
+    int dif;                                     // Boolean flag - whether to report min-max times by default in the html.
+    int save_results;                            // Boolean flag - whether to save benchmark results to files.
+    time_t creation_date;                        // The date/time the experiment was created.
+    time_t started_date;                         // The date/time the benchmarking started.
+    time_t finished_date;                        // The date time when benchmarking finished.
     char expcode[STR_BUF];                       // A code generated to identify this benchmarking run.
     int precision;                               // number of decimal points to round to for results.  Defaults to 2.
+    text_statistics_t text_stats;                // statistics about the text being searched.
     const char *description;                     // an optional description for the experiment.
 } run_command_opts_t;
-
-/*
- * Generates a code to identify each local benchmark experiment that is run.
- * The code is not guaranteed to be globally unique - it is simply based on the local time a benchmark was run.
- */
-void gen_experiment_code(char *code, int max_len)
-{
-    snprintf(code, max_len, "EXP%d", (int)time(NULL));
-}
 
 /*
  * Initialises the run command options with default values.
@@ -275,6 +299,7 @@ void init_run_command_opts(run_command_opts_t *opts)
     }
     opts->cpu_pinning = CPU_PIN_DEFAULT;
     opts->cpu_to_pin  = -1;
+    opts->pinnned_cpu = -1;
     opts->cpu_stats   = 0; // default to gathering no cpu stats.
     opts->alphabet_size = SIGMA;
     opts->text_size = TEXT_SIZE_DEFAULT;
@@ -290,10 +315,17 @@ void init_run_command_opts(run_command_opts_t *opts)
     opts->fill_buffer = FALSE;
     opts->cpu_stats = FALSE;
     opts->pre = FALSE;
-    opts->occ = 0;
+    opts->dif = FALSE;
+    opts->occ = FALSE;
+    opts->save_results = TRUE;
     opts->precision = DEFAULT_PRECISION;
     opts->description = NULL;
-    gen_experiment_code(opts->expcode, STR_BUF);
+    opts->creation_date = time(NULL);
+    opts->finished_date = 0;
+    opts->text_stats.text_actual_length = 0;
+    opts->text_stats.text_alphabet = 0;
+    opts->text_stats.text_greater_character_code = 0;
+    snprintf(opts->expcode, STR_BUF, "EXP%d", (int) opts->creation_date);
 }
 
 /*
@@ -303,7 +335,7 @@ void print_run_usage_and_exit(const char *command)
 {
     print_logo();
 
-    printf("\n usage: %s [algo names...] [-text | -rand | -data | -plen | -inc | -short | -vshort | -pat | -use | -all | -runs | -ts | -fb | -rs | -pre | -occ | -tb | -pin | -cstats | -desc | -h]\n\n", command);
+    printf("\n usage: %s [algo names...] [-text | -rand | -data | -plen | -inc | -short | -vshort | -pat | -use | -all | -runs | -ts | -fb | -rs | -pre | -occ | -tb | -pin | -cstats | -desc | -ns | -h]\n\n", command);
 
     printf("\tYou can specify algorithms to benchmark directly as POSIX regular expressions, e.g. smart run bsdm.* hor ...\n");
     printf("\tIf you do not specify any algorithms on the command line or by another command, the default selected algorithms will be used.\n\n");
@@ -343,8 +375,7 @@ void print_run_usage_and_exit(const char *command)
     print_help_line("If no parameters are provided, defaults to obtaining L1 cache and branch instructions.", "", "", "");
     print_help_line("Note that the number of CPU stats it is possible to obtain simultaneously varies by CPU.", "", "", "");
     print_help_line("An optional description to add to the experiment, which will be included in the filenames of the output.", OPTION_SHORT_DESCRIPTION, OPTION_LONG_DESCRIPTION, "D");
-    //print_help_line("Output results in txt tabular format", FLAG_TEXT_OUTPUT, "", "");
-    //print_help_line("Output results in latex tabular format", FLAG_LATEX_OUTPUT, "", "");
+    print_help_line("Stops results from being saved to files in the results folder.", FLAG_SHORT_NO_SAVE, FLAG_LONG_NO_SAVE, "");
     print_help_line("Gives this help list.", OPTION_SHORT_HELP, OPTION_LONG_HELP, "");
 
     printf("\n\n");
@@ -352,6 +383,163 @@ void print_run_usage_and_exit(const char *command)
     exit(0);
 }
 
+const char *CHAR_KEY_FMT = "%s\t%c\n";
+const char *STR_KEY_FMT = "%s\t%s\n";
+const char *INT_KEY_FMT = "%s\t%d\n";
+const char *LONG_KEY_FMT = "%s\t%ld\n";
+const char *DOUBLE_KEY_FMT = "%s\t%.*f\n"; // requires precision of double to be specified as well as value.
+
+static char *const EXPCODE_KEY = "Experiment code";
+static char *const CREATION_DATETIME = "Creation date time";
+static char *const MAX_TEXT_SIZE_KEY = "Max text length";
+static char *const FILL_BUFFER_KEY = "Fill buffer";
+static char *const NUM_RUNS_KEY = "Num runs";
+static char *const TIME_LIMIT_KEY = "Time bound (ms)";
+static char *const RANDOM_SEED_KEY = "Random seed";
+static char *const DESCRIPTION_KEY = "Description";
+static char *const PRECISION_KEY = "Precision";
+static char *const ALPHABET_SIZE_KEY = "Alphabet size";
+static char *const ALGO_SOURCE_KEY = "Algorithm source type";
+static char *const PATT_MIN_LEN_KEY = "Pattern minimum length";
+static char *const PATT_MAX_LEN_KEY = "Pattern maximum length";
+static char *const PATT_INC_OPERATOR_KEY = "Pattern length operator";
+static char *const PATT_INCREMENT_BY = "Pattern length increase by";
+static char *const NUM_ALGO_NAMES_KEY = "Number command line algorithms";
+static char *const ALGO_NAME_KEY = "Command line algorithm";
+static char *const SELECTED_ALGO_NAME_KEY = "Selected algo filename";
+static char *const DATA_SOURCE_TYPE_KEY = "Data source type";
+static char *const FILE_SOURCE_KEY = "File or folder";
+static char *const PATTERN_KEY = "Pattern to search with";
+static char *const DATA_TO_SEARCH_KEY = "Data to search";
+static char *const PREPROCESSING_KEY = "Show preprocessing";
+static char *const OCCURRENCE_KEY = "Show occurrences";
+static char *const CPU_PIN_TYPE_KEY = "CPU pinning type";
+static char *const CPU_TO_PIN_KEY = "CPU to pin";
+static char *const PINNED_CPU_KEY = "Process pinned to CPU number";
+static char *const CPU_STATS_KEY = "CPU stats";
+
+static char *const COMMAND_LINE_ALGORITHMS = "Algorithms provided on the command line.";
+static char *const ALL_ALGORITHMS = "All algorithms.";
+static char *const SELECTED_ALGORITHMS = "Algorithms in the selected set.";
+static char *const ALGORITHMS_IN_NAMED_SET = "Algorithms in the named set.";
+
+/*
+ * Lists the cpu stats being captured in the cpu_stats bitmask as a comma delimited string.
+ */
+void set_cpu_stat_names(int cpu_stats, char names[MAX_LINE_LEN]) {
+    names[0] = STR_END_CHAR;
+    int written_text = 0;
+
+    if (cpu_stats & CPU_STAT_L1_CACHE)
+    {
+        strcat(names, "first level cache");
+        written_text = 1;
+    }
+    if (cpu_stats & CPU_STAT_LL_CACHE)
+    {
+        if (written_text) strcat(names, ", ");
+        strcat(names, "last level cache");
+        written_text = 1;
+    }
+    if (cpu_stats & CPU_STAT_BRANCHES) {
+        if (written_text) strcat(names, ", ");
+        strcat(names, "branch predictions");
+        written_text = 1;
+    }
+
+    if (!written_text) strcat(names, "none");
+}
+
+/*
+ * Saves the run options into a tab delimited key-value pair, with one value on each line.
+ */
+void save_run_options(FILE *fp, const run_command_opts_t *run_options)
+{
+    fprintf(fp, STR_KEY_FMT, EXPCODE_KEY, run_options->expcode);
+    char time_string[TIME_FORMAT_STRLEN];
+    set_time_string_with_time(time_string, TIME_FORMAT_STRLEN, TIME_FORMAT, run_options->creation_date);
+    fprintf(fp, STR_KEY_FMT, CREATION_DATETIME, time_string);
+    if (run_options->description) fprintf(fp, STR_KEY_FMT, DESCRIPTION_KEY, run_options->description);
+
+    fprintf(fp, INT_KEY_FMT, NUM_RUNS_KEY, run_options->num_runs);
+    fprintf(fp, INT_KEY_FMT, TIME_LIMIT_KEY, run_options->time_limit_millis);
+    fprintf(fp,LONG_KEY_FMT, RANDOM_SEED_KEY, run_options->random_seed);
+
+    if (run_options->pattern)
+        fprintf(fp, STR_KEY_FMT, PATTERN_KEY, run_options->pattern);
+    else
+    {
+        fprintf(fp, INT_KEY_FMT, PATT_MIN_LEN_KEY, run_options->pattern_info.pattern_min_len);
+        fprintf(fp, INT_KEY_FMT, PATT_MAX_LEN_KEY, run_options->pattern_info.pattern_max_len);
+        fprintf(fp, CHAR_KEY_FMT, PATT_INC_OPERATOR_KEY, run_options->pattern_info.increment_operator);
+        fprintf(fp, INT_KEY_FMT, PATT_INCREMENT_BY, run_options->pattern_info.increment_by);
+    }
+
+    switch (run_options->algo_source)
+    {
+        case ALGO_REGEXES: {
+            fprintf(fp, STR_KEY_FMT, ALGO_SOURCE_KEY, COMMAND_LINE_ALGORITHMS);
+            fprintf(fp, INT_KEY_FMT, NUM_ALGO_NAMES_KEY, run_options->num_algo_names);
+            for (int i = 0; i < run_options->num_algo_names; i++)
+                fprintf(fp, STR_KEY_FMT, ALGO_NAME_KEY, run_options->algo_names[i]);
+            break;
+        }
+        case ALL_ALGOS: {
+            fprintf(fp, STR_KEY_FMT, ALGO_SOURCE_KEY, ALL_ALGORITHMS);
+            break;
+        }
+        case SELECTED_ALGOS: {
+            fprintf(fp, STR_KEY_FMT, ALGO_SOURCE_KEY, SELECTED_ALGORITHMS);
+            fprintf(fp, STR_KEY_FMT, SELECTED_ALGO_NAME_KEY, run_options->algo_filename);
+            break;
+        }
+        case NAMED_SET_ALGOS: {
+            fprintf(fp, STR_KEY_FMT, ALGO_SOURCE_KEY, ALGORITHMS_IN_NAMED_SET);
+            fprintf(fp, STR_KEY_FMT, SELECTED_ALGO_NAME_KEY, run_options->algo_filename);
+            break;
+        }
+    }
+
+    switch (run_options->data_source)
+    {
+        case DATA_SOURCE_FILES: {
+            fprintf(fp, STR_KEY_FMT, DATA_SOURCE_TYPE_KEY, "Files");
+            for (int i = 0; i < MAX_DATA_SOURCES && run_options->data_sources[i] != NULL; i++)
+                fprintf(fp, STR_KEY_FMT, FILE_SOURCE_KEY, run_options->data_sources[i]);
+            break;
+        }
+        case DATA_SOURCE_RANDOM: {
+            fprintf(fp, STR_KEY_FMT, DATA_SOURCE_TYPE_KEY, "Random data");
+            fprintf(fp, INT_KEY_FMT, ALPHABET_SIZE_KEY, run_options->alphabet_size);
+            break;
+        }
+        case DATA_SOURCE_USER: {
+            fprintf(fp, STR_KEY_FMT, DATA_SOURCE_TYPE_KEY, "Data supplied on the command line");
+            if (run_options->data_to_search)
+                fprintf(fp, STR_KEY_FMT, DATA_TO_SEARCH_KEY, run_options->data_to_search);
+            else
+                fprintf(fp, STR_KEY_FMT, DATA_TO_SEARCH_KEY, "ERROR: No data was provided.");
+            break;
+        }
+        default: {
+            fprintf(fp, STR_KEY_FMT, DATA_TO_SEARCH_KEY, "ERROR: No data was provided.");
+            break;
+        }
+    }
+
+    fprintf(fp, STR_KEY_FMT, CPU_PIN_TYPE_KEY, get_cpu_pin_type_description(run_options->cpu_pinning));
+    if (run_options->cpu_pinning == PIN_SPECIFIED_CPU) fprintf(fp, INT_KEY_FMT, CPU_TO_PIN_KEY, run_options->cpu_to_pin);
+
+    char stat_names[MAX_LINE_LEN];
+    set_cpu_stat_names(run_options->cpu_stats, stat_names);
+    fprintf(fp, STR_KEY_FMT, CPU_STATS_KEY, stat_names);
+
+    fprintf(fp, INT_KEY_FMT, PRECISION_KEY, run_options->precision);
+    fprintf(fp, STR_KEY_FMT, PREPROCESSING_KEY, true_false(run_options->pre));
+    fprintf(fp, STR_KEY_FMT, OCCURRENCE_KEY, true_false(run_options->occ));
+    fprintf(fp, STR_KEY_FMT, FILL_BUFFER_KEY, true_false(run_options->fill_buffer));
+    fprintf(fp, INT_KEY_FMT, MAX_TEXT_SIZE_KEY, run_options->text_size);
+}
 
 /************************************
  * Select command
