@@ -1,79 +1,69 @@
-// version: 2015-12-16
-    /**
-    * o--------------------------------------------------------------------------------o
-    * | This file is part of the RGraph package - you can learn more at:               |
-    * |                                                                                |
-    * |                          http://www.rgraph.net                                 |
-    * |                                                                                |
-    * | RGraph is dual licensed under the Open Source GPL (General Public License)     |
-    * | v2.0 license and a commercial license which means that you're not bound by     |
-    * | the terms of the GPL. The commercial license starts at just £99 (GBP) and      |
-    * | you can read about it here:                                                    |
-    * |                                                                                |
-    * |                      http://www.rgraph.net/license                             |
-    * o--------------------------------------------------------------------------------o
-    */
+'version:2023-02-25 (6.11)';
+//
+    // o--------------------------------------------------------------------------------o
+    // | This file is part of the RGraph package - you can learn more at:               |
+    // |                                                                                |
+    // |                         https://www.rgraph.net                                 |
+    // |                                                                                |
+    // | RGraph is licensed under the Open Source MIT license. That means that it's     |
+    // | totally free to use and there are no restrictions on what you can do with it!  |
+    // o--------------------------------------------------------------------------------o
 
-    RGraph      = window.RGraph || {isRGraph: true};
+    RGraph      = window.RGraph || {isrgraph:true,isRGraph: true,rgraph:true};
     RGraph.HTML = RGraph.HTML || {};
 
 // Module pattern
 (function (win, doc, undefined)
 {
-    var RG = RGraph,
-        ua = navigator.userAgent,
-        ma = Math;
-
-
-
-
-    /**
-    * Draws the graph key (used by various graphs)
-    * 
-    * @param object obj The graph object
-    * @param array  key An array of the texts to be listed in the key
-    * @param colors An array of the colors to be used
-    */
-    RG.drawKey =
-    RG.DrawKey = function (obj, key, colors)
+    //
+    // Draws the graph key (used by various graphs)
+    //
+    RGraph.drawKey = function ()
     {
-        if (!key) {
+        var args = RGraph.getArgs(arguments, 'object,key,colors');
+
+        if (!args.key) {
             return;
         }
 
-        var ca   = obj.canvas,
-            co   = obj.context,
-            prop = obj.properties,
+        var prop       = args.object.properties,
+            properties = args.object.properties,
 
-            // Key positioned in the gutter
-            keypos   = prop['chart.key.position'],
-            textsize = prop['chart.text.size'],
+            // Key positioned in the margin
+            keypos          = properties.keyPosition,
+            textsize        = properties.textSize,
             key_non_null    = [],
             colors_non_null = [];
 
-        co.lineWidth = 1;
+        args.object.context.lineWidth = 1;
+        args.object.context.beginPath();
 
-        co.beginPath();
-
-        /**
-        * Change the older chart.key.vpos to chart.key.position.y
-        */
-        if (typeof(prop['chart.key.vpos']) == 'number') {
-            obj.Set('chart.key.position.y', prop['chart.key.vpos'] * prop['chart.gutter.top']);
+        //
+        // Change the older keyVpos to keyPositionY
+        //
+        if (typeof properties.keyVpos == 'number') {
+            args.object.set('keyPositionY', properties.keyVpos * args.object.get('marginTop'));
         }
 
-        /**
-        * Account for null values in the key
-        */
-        for (var i=0; i<key.length; ++i) {
-            if (key[i] != null) {
-                colors_non_null.push(colors[i]);
-                key_non_null.push(key[i]);
+        //
+        // Account for null values in the key
+        //
+        for (var i=0; i<args.key.length; ++i) {
+            if (args.key[i] != null) {
+                colors_non_null.push(args.colors[i]);
+                key_non_null.push(args.key[i]);
             }
         }
         
         key    = key_non_null;
         colors = colors_non_null;
+        
+        // The key does not use accessible text
+        var textAccessible = false;
+        
+        if (typeof properties.keyTextAccessible === 'boolean') {
+            textAccessible = properties.keyTextAccessible;
+        }
 
 
 
@@ -101,46 +91,52 @@
 
 
 
-        /**
-        * This does the actual drawing of the key when it's in the graph
-        * 
-        * @param object obj The graph object
-        * @param array  key The key items to draw
-        * @param array colors An aray of colors that the key will use
-        */
-        function DrawKey_graph (obj, key, colors)
+        //
+        // This does the actual drawing of the key when it's in the graph
+        // 
+        // @param object obj The graph object
+        // @param array  key The key items to draw
+        // @param array colors An aray of colors that the key will use
+        //
+        function drawKey_graph ()
         {
-            var text_size   = typeof(prop['chart.key.text.size']) == 'number' ? prop['chart.key.text.size'] : prop['chart.text.size'];
-            var text_italic = prop['chart.key.text.italic'] ?  true : false
-            var text_bold   = prop['chart.key.text.bold'] ?  true : false
-            var text_font   = prop['chart.key.text.font'] || prop['chart.key.font'] || prop['chart.text.font'];
+            var marginLeft   = args.object.marginLeft,
+                marginRight  = args.object.marginRight,
+                marginTop    = args.object.marginTop,
+                marginBottom = args.object.marginBottom,
+                hpos         = properties.yaxisPosition == 'right' ? marginLeft + 10 : args.object.canvas.width - marginRight - 10,
+                vpos         = marginTop + 10,
+                title        = properties.title,
+                hmargin      = 8, // This is the size of the gaps between the blob of color and the text
+                vmargin      = 4, // This is the vertical margin of the key
+                fillstyle    = properties.keyBackground,
+                strokestyle  = '#333',
+                height       = 0,
+                width        = 0;
+                
+                // Get the text configuration
+                var textConf = RGraph.getTextConf({
+                    object: args.object,
+                    prefix: 'keyLabels'
+                });
 
-            var gutterLeft   = obj.gutterLeft;
-            var gutterRight  = obj.gutterRight;
-            var gutterTop    = obj.gutterTop;
-            var gutterBottom = obj.gutterBottom;
-            var hpos         = prop['chart.yaxispos'] == 'right' ? gutterLeft + 10 : ca.width - gutterRight - 10;
-            var vpos         = gutterTop + 10;
-            var title        = prop['chart.title'];
-            var blob_size    = text_size; // The blob of color
-            var hmargin      = 8; // This is the size of the gaps between the blob of color and the text
-            var vmargin      = 4; // This is the vertical margin of the key
-            var fillstyle    = prop['chart.key.background'];
-            var text_color   = prop['chart.key.text.color'];
-            var strokestyle  = '#333';
-            var height       = 0;
-            var width        = 0;
-    
-            if (!obj.coords) obj.coords = {};
-            obj.coords.key = [];
-    
-    
+            blob_size = textConf.size; // The blob of color
+            text_size = textConf.size;
+
+            if (!args.object.coords) args.object.coords = {};
+            args.object.coords.key = [];
+
             // Need to set this so that measuring the text works out OK
-            co.font = text_size + 'pt ' + prop['chart.text.font'];
+            args.object.context.font = (textConf.italic ? 'italic ' : '') +
+                      (textConf.bold ? 'bold ' : '') +
+                      textConf.size + 'pt ' +
+                      textConf.font;
     
             // Work out the longest bit of text
             for (i=0; i<key.length; ++i) {
-                width = Math.max(width, co.measureText(key[i]).width);
+                width = Math.max(
+                    width,
+                    args.object.context.measureText(key[i]).width);
             }
     
             width += 5;
@@ -149,166 +145,220 @@
             width += 5;
             width += 5;
     
-            /**
-            * Now we know the width, we can move the key left more accurately
-            */
-            if (   prop['chart.yaxispos'] == 'left'
-                || (obj.type === 'pie' && !prop['chart.yaxispos'])
-                || (obj.type === 'hbar' && !prop['chart.yaxispos'])
-                || (obj.type === 'hbar' && prop['chart.yaxispos'] === 'center')
-                || (obj.type === 'hbar' && prop['chart.yaxispos'] === 'right')
-                || (obj.type === 'rscatter' && !prop['chart.yaxispos'])
-                || (obj.type === 'radar' && !prop['chart.yaxispos'])
-                || (obj.type === 'rose' && !prop['chart.yaxispos'])
-                || (obj.type === 'funnel' && !prop['chart.yaxispos'])
-                || (obj.type === 'vprogress' && !prop['chart.yaxispos'])
-                || (obj.type === 'hprogress' && !prop['chart.yaxispos'])
+            //
+            // Now we know the width, we can move the key left more accurately
+            //
+            if (   properties.yaxisPosition == 'left'
+                || (args.object.type === 'pie'       && !properties.yaxisPosition)
+                || (args.object.type === 'pie'       && !properties.yaxisPosition)
+                || (args.object.type === 'hbar'      && !properties.yaxisPosition)
+                || (args.object.type === 'hbar'      && properties.yaxisPosition === 'center')
+                || (args.object.type === 'hbar'      && properties.yaxisPosition === 'right')
+                || (args.object.type === 'rscatter'  && !properties.yaxisPosition)
+                || (args.object.type === 'radar'     && !properties.yaxisPosition)
+                || (args.object.type === 'rose'      && !properties.yaxisPosition)
+                || (args.object.type === 'funnel'    && !properties.yaxisPosition)
+                || (args.object.type === 'vprogress' && !properties.yaxisPosition)
+                || (args.object.type === 'hprogress' && !properties.yaxisPosition)
                ) {
 
                 hpos -= width;
             }
 
-            /**
-            * Horizontal alignment
-            */
-            if (typeof(prop['chart.key.halign']) == 'string') {
-                if (prop['chart.key.halign'] == 'left') {
-                    hpos = gutterLeft + 10;
-                } else if (prop['chart.key.halign'] == 'right') {
-                    hpos = ca.width - gutterRight  - width;
+            //
+            // Horizontal alignment
+            //
+            if (typeof properties.keyHalign == 'string') {
+                if (properties.keyHalign === 'left') {
+                    hpos = marginLeft + 10;
+                } else if (properties.keyHalign == 'right') {
+                    hpos = args.object.canvas.width - marginRight  - width;
                 }
             }
     
-            /**
-            * Specific location coordinates
-            */
-            if (typeof(prop['chart.key.position.x']) == 'number') {
-                hpos = prop['chart.key.position.x'];
-            }
+            //
+            // Specific location coordinates
+            //
+            if (typeof properties.keyPositionX === 'number') {hpos = properties.keyPositionX;}
+            if (typeof properties.keyPositionY === 'number') {vpos = properties.keyPositionY;}
             
-            if (typeof(prop['chart.key.position.y']) == 'number') {
-                vpos = prop['chart.key.position.y'];
-            }
+            // Now allow for offsetting the key
+            if (typeof properties.keyPositionOffsetx === 'number') {hpos += properties.keyPositionOffsetx;}
+            if (typeof properties.keyPositionOffsety === 'number') {vpos += properties.keyPositionOffsety;}
     
     
             // Stipulate the shadow for the key box
-            if (prop['chart.key.shadow']) {
-                co.shadowColor   = prop['chart.key.shadow.color'];
-                co.shadowBlur    = prop['chart.key.shadow.blur'];
-                co.shadowOffsetX = prop['chart.key.shadow.offsetx'];
-                co.shadowOffsetY = prop['chart.key.shadow.offsety'];
+            if (properties.keyShadow) {
+                args.object.context.shadowColor   = properties.keyShadowColor;
+                args.object.context.shadowBlur    = properties.keyShadowBlur;
+                args.object.context.shadowOffsetX = properties.keyShadowOffsetx;
+                args.object.context.shadowOffsetY = properties.keyShadowOffsety;
             }
     
     
     
     
             // Draw the box that the key resides in
-            co.beginPath();
-                co.fillStyle   = prop['chart.key.background'];
-                co.strokeStyle = 'black';
-    
-            if (typeof(prop['chart.key.position.graph.boxed']) == 'undefined' || (typeof(prop['chart.key.position.graph.boxed']) == 'boolean' && prop['chart.key.position.graph.boxed']) ) {
+            args.object.context.beginPath();
+            args.object.context.fillStyle   = properties.keyBackground;
+            args.object.context.strokeStyle = 'black';
+
+            if (typeof properties.keyPositionGraphBoxed == 'undefined' || (typeof properties.keyPositionGraphBoxed == 'boolean' && properties.keyPositionGraphBoxed) ) {
                 if (arguments[3] != false) {
         
-                    co.lineWidth = typeof(prop['chart.key.linewidth']) == 'number' ? prop['chart.key.linewidth'] : 1;
+                    args.object.context.lineWidth = typeof properties.keyLinewidth == 'number' ? properties.keyLinewidth : 1;
     
                     // The older square rectangled key
-                    if (prop['chart.key.rounded'] == true) {
-                        co.beginPath();
-                            co.strokeStyle = strokestyle;
-                            RG.strokedCurvyRect(co, Math.round(hpos), Math.round(vpos), width - 5, 5 + ( (text_size + 5) * RG.getKeyLength(key)),4);
-                        co.stroke();
-                        co.fill();
+                    if (properties.keyRounded == true) {
+
+                        args.object.context.beginPath();
+                            args.object.context.strokeStyle = strokestyle;
+
+                            RGraph.roundedRect({
+                                context: args.object.context,
+                                      x: Math.round(hpos),
+                                      y: Math.round(vpos),
+                                  width: width - 5,
+                                 height: 5 + ( (text_size + 5) * RGraph.getKeyLength(key)),
+                                 radius: 4
+                            });
+                        args.object.context.stroke();
+                        args.object.context.fill();
     
-                        RG.NoShadow(obj);
+                        RGraph.noShadow(args.object);
                 
                     } else {
-                        co.strokeRect(Math.round(hpos), Math.round(vpos), width - 5, 5 + ( (text_size + 5) * RG.getKeyLength(key)));
-                        co.fillRect(Math.round(hpos), Math.round(vpos), width - 5, 5 + ( (text_size + 5) * RG.getKeyLength(key)));
+                        args.object.context.strokeRect(Math.round(hpos), Math.round(vpos), width - 5, 5 + ( (text_size + 5) * RGraph.getKeyLength(key)));
+                        args.object.context.fillRect(Math.round(hpos), Math.round(vpos), width - 5, 5 + ( (text_size + 5) * RGraph.getKeyLength(key)));
                     }
                 }
             }
+
+            RGraph.noShadow(args.object);
     
-            RG.NoShadow(obj);
+            args.object.context.beginPath();
     
-            co.beginPath();
-    
-                /**
-                * Custom colors for the key
-                */
-                if (prop['chart.key.colors']) {
-                    colors = prop['chart.key.colors'];
+                //
+                // Custom colors for the key
+                //
+                if (properties.keyColors) {
+                    colors = properties.keyColors;
                 }
-    
+
     
     
                 ////////////////////////////////////////////////////////////////////////////////////////////
     
     
-    
+
                 // Draw the labels given
                 for (var i=key.length - 1; i>=0; i--) {
-                
+
                     var j = Number(i) + 1;
-    
-                    /**
-                    * Draw the blob of color
-                    */
-                    if (typeof(prop['chart.key.color.shape']) == 'object' && typeof(prop['chart.key.color.shape'][i]) == 'string') {
-                        var blob_shape = prop['chart.key.color.shape'][i];
+
+                    //
+                    // Draw the blob of color
+                    //
+                    // An array element, string
+                    if (typeof properties.keyColorShape === 'object' && typeof properties.keyColorShape[i] === 'string') {
+                        var blob_shape = properties.keyColorShape[i];
                     
-                    } else if (typeof(prop['chart.key.color.shape']) == 'string') {
-                        var blob_shape = prop['chart.key.color.shape'];
+                    // An array element, function
+                    } else if (typeof properties.keyColorShape === 'object' && typeof properties.keyColorShape[i] === 'function') {
+                        var blob_shape = properties.keyColorShape[i];
+                    
+                    // No array - just a string
+                    } else if (typeof properties.keyColorShape === 'string') {
+                        var blob_shape = properties.keyColorShape;
+                    
+                    // No array - just a function
+                    } else if (typeof properties.keyColorShape === 'function') {
+                        var blob_shape = properties.keyColorShape;
+
+                    // Unknown
                     } else {
-                        var blob_shape = 'square';
+                        var blob_shape = 'rect';
                     }
-                    
+
                     if (blob_shape == 'circle') {
-                        co.beginPath();
-                            co.fillStyle = colors[i];
-                            co.arc(hpos + 5 + (blob_size / 2), vpos + (5 * j) + (text_size * j) - text_size + (blob_size / 2), blob_size / 2, 0, 6.26, 0);
-                        co.fill();
+                        args.object.context.beginPath();
+                            args.object.context.fillStyle = colors[i];
+                            args.object.context.arc(hpos + 5 + (blob_size / 2), vpos + (5 * j) + (text_size * j) - text_size + (blob_size / 2), blob_size / 2, 0, 6.26, 0);
+                        args.object.context.fill();
                     
                     } else if (blob_shape == 'line') {
-                        co.beginPath();
-                            co.strokeStyle = colors[i];
-                            co.moveTo(hpos + 5, vpos + (5 * j) + (text_size * j) - text_size + (blob_size / 2));
-                            co.lineTo(hpos + blob_size + 5, vpos + (5 * j) + (text_size * j) - text_size + (blob_size / 2));
-                        co.stroke();
+                        args.object.context.beginPath();
+                            args.object.context.strokeStyle = colors[i];
+                            args.object.context.moveTo(hpos + 5, vpos + (5 * j) + (text_size * j) - text_size + (blob_size / 2));
+                            args.object.context.lineTo(hpos + blob_size + 5, vpos + (5 * j) + (text_size * j) - text_size + (blob_size / 2));
+                        args.object.context.stroke();
                     
                     } else if (blob_shape == 'triangle') {
-                        co.beginPath();
-                            co.strokeStyle = colors[i];
-                            co.moveTo(hpos + 5, vpos + (5 * j) + (text_size * j) - text_size + blob_size);
-                            co.lineTo(hpos + (blob_size / 2) + 5, vpos + (5 * j) + (text_size * j) - text_size );
-                            co.lineTo(hpos + blob_size + 5, vpos + (5 * j) + (text_size * j) - text_size + blob_size);
-                        co.closePath();
-                        co.fillStyle =  colors[i];
-                        co.fill();
-                    
+                        args.object.context.beginPath();
+                            args.object.context.strokeStyle = colors[i];
+                            args.object.context.moveTo(hpos + 5, vpos + (5 * j) + (text_size * j) - text_size + blob_size);
+                            args.object.context.lineTo(hpos + (blob_size / 2) + 5, vpos + (5 * j) + (text_size * j) - text_size );
+                            args.object.context.lineTo(hpos + blob_size + 5, vpos + (5 * j) + (text_size * j) - text_size + blob_size);
+                        args.object.context.closePath();
+                        args.object.context.fillStyle =  colors[i];
+                        args.object.context.fill();
+
+                    } else if (typeof blob_shape === 'function') {
+
+                        blob_shape({
+                            object: args.object,
+                            color: colors[i],
+                            x: hpos + 5,
+                            y: vpos + (5 * j) + (text_size * j) - text_size,
+                            width: text_size,
+                            height: text_size + 1
+                        });
                     } else {
-                        co.fillStyle =  colors[i];
-                        co.fillRect(hpos + 5, vpos + (5 * j) + (text_size * j) - text_size, text_size, text_size + 1);
+                        args.object.context.fillStyle =  colors[i];
+                        args.object.context.fillRect(
+                            hpos + 5,
+                            vpos + (5 * j) + (text_size * j) - text_size,
+                            text_size,
+                            text_size + 1
+                        );
                     }
                     
                     ///////////////////////////////////////////////////////////////////////////////////////////////////////////
     
     
-    
-                    co.beginPath();
-                    co.fillStyle = typeof text_color == 'object' ? text_color[i] : text_color;
-                
-                    ret = RG.Text2(obj, {'font': text_font,
-                                         'size': text_size,
-                                         'bold': text_bold,
-                                         'italic': text_italic,
-                                         'x': hpos + blob_size + 5 + 5,
-                                         'y': vpos + (5 * j) + (text_size * j) + 3,
-                                         'text': key[i]});
 
-                    obj.coords.key[i] = [ret.x, ret.y, ret.width, ret.height, key[i], colors[i], obj];
+                    args.object.context.beginPath();
+                    //args.object.context.fillStyle = typeof text_color == 'object' ? text_color[i] : text_color;
+                    
+
+
+                    ret = RGraph.text({
+                    
+                        object:     args.object,
+                        
+                        font:       textConf.font,
+                        size:       textConf.size,
+                        bold:       textConf.bold,
+                        italic:     textConf.italic,
+                        color:      typeof textConf.color == 'object' ? textConf.color[i] : textConf.color,
+
+                        x:          hpos + blob_size + 5 + 5 + (properties.keyLabelsOffsetx || 0),
+                        y:          vpos + (5 * j) + (text_size * j) + 3 + (properties.keyLabelsOffsety || 0),
+                        text:       key[i],
+                        accessible: textAccessible
+                    });
+
+                    args.object.coords.key[i] = [
+                        ret.x,
+                        ret.y,
+                        ret.width,
+                        ret.height,
+                        key[i],
+                        colors[i],
+                        args.object
+                    ];
                 }
-            co.fill();
+            args.object.context.fill();
         }
 
 
@@ -333,133 +383,142 @@
 
 
 
-        /**
-        * This does the actual drawing of the key when it's in the gutter
-        * 
-        * @param object obj The graph object
-        * @param array  key The key items to draw
-        * @param array colors An aray of colors that the key will use
-        */
-        function DrawKey_gutter (obj, key, colors)
+        //
+        // This does the actual drawing of the key when it's in the margin
+        //
+        function drawKey_margin ()
         {
-            var text_size    = typeof(prop['chart.key.text.size']) == 'number' ? prop['chart.key.text.size'] : prop['chart.text.size'],
-                text_bold    = prop['chart.key.text.bold'],
-                text_italic  = prop['chart.key.text.italic'],
-                text_font    = prop['chart.key.text.font'] || prop['chart.key.font'] || prop['chart.text.font'],
-                text_color   = prop['chart.key.text.color'],
-                gutterLeft   = obj.gutterLeft,
-                gutterRight  = obj.gutterRight,
-                gutterTop    = obj.gutterTop,
-                gutterBottom = obj.gutterBottom,
-                hpos         = ((ca.width - gutterLeft - gutterRight) / 2) + obj.gutterLeft,
-                vpos         = gutterTop - text_size - 5,
-                title        = prop['chart.title'],
+            var text_size    = typeof properties.keyLabelsSize == 'number' ? properties.keyLabelsSize : properties.textSize,
+                text_bold    = properties.keyLabelsBold,
+                text_italic  = properties.keyLabelsItalic,
+                text_font    = properties.keyLabelsFont || properties.keyFont || properties.textFont,
+                text_color   = properties.keyLabelsColor || properties.textColor,
+                marginLeft   = args.object.marginLeft,
+                marginRight  = args.object.marginRight,
+                marginTop    = args.object.marginTop,
+                marginBottom = args.object.marginBottom,
+                hpos         = ((args.object.canvas.width - marginLeft - marginRight) / 2) + args.object.marginLeft,
+                vpos         = marginTop - text_size - 5,
+                title        = properties.title,
                 blob_size    = text_size, // The blob of color
                 hmargin      = 8, // This is the size of the gaps between the blob of color and the text
                 vmargin      = 4, // This is the vertical margin of the key
-                fillstyle    = prop['chart.key.background'],
+                fillstyle    = properties.keyBackground,
                 strokestyle  = '#999',
                 length       = 0;
 
-            if (!obj.coords) obj.coords = {};
-            obj.coords.key = [];
-    
+            if (!args.object.coords) args.object.coords = {};
+            args.object.coords.key = [];
+
     
     
             // Need to work out the length of the key first
-            co.font = text_size + 'pt ' + text_font;
+            args.object.context.font = (args.object.properties.keyLabelsItalic ? 'italic ' : '') + (args.object.properties.keyLabelsBold ? 'bold ' : '') + text_size + 'pt ' + text_font;
+
             for (i=0; i<key.length; ++i) {
                 length += hmargin;
                 length += blob_size;
                 length += hmargin;
-                length += co.measureText(key[i]).width;
+                length += args.object.context.measureText(key[i]).width;
+                length += (properties.keyPositionMarginHSpace ? properties.keyPositionMarginHSpace : 0);
             }
             length += hmargin;
+            
+            // Don't why we need this but here it is...
+            length += (properties.keyPositionMarginHSpace ? properties.keyPositionMarginHSpace : 0);
+    
+
     
     
-    
-    
-            /**
-            * Work out hpos since in the Pie it isn't necessarily dead center
-            */
-            if (obj.type == 'pie') {
-                if (prop['chart.align'] == 'left') {
-                    var hpos = obj.radius + gutterLeft;
+            //
+            // Work out hpos since in the Pie it isn't necessarily dead center
+            //
+            if (args.object.type == 'pie') {
+                if (properties.align == 'left') {
+                    var hpos = args.object.radius + marginLeft;
                     
-                } else if (prop['chart.align'] == 'right') {
-                    var hpos = ca.width - obj.radius - gutterRight;
+                } else if (properties.align == 'right') {
+                    var hpos = args.object.canvas.width - args.object.radius - marginRight;
     
                 } else {
-                    hpos = ca.width / 2;
+                    hpos = args.object.canvas.width / 2;
                 }
             }
+
     
     
     
     
-    
-            /**
-            * This makes the key centered
-            */  
+            //
+            // This makes the key centered
+            //  
             hpos -= (length / 2);
+
     
+            //
+            // Override the horizontal/vertical positioning
+            //
+            if (typeof properties.keyPositionX === 'number') {hpos = properties.keyPositionX;}
+            if (typeof properties.keyPositionY === 'number') {vpos = properties.keyPositionY;}
+            
+            // Now allow for offsetting the key
+            if (typeof properties.keyPositionOffsetx === 'number') {hpos += properties.keyPositionOffsetx;}
+            if (typeof properties.keyPositionOffsety === 'number') {vpos += properties.keyPositionOffsety;}
+
     
-            /**
-            * Override the horizontal/vertical positioning
-            */
-            if (typeof(prop['chart.key.position.x']) == 'number') {
-                hpos = prop['chart.key.position.x'];
-            }
-            if (typeof(prop['chart.key.position.y']) == 'number') {
-                vpos = prop['chart.key.position.y'];
-            }
-    
-    
-    
-            /**
-            * Draw the box that the key sits in
-            */
-            if (obj.Get('chart.key.position.gutter.boxed')) {
-    
-                if (prop['chart.key.shadow']) {
-                    co.shadowColor   = prop['chart.key.shadow.color'];
-                    co.shadowBlur    = prop['chart.key.shadow.blur'];
-                    co.shadowOffsetX = prop['chart.key.shadow.offsetx'];
-                    co.shadowOffsetY = prop['chart.key.shadow.offsety'];
+
+            //
+            // Draw the box that the key sits in
+            //
+            if (   args.object.get('keyPositionGutterBoxed')
+                || args.object.get('keyPositionMarginBoxed')
+               ) {
+
+                if (properties.keyShadow) {
+                    args.object.context.shadowColor   = properties.keyShadowColor;
+                    args.object.context.shadowBlur    = properties.keyShadowBlur;
+                    args.object.context.shadowOffsetX = properties.keyShadowOffsetx;
+                    args.object.context.shadowOffsetY = properties.keyShadowOffsety;
                 }
-    
-                
-                co.beginPath();
-                    co.fillStyle = fillstyle;
-                    co.strokeStyle = strokestyle;
-    
-                    if (prop['chart.key.rounded']) {
-                        RG.strokedCurvyRect(co, hpos, vpos - vmargin, length, text_size + vmargin + vmargin)
-                        // Odd... RG.filledCurvyRect(co, hpos, vpos - vmargin, length, text_size + vmargin + vmargin);
+
+
+                args.object.context.beginPath();
+                    args.object.context.fillStyle = fillstyle;
+                    args.object.context.strokeStyle = strokestyle;
+
+                    if (properties.keyRounded) {
+                        RGraph.roundedRect({
+                            context: args.object.context,
+                                  x: hpos,
+                                  y: vpos - vmargin,
+                              width: length,
+                             height: text_size + vmargin + vmargin
+                        });
                     } else {
-                        co.rect(hpos, vpos - vmargin, length, text_size + vmargin + vmargin);
+                        args.object.context.rect(hpos, vpos - vmargin, length, text_size + vmargin + vmargin);
                     }
-                    
-                co.stroke();
-                co.fill();
+
+                args.object.context.stroke();
+                args.object.context.fill();
     
     
-                RG.NoShadow(obj);
+                RGraph.noShadow(args.object);
             }
+
     
-    
-            /**
-            * Draw the blobs of color and the text
-            */
+            //
+            // Draw the blobs of color and the text
+            //
     
             // Custom colors for the key
-            if (prop['chart.key.colors']) {
-                colors = prop['chart.key.colors'];
+            if (properties.keyColors) {
+                colors = properties.keyColors;
             }
-    
+
             for (var i=0, pos=hpos; i<key.length; ++i) {
+
                 pos += hmargin;
-    
+
     
     
                 //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -467,54 +526,74 @@
     
     
                 // Draw the blob of color
-                if (typeof(prop['chart.key.color.shape']) == 'object' && typeof(prop['chart.key.color.shape'][i]) == 'string') {
-                    var blob_shape = prop['chart.key.color.shape'][i];
+                if (typeof properties.keyColorShape === 'object' && typeof properties.keyColorShape[i] === 'string') {
+                    var blob_shape = properties.keyColorShape[i];
                 
-                } else if (typeof(prop['chart.key.color.shape']) == 'string') {
-                    var blob_shape = prop['chart.key.color.shape'];
+                } else if (typeof properties.keyColorShape === 'object' && typeof properties.keyColorShape[i] === 'function') {
+                    var blob_shape = properties.keyColorShape[i];
+                
+                // No array - just a function
+                } else if (typeof properties.keyColorShape === 'function') {
+                    var blob_shape = properties.keyColorShape;
+                
+                } else if (typeof properties.keyColorShape == 'string') {
+                    var blob_shape = properties.keyColorShape;
                 
                 } else {
                     var blob_shape = 'square';
                 }
-    
-    
-                /**
-                * Draw the blob of color - line
-                */
+
+                // Allow for the keyPositionMarginHSpace property
+                pos  += (properties.keyPositionMarginHSpace ? properties.keyPositionMarginHSpace : 0);
+
+                //
+                // Draw the blob of color - line
+                //
                 if (blob_shape =='line') {
                     
-                    co.beginPath();
-                        co.strokeStyle = colors[i];
-                        co.moveTo(pos, vpos + (blob_size / 2));
-                        co.lineTo(pos + blob_size, vpos + (blob_size / 2));
-                    co.stroke();
+                    args.object.context.beginPath();
+                        args.object.context.strokeStyle = colors[i];
+                        args.object.context.moveTo(pos, vpos + (blob_size / 2));
+                        args.object.context.lineTo(pos + blob_size, vpos + (blob_size / 2));
+                    args.object.context.stroke();
                     
                 // Circle
                 } else if (blob_shape == 'circle') {
                     
-                    co.beginPath();
-                        co.fillStyle = colors[i];
-                        co.moveTo(pos, vpos + (blob_size / 2));
-                        co.arc(pos + (blob_size / 2), vpos + (blob_size / 2), (blob_size / 2), 0, 6.28, 0);
-                    co.fill();
+                    args.object.context.beginPath();
+                        args.object.context.fillStyle = colors[i];
+                        args.object.context.moveTo(pos, vpos + (blob_size / 2));
+                        args.object.context.arc(pos + (blob_size / 2), vpos + (blob_size / 2), (blob_size / 2), 0, 6.28, 0);
+                    args.object.context.fill();
                 
                 } else if (blob_shape == 'triangle') {
                 
-                    co.fillStyle = colors[i];
-                    co.beginPath();
-                        co.strokeStyle = colors[i];
-                        co.moveTo(pos, vpos + blob_size);
-                        co.lineTo(pos + (blob_size / 2), vpos);
-                        co.lineTo(pos + blob_size, vpos + blob_size);
-                    co.closePath();
-                    co.fill();
-                
+                    args.object.context.fillStyle = colors[i];
+                    args.object.context.beginPath();
+                        args.object.context.strokeStyle = colors[i];
+                        args.object.context.moveTo(pos, vpos + blob_size);
+                        args.object.context.lineTo(pos + (blob_size / 2), vpos);
+                        args.object.context.lineTo(pos + blob_size, vpos + blob_size);
+                    args.object.context.closePath();
+                    args.object.context.fill();
+
+                } else if (typeof blob_shape === 'function') {
+
+                    blob_shape({
+                        object: args.object,
+                        color: colors[i],
+                        x: pos,
+                        y: vpos,
+                        width: blob_size,
+                        height: blob_size
+                    });
+
                 } else {
-                
-                    co.beginPath();
-                        co.fillStyle = colors[i];
-                        co.rect(pos, vpos, blob_size, blob_size);
-                    co.fill();
+
+                    args.object.context.beginPath();
+                        args.object.context.fillStyle = colors[i];
+                        args.object.context.rect(pos, vpos, blob_size, blob_size);
+                    args.object.context.fill();
                 }
     
     
@@ -528,33 +607,44 @@
                 
                 pos += hmargin;
     
-                co.beginPath();
-                    co.fillStyle = typeof text_color == 'object' ? text_color[i] : text_color;;
-                    var ret = RG.Text2(obj, {
-                        'font':text_font,
-                        'bold':text_bold,
-                        'size':text_size,
-                        'italic': text_italic,
-                        'x':pos,
-                        'y':vpos + text_size + 3,
-                        'text': key[i]
+                args.object.context.beginPath();
+                    args.object.context.fillStyle = (typeof text_color === 'object') ? text_color[i] : text_color;
+
+                    var ret = RGraph.text({
+                        object:     args.object,
+                        font:       text_font,
+                        bold:       text_bold,
+                        size:       text_size,
+                        italic:     text_italic,
+                        x:          pos +  + (properties.keyLabelsOffsetx || 0),
+                        y:          vpos + text_size + 1 +  + (properties.keyLabelsOffsety || 0),
+                        text:       key[i],
+                        accessible: textAccessible
                     });
-                co.fill();
-                pos += co.measureText(key[i]).width;
-                
-                obj.coords.key[i] = [ret.x, ret.y, ret.width, ret.height, key[i], colors[i], obj];
+                args.object.context.fill();
+                pos += args.object.context.measureText(key[i]).width;
+            
+                args.object.coords.key[i] = [
+                    ret.x,
+                    ret.y,
+                    ret.width,
+                    ret.height,
+                    key[i],
+                    colors[i],
+                    args.object
+                ];
             }
         }
 
 
 
 
-        if (keypos && keypos == 'gutter') {
-            DrawKey_gutter(obj, key, colors);
-        } else if (keypos && keypos == 'graph') {
-            DrawKey_graph(obj, key, colors);
+        if (keypos && (keypos === 'gutter' || keypos === 'margin')) {
+            drawKey_margin();
+        } else if (keypos && (keypos === 'graph' || keypos === 'chart') ) {
+            drawKey_graph();
         } else {
-            alert('[COMMON] (' + obj.id + ') Unknown key position: ' + keypos);
+            alert('[KEY] (' + args.object.id + ') Unknown key position: ' + keypos);
         }
 
 
@@ -562,7 +652,7 @@
 
 
 
-        if (prop['chart.key.interactive']) {
+        if (properties.keyInteractive) {
 
             if (!RGraph.Drawing || !RGraph.Drawing.Rect) {
                 alert('[INTERACTIVE KEY] The drawing API Rect library does not appear to have been included (which the interactive key uses)');
@@ -570,59 +660,64 @@
 
 
 
-            /**
-            * Check that the RGraph.common.dynamic.js file has been included
-            */
-            if (!RGraph.InstallWindowMousedownListener) {
+            //
+            // Check that the RGraph.common.dynamic.js file has been included
+            //
+            if (!RGraph.installWindowMousedownListener) {
                 alert('[INTERACTIVE KEY] The dynamic library does not appear to have been included');
             }
 
 
 
             // Determine the maximum width of the labels
-            for (var i=0,len=obj.coords.key.length,maxlen=0; i<len; i+=1) {
-                maxlen = Math.max(maxlen, obj.coords.key[i][2]);
+            for (var i=0,len=args.object.coords.key.length,maxlen=0; i<len; i+=1) {
+                maxlen = Math.max(maxlen, args.object.coords.key[i][2]);
             }
     
 
-            //obj.coords.key.forEach(function (value, index, arr)
+            //args.object.coords.key.forEach(function (value, index, arr)
             //{
-            for (var i=0,len=obj.coords.key.length; i<len; i+=1) {
+            for (var i=0,len=args.object.coords.key.length; i<len; i+=1) {
             
                 // Because the loop would have finished when the i variable is needed - put
                 // the onclick function inside a new context so that the value of the i
                 // variable is what we expect when the key has been clicked
                 (function (idx)
                 {
-                    var arr   = obj.coords.key;
-                    var value = obj.coords.key[idx];
+                    var arr   = args.object.coords.key;
+                    var value = args.object.coords.key[idx];
                     var index = idx;
     
 
-                    var rect = new RGraph.Drawing.Rect(obj.id,value[0], value[1], prop['chart.key.position'] == 'gutter' ? value[2] : maxlen, value[3])
-                        .Set('fillstyle', 'rgba(0,0,0,0)')
-                        .Draw();
+                    var rect = new RGraph.Drawing.Rect({
+                        id:     args.object.id,
+                        x:      value[0],
+                        y:      value[1],
+                        width:  (properties.keyPosition === 'gutter' || properties.keyPosition === 'margin') ? value[2] : maxlen,
+                        height: value[3],
+                        options: {
+                            colorsFill: 'rgba(0,0,0,0)'
+                        }
+                    }).draw();
                     
                     rect.onclick = function (e, shape)
                     {
-                        var co  = rect.context;
+                        rect.context.fillStyle = properties.keyInteractiveHighlightLabel;
+                        rect.context.fillRect(shape.x, shape.y, shape.width, shape.height);
     
-                        co.fillStyle = prop['chart.key.interactive.highlight.label'];
-                        co.fillRect(shape.x, shape.y, shape.width, shape.height);
-    
-                        if (typeof obj.interactiveKeyHighlight == 'function') {
-                            
-                            obj.Set('chart.key.interactive.index', idx);
+                        if (typeof args.object.interactiveKeyHighlight == 'function') {
 
-                            RG.FireCustomEvent(obj, 'onbeforeinteractivekey');
-                            obj.interactiveKeyHighlight(index);
-                            RG.FireCustomEvent(obj, 'onafterinteractivekey');
+                            args.object.set('keyInteractiveIndex', idx);
+
+                            RGraph.fireCustomEvent(args.object, 'onbeforeinteractivekey');
+                            args.object.interactiveKeyHighlight(index);
+                            RGraph.fireCustomEvent(args.object, 'onafterinteractivekey');
                         }
                     }
                     
                     rect.onmousemove = function (e, shape)
                     {
-                        e.target.style.cursor = 'pointer';
+                        return true;
                     }
                 })(i);
             }
@@ -632,12 +727,16 @@
 
 
 
-    /**
-    * Returns the key length, but accounts for null values
-    * 
-    * @param array key The key elements
-    */
-    RG.getKeyLength = function (key)
+
+
+
+
+    //
+    // Returns the key length, but accounts for null values
+    // 
+    // @param array key The key elements
+    //
+    RGraph.getKeyLength = function (key)
     {
         var length = 0;
 
@@ -653,80 +752,138 @@
 
 
 
-    /**
-    * Create a TABLE based HTML key. There's lots of options so it's
-    * suggested that you consult the documentation page
-    * 
-    * @param mixed id   This should be a string consisting of the ID of the container
-    * @param object prop An object map of the various properties that you can use to
-    *                    configure the key. See the documentation page for a list.
-    */
+
+
+
+
+    //
+    // Create a TABLE based HTML key. There's lots of options so it's
+    // suggested that you consult the documentation page
+    // 
+    // @param mixed id   This should be a string consisting of the ID of the container
+    // @param object prop An object map of the various properties that you can use to
+    //                    configure the key. See the documentation page for a list.
+    //
     RGraph.HTML.key =
-    RGraph.HTML.Key = function (id, prop)
+    RGraph.HTML.Key = function (id, properties)
     {
         var div = doc.getElementById(id);
+        var uid = RGraph.createUID();
 
         
-        /**
-        * Create the table that becomes the key
-        */
-        var str = '<table border="0" cellspacing="0" cellpadding="0" id="rgraph_key" style="display: inline;' + (function ()
-            {
-                var style = ''
-                for (i in prop.tableCss) {
-                    if (typeof i === 'string') {
-                        style = style + i + ': ' + prop.tableCss[i] + ';';
-                    }
-                }
-                return style;
-            })() + '" ' + (prop.tableClass ? 'class="' + prop.tableClass + '"' : '') + '>';
+        //
+        // Create the table that becomes the key. CSS Styles for
+        // the table, the color blobs and the labels are set below
+        // using the RGraph.setCSS() function.
+        //
+        var str = '<table border="0" cellspacing="0" cellpadding="0" id="rgraph_key_' + uid + '" ' + (properties.tableClass ? 'class="' + properties.tableClass + '"' : '') + '>';
+        // 
 
 
-
-        /**
-        * Add the individual key elements
-        */
-        for (var i=0; i<prop.labels.length; i+=1) {
-            str += '<tr><td><div style="' + (function ()
-            {
-                var style = '';
-
-                for (var j in prop.blobCss) {
-                    if (typeof j === 'string') {
-                        style = style + j + ': ' + prop.blobCss[j] + ';';
-                    }
-                }
-
-                return style;
-            })() + 'display: inline-block; margin-right: 5px; margin-top: 4px; width: 15px; height: 15px; background-color: ' + prop.colors[i] + '"' + (prop.blobClass ? 'class="' + prop.blobClass + '"' : '') + '>&nbsp;</div><td>' + (prop.links && prop.links[i] ? '<a href="' + prop.links[i] + '">' : '') + '<span ' + (prop.labelClass ? 'class="' + prop.labelClass + '"' : '') + '" ' + (function ()
-            {
-                var style = '';
-
-                for (var j in prop.labelCss) {
-                    if (typeof j === 'string') {
-                        style = style + j + ': ' + prop.labelCss[j] + ';';
-                    }
-                }
-
-                return style;
-            })() + (function ()
-            {
-                var style = '';
-
-                if (prop['labelCss_' + i]) {
-                    for (var j in prop['labelCss_' + i]) {
-                        style = style + j + ': ' + prop['labelCss_' + i][j] + ';';
-                    }
-                }
-
-                return style ? 'style="' + style + '"' : '';
-            })() + '>' + prop.labels[i] + '</span>' + (prop.links && prop.links[i] ? '</a>' : '') + '</td></tr>';
+        //
+        // Add the individual key elements
+        //
+        for (var i=0; i<properties.labels.length; i+=1) {
+            str += '<tr><td valign="top"><div id="rgraph_html_key_blob_' + i + '"     ' + (properties.blobClass ? 'class="rgraph_html_key_blob ' + properties.blobClass + '"' : 'rgraph_html_key_blob') + '>&nbsp;</div><td>' + (properties.links && properties.links[i] ? '<a href="' + properties.links[i] + '">' : '') + '<span ' + (properties.labelClass ? 'class="' + properties.labelClass + '"' : '') + '" id="rgraph_html_key_label_' + i + '">' + properties.labels[i] + '</span>' + (properties.links && properties.links[i] ? '</a>' : '') + '</td></tr>';
         }
-        
+
         div.innerHTML += (str + '</table>');
 
+        for (var i=0; i<properties.labels.length; i+=1) {
+            var n = document.getElementById('rgraph_html_key_blob_' + i);
+            n.style.width  = '20px';
+            n.style.height = '20px';
+        }
+
+
+
+
+
+
+
+
+
+
+
+
+
+        // Set CSS for the whole table that has been specified
+        RGraph.setCSS(doc.getElementById('rgraph_key_' + uid),
+        {
+            display: 'inline',
+            ...properties.tableCss
+        });
+
+
+
+
+        
+        
+        
+        
+        
+        
+        
+        
+        // Set the CSS for each entry in the key
+        for (var i=0; i<properties.labels.length; i+=1) {
+            // Set Styles on each color blob
+            RGraph.setCSS(doc.getElementById('rgraph_html_key_blob_' + i),
+            {
+                display: 'inline-block',
+                marginRight: '5px',
+                marginTop: '4px',
+                width: '15px',
+                height: '15px',
+                backgroundColor: properties.colors[i],
+                ...properties.blobCss
+            });
+
+
+
+
+
+
+
+
+            // Set the CSS that comes from the labelCss property
+            RGraph.setCSS(
+                doc.getElementById('rgraph_html_key_label_' + i),
+                properties.labelCss
+            );
+
+
+
+
+
+
+
+
+            // If there are styles set for a particular label,
+            // apply those too
+            if (properties['labelCss_' + i]) {
+                RGraph.setCSS(
+                    doc.getElementById('rgraph_html_key_label_' + i),
+                    properties['labelCss_' + i]
+                );
+            }
+        }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         // Return the TABLE object that is the HTML key
-        return doc.getElementById('rgraph_key');
+        return doc.getElementById('rgraph_key_' + uid);
     };
 
 

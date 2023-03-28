@@ -1,17 +1,13 @@
-// version: 2015-12-16
-    /**
-    * o--------------------------------------------------------------------------------o
-    * | This file is part of the RGraph package - you can learn more at:               |
-    * |                                                                                |
-    * |                          http://www.rgraph.net                                 |
-    * |                                                                                |
-    * | RGraph is dual licensed under the Open Source GPL (General Public License)     |
-    * | v2.0 license and a commercial license which means that you're not bound by     |
-    * | the terms of the GPL. The commercial license is just £99 (GBP) and you can     |
-    * | read about it here:                                                            |
-    * |                      http://www.rgraph.net/license                             |
-    * o--------------------------------------------------------------------------------o
-    */
+'version:2023-02-25 (6.11)';
+//
+    // o--------------------------------------------------------------------------------o
+    // | This file is part of the RGraph package - you can learn more at:               |
+    // |                                                                                |
+    // |                         https://www.rgraph.net                                 |
+    // |                                                                                |
+    // | RGraph is licensed under the Open Source MIT license. That means that it's     |
+    // | totally free to use and there are no restrictions on what you can do with it!  |
+    // o--------------------------------------------------------------------------------o
     
     ModalDialog =
     {
@@ -23,12 +19,12 @@
 
 
 
-        /**
-        * Shows the dialog with the supplied DIV acting as the contents
-        * 
-        * @param string id    The ID of the DIV to use as the dialogs contents
-        * @param int    width The width of the dialog
-        */
+        //
+        // Shows the dialog with the supplied DIV acting as the contents
+        // 
+        // @param string id    The ID of the DIV to use as the dialogs contents
+        // @param int    width The width of the dialog
+        //
         Show: function (id, width)
         {
             ModalDialog.id    = id;
@@ -39,12 +35,21 @@
     
             // Install the event handlers
             window.onresize = ModalDialog.Resize;
+            
+            // Add an event listener so that the
+            // ESC key hides the dialog
+            document.body.addEventListener('keydown', function (e)
+            {
+                if (e.keyCode === 27) {
+                    ModalDialog.hide();
+                }
+            }, false);
     
             
             // Call them initially
             ModalDialog.Resize();
             
-            if (typeof(ModalDialog.onmodaldialog) == 'function') {
+            if (typeof ModalDialog.onmodaldialog == 'function') {
                 ModalDialog.onmodaldialog();
             }
             ModalDialog.FireCustomEvent('onmodaldialog');
@@ -53,9 +58,9 @@
 
 
 
-        /**
-        * Shows the background semi-transparent darkened DIV
-        */
+        //
+        // Shows the background semi-transparent darkened DIV
+        //
         ShowBackground: function ()
         {
             // Create the background if neccessary
@@ -79,9 +84,9 @@
 
 
 
-        /**
-        * Shows the dialog itself
-        */
+        //
+        // Shows the dialog itself
+        //
         ShowDialog: function ()
         {
             // Create the DIV if necessary
@@ -189,9 +194,9 @@
 
 
 
-        /**
-        * Hides everything
-        */
+        //
+        // Hides everything
+        //
         Close: function ()
         {
             if (ModalDialog.dialog) {
@@ -218,9 +223,9 @@
 
 
 
-        /**
-        * Accommodate the window being resized
-        */
+        //
+        // Accommodate the window being resized
+        //
         Resize: function ()
         {
             if (ModalDialog.dialog) {
@@ -234,14 +239,14 @@
 
 
     
-        /**
-        * Returns the page height
-        * 
-        * @return int The page height
-        */
+        //
+        // Returns the page height
+        // 
+        // @return int The page height
+        //
         AddCustomEventListener: function (name, func)
         {
-            if (typeof(ModalDialog.events) == 'undefined') {
+            if (typeof ModalDialog.events == 'undefined') {
                 ModalDialog.events = [];
             }
     
@@ -251,16 +256,16 @@
     
     
     
-        /**
-        * Used to fire the ModalDialog custom event
-        * 
-        * @param object obj   The graph object that fires the event
-        * @param string event The name of the event to fire
-        */
+        //
+        // Used to fire the ModalDialog custom event
+        // 
+        // @param object obj   The graph object that fires the event
+        // @param string event The name of the event to fire
+        //
         FireCustomEvent: function (name)
         {
             for (var i=0; i<ModalDialog.events.length; ++i) {
-                if (typeof(ModalDialog.events[i][0]) == 'string' && ModalDialog.events[i][0] == name && typeof(ModalDialog.events[i][1]) == 'function') {
+                if (typeof ModalDialog.events[i][0] == 'string' && ModalDialog.events[i][0] == name && typeof ModalDialog.events[i][1] == 'function') {
                     ModalDialog.events[i][1]();
                 }
             }
@@ -269,9 +274,9 @@
 
     
     
-        /**
-        * Returns true if the browser is IE8
-        */
+        //
+        // Returns true if the browser is IE8
+        //
         isIE8: function ()
         {
             return document.all && (navigator.userAgent.indexOf('MSIE 8') > 0);
@@ -281,8 +286,12 @@
 
 
 
-    // An alias
-    ModalDialog.Hide = ModalDialog.Close;
+    // Aliases
+    ModalDialog.show  = ModalDialog.Show;
+    ModalDialog.draw  = ModalDialog.Show;
+    ModalDialog.Hide  = ModalDialog.Close;
+    ModalDialog.hide  = ModalDialog.Close;
+    ModalDialog.close = ModalDialog.Close;
     
     // Lowercase all of the function names
     for (i in ModalDialog) {

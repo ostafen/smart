@@ -1,52 +1,43 @@
-// version: 2015-12-16
-    /**
-    * o--------------------------------------------------------------------------------o
-    * | This file is part of the RGraph package - you can learn more at:               |
-    * |                                                                                |
-    * |                          http://www.rgraph.net                                 |
-    * |                                                                                |
-    * | RGraph is dual licensed under the Open Source GPL (General Public License)     |
-    * | v2.0 license and a commercial license which means that you're not bound by     |
-    * | the terms of the GPL. The commercial license starts at just £99 (GBP) and      |
-    * | you can read about it here:                                                    |
-    * |                                                                                |
-    * |                      http://www.rgraph.net/license                             |
-    * o--------------------------------------------------------------------------------o
-    */
+'version:2023-02-25 (6.11)';
+//
+    // o--------------------------------------------------------------------------------o
+    // | This file is part of the RGraph package - you can learn more at:               |
+    // |                                                                                |
+    // |                         https://www.rgraph.net                                 |
+    // |                                                                                |
+    // | RGraph is licensed under the Open Source MIT license. That means that it's     |
+    // | totally free to use and there are no restrictions on what you can do with it!  |
+    // o--------------------------------------------------------------------------------o
 
-    /**
-    * This is a library of a few functions that make it easier to do
-    * effects like fade-ins or eaxpansion.
-    */
 
-    /**
-    * Initialise the various objects
-    */
-    RGraph                = window.RGraph || {isRGraph: true};
+    //
+    // This is a library of a few functions that make it easier to do
+    // effects like fade-ins or expansion.
+    //
+
+    //
+    // Initialise the various objects
+    //
+    RGraph                = window.RGraph || {isrgraph:true,isRGraph: true,rgraph:true};
     RGraph.Effects        = RGraph.Effects || {};
     RGraph.Effects.Common = {};
 
 // Module pattern
 (function (win, doc, undefined)
 {
-    var RG = RGraph,
-        ua = navigator.userAgent,
-        ma = Math;
+    var ua = navigator.userAgent;
 
-
-
-
-    /**
-    * This functions adds the generic effects to thechart object
-    * 
-    * @param object obj The chart object
-    */
-    RG.Effects.decorate = function (obj)
+    //
+    // This functions adds the generic effects to thechart object
+    // 
+    // @param object obj The chart object
+    //
+    RGraph.Effects.decorate = function (obj)
     {
-        for (i in RG.Effects.Common) {
-            if (typeof RG.Effects.Common[i] === 'function') {
+        for (i in RGraph.Effects.Common) {
+            if (typeof RGraph.Effects.Common[i] === 'function') {
 
-                obj[i] = RG.Effects.Common[i];
+                obj[i] = RGraph.Effects.Common[i];
             }
         }
     };
@@ -55,28 +46,27 @@
 
 
 
-    /**
-    * A function used to replace the canvas with a DIV, which in turn holds the canvas. This way the page
-    * layout doesn't shift in the canvas is resized.
-    * 
-    * @param object canvas The canvas to replace.
-    */
-    RG.Effects.replaceCanvasWithDIV =
-    RG.Effects.ReplaceCanvasWithDIV =
-    RG.Effects.wrap                 = function (canvas)
+
+
+
+    //
+    // A function used to replace the canvas with a DIV, which in turn holds the canvas. This way the page
+    // layout doesn't shift in the canvas is resized.
+    // 
+    // @param object canvas The canvas to replace.
+    //
+    RGraph.Effects.wrap = function (canvas)
     {
         if (!canvas.rgraph_wrapper) {
             // Create the place holder DIV
-            var div = $('<div></div>')
-                       .css({
-                             width: canvas.width + 'px',
-                             height: canvas.height + 'px',
-                             cssFloat: canvas.style.cssFloat,
-                             left: canvas.style.left,
-                             top: canvas.style.top,
-                             display: 'inline-block'
-                        })
-                        .get(0);
+            var div = jQuery('<div></div>').css({
+                width:    canvas.width + 'px',
+                height:   canvas.height + 'px',
+                cssFloat: canvas.style.cssFloat,
+                left:     canvas.style.left,
+                top:      canvas.style.top,
+                display:  'inline-block'
+            }).get(0);
 
             // Add the new DIV to the DOM
             canvas.parentNode.insertBefore(div, canvas);
@@ -107,13 +97,16 @@
 
 
 
-    /**
-    * fadeIn
-    * 
-    * This function simply uses the CSS opacity property - initially set to zero and
-    * increasing to 1 over the period of 0.5 second
-    */
-    RG.Effects.Common.fadeIn = function ()
+
+
+
+    //
+    // fadeIn
+    // 
+    // This function simply uses the CSS opacity property - initially set to zero and
+    // increasing to 1 over the period of 0.5 second
+    //
+    RGraph.Effects.Common.fadeIn = function ()
     {
         // This function gets added to the chart object - so the this
         // variable is the chart object
@@ -129,7 +122,7 @@
         obj.canvas.style.opacity = 0;
         
         // Draw the chart
-        RG.redrawCanvas(obj.canvas);
+        RGraph.redrawCanvas(obj.canvas);
 
         // Now fade the chart in
         for (var i=1; i<=frames; ++i) {
@@ -138,11 +131,14 @@
                 setTimeout(function ()
                 {
                     obj.canvas.style.opacity = (index / frames);
+                    
+                    if (index >= frames) {
+                        callback(obj);
+                    }
+                    
                 }, (index / frames) * duration);
             })(i)
         }
-        
-        setTimeout(function () {callback(obj);}, duration);
         
         
         return obj;
@@ -151,12 +147,16 @@
 
 
 
-    /**
-    * fadeOut
-    * 
-    * This function is a reversal of the above function - fading out instead of in
-    */
-    RG.Effects.Common.fadeOut = function ()
+
+
+
+
+    //
+    // fadeOut
+    // 
+    // This function is a reversal of the above function - fading out instead of in
+    //
+    RGraph.Effects.Common.fadeOut = function ()
     {
         // This function gets added to the chart object - so the this
         // variable is the chart object
@@ -168,76 +168,78 @@
         var callback = arguments[1] || function () {};
 
 
-        // Now fade the chart in
+        // Now fade the chart out
         for (var i=1; i<=frames; ++i) {
             (function (index)
             {
                 setTimeout(function ()
                 {
                     obj.canvas.style.opacity = 1 - (index / frames);
+                    
+                    
+                    if (index >= frames) {
+                        callback(obj);
+                    }
                 }, (index / frames) * duration);
             })(i)
         }
-        
-        setTimeout(function () {callback(obj);}, duration);
 
         return this;
-        
-        /**
-        * Callback
-        */
-        callback(obj);
     };
 
 
 
 
-    /**
-    * fadeSlideIn
-    * 
-    * This function fades the canvas in in a sliding motion
-    */
-    RG.Effects.Common.fadeSlideIn = function ()
+
+
+
+
+    //
+    // fadeSlideIn
+    // 
+    // This function fades the canvas in in a sliding motion
+    //
+    RGraph.Effects.Common.fadeSlideIn = function ()
     {
         // This function gets added to the chart object - so the this
         // variable is the chart object
-        var obj      = this;
-        var opt      = arguments[0] || {};
-        var frames   = opt.frames || 30;
-        var frame    = 0;
-        var pc       = -20;
-        var step     = (120 - pc) / frames;
-        var canvasXY = RG.getCanvasXY(obj.canvas);
-        var color    = opt.color || 'white';
-        var callback = arguments[1] || function () {};
+        var obj      = this,
+            opt      = arguments[0] || {},
+            frames   = opt.frames || 30,
+            frame    = 0,
+            pc       = -20,
+            step     = (120 - pc) / frames,
+            canvasXY = RGraph.getCanvasXY(obj.canvas),
+            color    = opt.color || 'white',
+            callback = arguments[1] || function () {};
 
         
         // Draw the chart
-        RG.redrawCanvas(obj.canvas);
+        RGraph.redrawCanvas(obj.canvas);
 
 
         // Create the cover
-        $('<div id="rgraph_fadeslide_cover_' + obj.id + '"></div>').css({
+        jQuery('<div id="rgraph_fadeslide_cover_' + obj.id + '"></div>').css({
             background: 'linear-gradient(135deg, rgba(255,255,255,0) ' + pc + '%, ' + color + ' ' + (pc + 20) + '%)',
             width:obj.canvas.width + 'px',
             height: obj.canvas.height + 'px',
             top: canvasXY[1] + 'px',
             left: canvasXY[0] + 'px',
             position: 'absolute'
-        }).appendTo($(obj.canvas.parentNode));
+        }).appendTo(jQuery(obj.canvas.parentNode));
 
             function iterator ()
             {
                 if (pc < 120) {
-                    $('div#rgraph_fadeslide_cover_' + obj.id).css({
-                                                                   background: 'linear-gradient(135deg, rgba(255,255,255,0) ' + pc + '%, ' + color + ' ' + (pc + 20) + '%)'
-                                                                  });
+                    jQuery('div#rgraph_fadeslide_cover_' + obj.id).css({
+                        background: 'linear-gradient(135deg, rgba(255,255,255,0) ' + pc + '%, ' + color + ' ' + (pc + 20) + '%)'
+                    });
                     pc += step;
-                    RG.Effects.updateCanvas(iterator);
+                    RGraph.Effects.updateCanvas(iterator);
                 
                 } else {
                 
-                    $('div#rgraph_fadeslide_cover_' + obj.id).remove();
+                    jQuery('div#rgraph_fadeslide_cover_' + obj.id).remove();
 
                     callback(obj);
                 }
@@ -249,12 +251,16 @@
 
 
 
-    /**
-    * fadeSlideOut
-    * 
-    Fades the canvas out in a sliding motion
-    */
-    RG.Effects.Common.fadeSlideOut = function ()
+
+
+
+
+    //
+    // fadeSlideOut
+    // 
+    // Fades the canvas out in a sliding motion
+    //
+    RGraph.Effects.Common.fadeSlideOut = function ()
     {
         // This function gets added to the chart object - so the this
         // variable is the chart object
@@ -264,38 +270,38 @@
         var frame    = 0;
         var pc       = -20;
         var step     = (120 - pc) / frames;
-        var canvasXY = RG.getCanvasXY(obj.canvas);
+        var canvasXY = RGraph.getCanvasXY(obj.canvas);
         var color    = opt.color || 'white';
         var callback = arguments[1] || function () {};
 
 
         // Draw the chart
-        RG.redrawCanvas(obj.canvas);
+        RGraph.redrawCanvas(obj.canvas);
 
         // Create the cover
-        $('<div id="rgraph_fadeslide_cover_' + obj.id + '"></div>').css({
+        jQuery('<div id="rgraph_fadeslide_cover_' + obj.id + '"></div>').css({
             background: 'linear-gradient(135deg, ' + color + ' ' + pc + '%, rgba(255,255,255,0) ' + (pc + 20) + '%)',
             width:obj.canvas.width + 'px',
             height: obj.canvas.height + 'px',
             top: canvasXY[1] + 'px',
             left: canvasXY[0] + 'px',
             position: 'absolute'
-        }).appendTo($(obj.canvas.parentNode));
+        }).appendTo(jQuery(obj.canvas.parentNode));
 
             function iterator ()
             {
                 if (pc < 120) {
-                    $('div#rgraph_fadeslide_cover_' + obj.id).css({
-                                                                   background: 'linear-gradient(135deg, ' + color + ' ' + pc + '%, rgba(255,255,255,0) ' + (pc + 20) + '%)'
-                                                                  });
+                    jQuery('div#rgraph_fadeslide_cover_' + obj.id).css({
+                        background: 'linear-gradient(135deg, ' + color + ' ' + pc + '%, rgba(255,255,255,0) ' + (pc + 20) + '%)'
+                    });
                     pc += step;
-                    RG.Effects.updateCanvas(iterator);
+                    RGraph.Effects.updateCanvas(iterator);
                 
                 } else {
+
+                    RGraph.clear(obj.canvas, obj.get('clearto'))
                 
-                    RG.clear(obj.canvas, color)
-                
-                    $('div#rgraph_fadeslide_cover_' + obj.id).remove();
+                    jQuery('div#rgraph_fadeslide_cover_' + obj.id).remove();
 
                     callback(obj);
                 }
@@ -308,13 +314,16 @@
 
 
 
-    /**
-    * fadeCircularIn
-    * 
-    * This function uses radial CSS gradients to cover the canvas with a radial fade in effect
-    * (from the center outwards)
-    */
-    RG.Effects.Common.fadeCircularInOutwards = function ()
+
+
+
+    //
+    // fadeCircularIn
+    // 
+    // This function uses radial CSS gradients to cover the canvas with a radial fade in effect
+    // (from the center outwards)
+    //
+    RGraph.Effects.Common.fadeCircularInOutwards = function ()
     {
         // This function gets added to the chart object - so the this
         // variable is the chart object
@@ -323,39 +332,39 @@
         var frames   = opt.frames || 120;
         var frame    = 0;
         var radius   = 0;
-        var canvasXY = RG.getCanvasXY(obj.canvas);
+        var canvasXY = RGraph.getCanvasXY(obj.canvas);
         var color    = opt.color || 'white';
         var callback = arguments[1] || function () {};
 
         
         // Draw the chart
-        RG.redrawCanvas(obj.canvas);
+        RGraph.redrawCanvas(obj.canvas);
 
 
 
         // Create the cover
-        $('<div id="rgraph_fadeslide_cover_' + obj.id + '"></div>').css({
+        jQuery('<div id="rgraph_fadeslide_cover_' + obj.id + '"></div>').css({
             background: 'radial-gradient(rgba(255,255,255,0) 0%, white ' + radius + '%)',
-            width:obj.canvas.width + 'px',
-            height: obj.canvas.height + 'px',
-            top: canvasXY[1],
-            left: canvasXY[0],
-            position: 'absolute'
-        }).appendTo($(obj.canvas.parentNode));
+            width:      obj.canvas.width + 'px',
+            height:     obj.canvas.height + 'px',
+            top:        canvasXY[1],
+            left:       canvasXY[0],
+            position:   'absolute'
+        }).appendTo(jQuery(obj.canvas.parentNode));
 
         function iterator ()
         {
             if (frame < frames) {
 
-                    $('div#rgraph_fadeslide_cover_' + obj.id).css({
+                    jQuery('div#rgraph_fadeslide_cover_' + obj.id).css({
                         background: 'radial-gradient(rgba(255,255,255,0) ' + ((frame++ / frames) * 100) + '%, ' + color + ' ' + ((frame++ / frames) * 150) + '%)'
                     });
 
-                    RG.Effects.updateCanvas(iterator);
+                    RGraph.Effects.updateCanvas(iterator);
             
             } else {
             
-                $('div#rgraph_fadeslide_cover_' + obj.id).remove();
+                jQuery('div#rgraph_fadeslide_cover_' + obj.id).remove();
 
                 callback(obj);
             }
@@ -367,13 +376,17 @@
 
 
 
-    /**
-    * fadeCircularOut
-    * 
-    * This function uses radial CSS gradients to cover the canvas with a radial fade out effect
-    * (from the center outwards)
-    */
-    RG.Effects.Common.fadeCircularOutOutwards = function ()
+
+
+
+
+    //
+    // fadeCircularOut
+    // 
+    // This function uses radial CSS gradients to cover the canvas with a radial fade out effect
+    // (from the center outwards)
+    //
+    RGraph.Effects.Common.fadeCircularOutOutwards = function ()
     {
         // This function gets added to the chart object - so the this
         // variable is the chart object
@@ -381,40 +394,40 @@
         var opt      = arguments[0] || {};
         var frames   = opt.frames || 120;
         var frame    = 0;
-        var canvasXY = RG.getCanvasXY(obj.canvas);
+        var canvasXY = RGraph.getCanvasXY(obj.canvas);
         var color    = opt.color || 'white';
         var callback = arguments[1] || function () {};
 
         
         // Draw the chart
-        RG.redrawCanvas(obj.canvas);
+        RGraph.redrawCanvas(obj.canvas);
 
 
 
         // Create the cover
-        $('<div id="rgraph_fadeslide_cover_' + obj.id + '"></div>').css({
+        jQuery('<div id="rgraph_fadeslide_cover_' + obj.id + '"></div>').css({
             background: 'radial-gradient(rgba(255,255,255,0) 0%, white 0%)',
-            width:obj.canvas.width + 'px',
-            height: obj.canvas.height + 'px',
-            top: canvasXY[1],
-            left: canvasXY[0],
-            position: 'absolute'
-        }).appendTo($(obj.canvas.parentNode));
+            width:      obj.canvas.width + 'px',
+            height:     obj.canvas.height + 'px',
+            top:        canvasXY[1],
+            left:       canvasXY[0],
+            position:   'absolute'
+        }).appendTo(jQuery(obj.canvas.parentNode));
 
         function iterator ()
         {
             if (frame < frames) {
 
-                    $('div#rgraph_fadeslide_cover_' + obj.id).css({
-                                                                   background: 'radial-gradient(' + color + ' ' + ((frame++ / frames) * 100) + '%, rgba(255,255,255,0) ' + ((frame++ / frames) * 150) + '%)'
-                                                                  });
-                    RG.Effects.updateCanvas(iterator);
+                    jQuery('div#rgraph_fadeslide_cover_' + obj.id).css({
+                        background: 'radial-gradient(' + color + ' ' + ((frame++ / frames) * 100) + '%, rgba(255,255,255,0) ' + ((frame++ / frames) * 150) + '%)'
+                    });
+                    RGraph.Effects.updateCanvas(iterator);
             
             } else {
-            
-                RG.clear(obj.canvas, color);
-            
-                $('div#rgraph_fadeslide_cover_' + obj.id).remove();
+
+                RGraph.clear(obj.canvas, color);
+
+                jQuery('div#rgraph_fadeslide_cover_' + obj.id).remove();
 
                 callback(obj);
             }
@@ -426,10 +439,14 @@
 
 
 
-    /**
-    * fadeCircularInInwards
-    */
-    RG.Effects.Common.fadeCircularInInwards = function ()
+
+
+
+
+    //
+    // fadeCircularInInwards
+    //
+    RGraph.Effects.Common.fadeCircularInInwards = function ()
     {
         // This function gets added to the chart object - so the this
         // variable is the chart object
@@ -437,39 +454,39 @@
         var opt      = arguments[0] || {};
         var frames   = opt.frames || 120;
         var frame    = 0;
-        var radius   = ma.max(obj.canvas.width, obj.canvas.height);
-        var canvasXY = RG.getCanvasXY(obj.canvas);
+        var radius   = Math.max(obj.canvas.width, obj.canvas.height);
+        var canvasXY = RGraph.getCanvasXY(obj.canvas);
         var color    = opt.color || 'white';
         var callback = arguments[1] || function () {};
 
 
         // Draw the chart
-        RG.redrawCanvas(obj.canvas);
+        RGraph.redrawCanvas(obj.canvas);
 
 
 
         // Create the cover
-        $('<div id="rgraph_fadeslide_cover_' + obj.id + '"></div>').css({
+        jQuery('<div id="rgraph_fadeslide_cover_' + obj.id + '"></div>').css({
             background: 'radial-gradient(rgba(255,255,255,0) 100%, rgba(255,255,255,0) 0%)',
             width:obj.canvas.width + 'px',
             height: obj.canvas.height + 'px',
             top: canvasXY[1] + 'px',
             left: canvasXY[0] + 'px',
             position: 'absolute'
-        }).appendTo($(obj.canvas.parentNode));
+        }).appendTo(jQuery(obj.canvas.parentNode));
 
         function iterator ()
         {
             if (frame < frames) {
 
-                    $('div#rgraph_fadeslide_cover_' + obj.id).css({
-                                                                   background: 'radial-gradient(' + color + ' ' + (( (frames - frame++) / frames) * 100) + '%, rgba(255,255,255,0) ' + (( (frames - frame++) / frames) * 120) + '%)'
-                                                                  });
-                    RG.Effects.updateCanvas(iterator);
+                    jQuery('div#rgraph_fadeslide_cover_' + obj.id).css({
+                        background: 'radial-gradient(' + color + ' ' + (( (frames - frame++) / frames) * 100) + '%, rgba(255,255,255,0) ' + (( (frames - frame++) / frames) * 120) + '%)'
+                    });
+                    RGraph.Effects.updateCanvas(iterator);
             
             } else {
             
-                $('div#rgraph_fadeslide_cover_' + obj.id).remove();
+                jQuery('div#rgraph_fadeslide_cover_' + obj.id).remove();
 
                 callback(obj);
             }
@@ -481,10 +498,14 @@
 
 
 
-    /**
-    * fadeCircularOutReverse
-    */
-    RG.Effects.Common.fadeCircularOutInwards = function ()
+
+
+
+
+    //
+    // fadeCircularOutReverse
+    //
+    RGraph.Effects.Common.fadeCircularOutInwards = function ()
     {
         // This function gets added to the chart object - so the this
         // variable is the chart object
@@ -492,41 +513,41 @@
         var opt      = arguments[0] || {};
         var frames   = opt.frames || 120;
         var frame    = 0;
-        var radius   = ma.max(obj.canvas.width, obj.canvas.height);
-        var canvasXY = RG.getCanvasXY(obj.canvas);
+        var radius   = Math.max(obj.canvas.width, obj.canvas.height);
+        var canvasXY = RGraph.getCanvasXY(obj.canvas);
         var color    = opt.color || 'white';
         var callback = arguments[1] || function () {};
 
 
         // Draw the chart
-        RG.redrawCanvas(obj.canvas);
+        RGraph.redrawCanvas(obj.canvas);
 
 
 
         // Create the cover
-        $('<div id="rgraph_fadeslide_cover_' + obj.id + '"></div>').css({
+        jQuery('<div id="rgraph_fadeslide_cover_' + obj.id + '"></div>').css({
             background: 'radial-gradient(rgba(255,255,255,0) 0%, rgba(255,255,255,0) 0%)',
             width:obj.canvas.width + 'px',
             height: obj.canvas.height + 'px',
             top: canvasXY[1],
             left: canvasXY[0],
             position: 'absolute'
-        }).appendTo($(obj.canvas.parentNode));
+        }).appendTo(jQuery(obj.canvas.parentNode));
 
         function iterator ()
         {
             if (frame < frames) {
 
-                    $('div#rgraph_fadeslide_cover_' + obj.id).css({
+                    jQuery('div#rgraph_fadeslide_cover_' + obj.id).css({
                                                                    background: 'radial-gradient(rgba(255,255,255,0) ' + (( (frames - frame++) / frames) * 100) + '%, ' + color + ' ' + (( (frames - frame++) / frames) * 120) + '%)'
                                                                   });
-                    RG.Effects.updateCanvas(iterator);
+                    RGraph.Effects.updateCanvas(iterator);
             
             } else {
             
-                RG.clear(obj.canvas);
-            
-                $('div#rgraph_fadeslide_cover_' + obj.id).remove();
+                RGraph.clear(obj.canvas);
+
+                jQuery('div#rgraph_fadeslide_cover_' + obj.id).remove();
 
                 callback(obj);
             }
@@ -538,15 +559,19 @@
 
 
 
-    /**
-    * Expand
-    * 
-    * This effect is like the tooltip effect of the same name. I starts in the middle
-    * and expands out to full size.
-    * 
-    * @param object obj The graph object
-    */
-    RG.Effects.Common.expand = function ()
+
+
+
+
+    //
+    // Expand
+    // 
+    // This effect is like the tooltip effect of the same name. I starts in the middle
+    // and expands out to full size.
+    // 
+    // @param object obj The graph object
+    //
+    RGraph.Effects.Common.expand = function ()
     {
         // This function gets added to the chart object - so the this
         // variable is the chart object
@@ -558,7 +583,7 @@
         var callback  = arguments[1] || function () {};
 
         if (!this.canvas.rgraph_wrapper) {
-            var div    = RG.Effects.wrap(this.canvas);
+            var div    = RGraph.Effects.wrap(this.canvas);
             this.canvas.rgraph_wrapper = div;
         } else {
             div = this.canvas.rgraph_wrapper;
@@ -575,8 +600,8 @@
         this.canvas.style.opacity = 0;
 
 
-        RG.clear(this.canvas);
-        RG.redrawCanvas(this.canvas);
+        RGraph.clear(this.canvas);
+        RGraph.redrawCanvas(this.canvas);
 
         if (bounce) {
 
@@ -607,15 +632,19 @@
 
 
 
-    /**
-    * Contract
-    * 
-    * This effect is a good one to use with the Expand effect to make a transition
-    * 
-    * @param object     You can specify frames here: {frames: 120}
-    * @param function   Optional callback to run when the effect is done.
-    */
-    RG.Effects.Common.contract = function ()
+
+
+
+
+    //
+    // Contract
+    // 
+    // This effect is a good one to use with the Expand effect to make a transition
+    // 
+    // @param object     You can specify frames here: {frames: 120}
+    // @param function   Optional callback to run when the effect is done.
+    //
+    RGraph.Effects.Common.contract = function ()
     {
         // This function gets added to the chart object - so the this
         // variable is the chart object
@@ -626,7 +655,7 @@
         var callback  = arguments[1] || function () {};
 
         if (!obj.canvas.rgraph_wrapper) {
-            var div    = RG.Effects.wrap(obj.canvas);
+            var div    = RGraph.Effects.wrap(obj.canvas);
             obj.canvas.rgraph_wrapper = div;
         } else {
             div = obj.canvas.rgraph_wrapper;
@@ -638,22 +667,31 @@
         obj.canvas.style.top      = 0;
         obj.canvas.style.left     = 0;
 
-
-        jQuery('#' + obj.id).animate({
-            width: (obj.canvas.width * 1.2) + 'px',
-            height: (obj.canvas.height * 1.2) + 'px',
-            left: (obj.canvas.width * -0.1) + 'px',
-            top: (obj.canvas.height * -0.1) + 'px'
-        }, duration * 0.25, function ()
-        {
-                jQuery('#' + obj.id).animate({
-                    opacity: 0,
-                    width: 0,
-                    height: 0,
-                    left: (obj.canvas.width * 0.5) + 'px',
-                    top: (obj.canvas.height * 0.5) + 'px'
-                }, duration * 0.75, function () {callback(obj);});
-        });
+        if (opt.bounce !== false) {
+            jQuery('#' + obj.id).animate({
+                width: (obj.canvas.width * 1.2) + 'px',
+                height: (obj.canvas.height * 1.2) + 'px',
+                left: (obj.canvas.width * -0.1) + 'px',
+                top: (obj.canvas.height * -0.1) + 'px'
+            }, duration * 0.25, function ()
+            {
+                    jQuery('#' + obj.id).animate({
+                        opacity: 0,
+                        width: 0,
+                        height: 0,
+                        left: (obj.canvas.width * 0.5) + 'px',
+                        top: (obj.canvas.height * 0.5) + 'px'
+                    }, duration * 0.75, function () {callback(obj);});
+            });
+        } else {
+            jQuery('#' + obj.id).animate({
+                opacity: 0,
+                width: 0,
+                height: 0,
+                left: (obj.canvas.width * 0.5) + 'px',
+                top: (obj.canvas.height * 0.5) + 'px'
+            }, duration * 0.75, function () {callback(obj);});
+        }
         
         
         return this;
@@ -662,16 +700,20 @@
 
 
 
-    /**
-    * Reveal
-    * 
-    * This effect issmilar to the Expand effect - the canvas is slowly revealed from
-    * the centre outwards
-    * 
-    * @param object    Options for the effect. You can give frames here
-    * @param function  An optional callback function
-    */
-    RG.Effects.Common.reveal = function ()
+
+
+
+
+    //
+    // Reveal
+    // 
+    // This effect issmilar to the Expand effect - the canvas is slowly revealed from
+    // the centre outwards
+    // 
+    // @param object    Options for the effect. You can give frames here
+    // @param function  An optional callback function
+    //
+    RGraph.Effects.Common.reveal = function ()
     {
         // This function gets added to the chart object - so the this
         // variable is the chart object
@@ -680,7 +722,7 @@
         var frames    = opt.frames || 60;
         var duration  = (frames / 60) * 1000;
         var callback  = arguments[1] || function () {};
-        var xy        = RG.getCanvasXY(obj.canvas);
+        var xy        = RGraph.getCanvasXY(obj.canvas);
 
 
 
@@ -706,8 +748,8 @@
 
 
         // Clear the canvas and redraw it
-        RG.clear(obj.canvas);
-        RG.redrawCanvas(obj.canvas);
+        RGraph.clear(obj.canvas);
+        RGraph.redrawCanvas(obj.canvas);
 
 
         // Animate the shrinking of the DIVs
@@ -734,17 +776,20 @@
 
 
 
-    /**
-    * RevealCircular
-    * 
-    * This effect is smilar to the Reveal effect - the canvas is slowly revealed from
-    * the centre outwards using a circular shape
-    * 
-    * @param object       An object of options - eg {frames: 30}
-    * @param function     An optional callback function that runs when the effect is finished
-    */
-    RG.Effects.Common.revealCircular =
-    RG.Effects.Common.revealcircular = function ()
+
+
+
+
+    //
+    // RevealCircular
+    // 
+    // This effect is smilar to the Reveal effect - the canvas is slowly revealed from
+    // the centre outwards using a circular shape
+    // 
+    // @param object       An object of options - eg {frames: 30}
+    // @param function     An optional callback function that runs when the effect is finished
+    //
+    RGraph.Effects.Common.revealCircular = function ()
     {
         // This function gets added to the chart object - so the this
         // variable is the chart object
@@ -756,30 +801,30 @@
         var currentRadius = 0
         var centerx       = obj.canvas.width / 2;
         var centery       = obj.canvas.height / 2;
-        var targetRadius  = ma.max(obj.canvas.height, obj.canvas.width);
+        var targetRadius  = Math.max(obj.canvas.height, obj.canvas.width);
         var step          = targetRadius / frames;
         var color         = opt.background || opt.color || opt.backgroundColor || 'transparent';
 
 
 
 
-        /**
-        * This is the iterator function which gradually increases the radius of the clip circle
-        */
+        //
+        // This is the iterator function which gradually increases the radius of the clip circle
+        //
         function iterator ()
         {
             // Begin by clearing the canvas
-            RG.clear(obj.canvas, color);
+            RGraph.clear(obj.canvas, color);
 
             obj.context.save();
                 // First draw the circle and clip to it
                 obj.context.beginPath();
-                obj.context.arc(centerx, centery, currentRadius, 0, RG.TWOPI, false);
+                obj.context.arc(centerx, centery, currentRadius, 0, RGraph.TWOPI, false);
                 obj.context.clip();
                 
                 // Clear the canvas to a white color
                 if (opt.background) {
-                    RG.clear(obj.canvas, opt.background);
+                    RGraph.clear(obj.canvas, opt.background);
                 }
                 
                 // Now draw the chart
@@ -790,7 +835,7 @@
             // Increment the radius
             if (currentRadius < targetRadius) {
                 currentRadius += step;
-                RG.Effects.updateCanvas(iterator);
+                RGraph.Effects.updateCanvas(iterator);
 
             } else {
                 callback(obj);
@@ -805,15 +850,19 @@
 
 
 
-    /**
-    * Conceal
-    * 
-    * This effect is the reverse of the Reveal effect - instead of revealing the canvas it
-    * conceals it. Combined with the reveal effect would make for a nice wipe effect.
-    * 
-    * @param object obj The chart object
-    */
-    RG.Effects.Common.conceal = function ()
+
+
+
+
+    //
+    // Conceal
+    // 
+    // This effect is the reverse of the Reveal effect - instead of revealing the canvas it
+    // conceals it. Combined with the reveal effect would make for a nice wipe effect.
+    // 
+    // @param object obj The chart object
+    //
+    RGraph.Effects.Common.conceal = function ()
     {
         // This function gets added to the chart object - so the this
         // variable is the chart object
@@ -823,9 +872,8 @@
         var duration = (frames / 60) * 1000;
         var frame    = 0;
         var callback = arguments[1] || function () {};
-        var xy       = RG.getCanvasXY(obj.canvas);
+        var xy       = RGraph.getCanvasXY(obj.canvas);
         var color    = opt.background || opt.color || opt.backgroundColor || 'white';
-
 
 
 
@@ -866,7 +914,7 @@
             doc.body.removeChild(doc.getElementById("rgraph_conceal_left_" + obj.id));
             doc.body.removeChild(doc.getElementById("rgraph_conceal_right_" + obj.id));
             
-            RG.clear(obj.canvas, color);
+            RGraph.clear(obj.canvas);
             
             callback(obj);
         
@@ -878,13 +926,16 @@
 
 
 
-    /**
-    * Horizontal Blinds (open)
-    * 
-    * @params object obj The graph object
-    */
-    RG.Effects.Common.hBlindsOpen =
-    RG.Effects.Common.hblindsOpen = function ()
+
+
+
+
+    //
+    // Horizontal Blinds (open)
+    // 
+    // @params object obj The graph object
+    //
+    RGraph.Effects.Common.hBlindsOpen = function ()
     {
         // This function gets added to the chart object - so the this
         // variable is the chart object
@@ -895,14 +946,14 @@
         var frame    = 0;
         var callback = arguments[1] || function () {};
         var color    = opt.background || opt.color || opt.backgroundColor || 'white';
-        var xy       = RG.getCanvasXY(this.canvas);
+        var xy       = RGraph.getCanvasXY(this.canvas);
         var height   = this.canvas.height / 5;
         
-        /**
-        * First draw the chart
-        */
-        RG.clear(this.canvas);
-        RG.redrawCanvas(this.canvas);
+        //
+        // First draw the chart
+        //
+        RGraph.clear(this.canvas);
+        RGraph.redrawCanvas(this.canvas);
 
         for (var i=0; i<5; ++i) {
             var div = doc.createElement('DIV');
@@ -931,13 +982,16 @@
 
 
 
-    /**
-    * Horizontal Blinds (close)
-    * 
-    * @params object obj The graph object
-    */
-    RG.Effects.Common.hBlindsClose =
-    RG.Effects.Common.hblindsclose = function ()
+
+
+
+
+    //
+    // Horizontal Blinds (close)
+    // 
+    // @params object obj The graph object
+    //
+    RGraph.Effects.Common.hBlindsClose = function ()
     {
         // This function gets added to the chart object - so the this
         // variable is the chart object
@@ -948,7 +1002,7 @@
         var frame    = 0;
         var callback = arguments[1] || function () {};
         var color    = opt.background || opt.color || opt.backgroundColor || 'white';
-        var xy       = RG.getCanvasXY(this.canvas);
+        var xy       = RGraph.getCanvasXY(this.canvas);
         var height   = this.canvas.height / 5;
 
 
@@ -969,7 +1023,7 @@
 
 
 
-        setTimeout(function () {RG.clear(obj.canvas);}, duration + 100);
+        setTimeout(function () {RGraph.clear(obj.canvas);}, duration + 100);
         setTimeout(function () {doc.body.removeChild(doc.getElementById('rgraph_hblinds_0_' + obj.id));}, duration + 100);
         setTimeout(function () {doc.body.removeChild(doc.getElementById('rgraph_hblinds_1_' + obj.id));}, duration + 100);
         setTimeout(function () {doc.body.removeChild(doc.getElementById('rgraph_hblinds_2_' + obj.id));}, duration + 100);
@@ -981,13 +1035,16 @@
 
 
 
-    /**
-    * Vertical Blinds (open)
-    * 
-    * @params object obj The graph object
-    */
-    RG.Effects.Common.vBlindsOpen =
-    RG.Effects.Common.vblindsopen = function ()
+
+
+
+
+    //
+    // Vertical Blinds (open)
+    // 
+    // @params object obj The graph object
+    //
+    RGraph.Effects.Common.vBlindsOpen = function ()
     {
         // This function gets added to the chart object - so the this
         // variable is the chart object
@@ -998,14 +1055,14 @@
         var frame    = 0;
         var callback = arguments[1] || function () {};
         var color    = opt.background || opt.color || opt.backgroundColor || 'white';
-        var xy       = RG.getCanvasXY(this.canvas);
+        var xy       = RGraph.getCanvasXY(this.canvas);
         var width    = this.canvas.width / 10;
         
-        /**
-        * First draw the chart
-        */
-        //RG.clear(obj.canvas);
-        RG.redrawCanvas(obj.canvas);
+        //
+        // First draw the chart
+        //
+        //RGraph.clear(obj.canvas);
+        RGraph.redrawCanvas(obj.canvas);
 
         for (var i=0; i<10; ++i) {
             var div = doc.createElement('DIV');
@@ -1040,13 +1097,16 @@
 
 
 
-    /**
-    * Vertical Blinds (close)
-    * 
-    * @params object obj The graph object
-    */
-    RG.Effects.Common.vblindsclose =
-    RG.Effects.Common.vBlindsClose = function ()
+
+
+
+
+    //
+    // Vertical Blinds (close)
+    // 
+    // @params object obj The graph object
+    //
+    RGraph.Effects.Common.vBlindsClose = function ()
     {
         // This function gets added to the chart object - so the this
         // variable is the chart object
@@ -1057,7 +1117,7 @@
         var frame    = 0;
         var callback = arguments[1] || function () {};
         var color    = opt.background || opt.color || opt.backgroundColor || 'white';
-        var xy       = RG.getCanvasXY(this.canvas);
+        var xy       = RGraph.getCanvasXY(this.canvas);
         var width    = this.canvas.width / 10;
         
         // Don't draw the chart
@@ -1077,7 +1137,7 @@
             jQuery('#rgraph_vblinds_' + i + '_' + obj.id).animate({width: width}, duration);
         }
 
-        setTimeout(function () {RG.clear(obj.canvas);}, duration + 100);
+        setTimeout(function () {RGraph.clear(obj.canvas);}, duration + 100);
 
         setTimeout(function () {doc.body.removeChild(doc.getElementById('rgraph_vblinds_0_' + obj.id));}, duration + 100);
         setTimeout(function () {doc.body.removeChild(doc.getElementById('rgraph_vblinds_1_' + obj.id));}, duration + 100);
@@ -1098,14 +1158,18 @@
 
 
 
-    /**
-    * Slide in
-    * 
-    * This function is a wipe that can be used when switching the canvas to a new graph
-    * 
-    * @param object obj The graph object
-    */
-    RG.Effects.Common.slideIn = function ()
+
+
+
+
+    //
+    // Slide in
+    // 
+    // This function is a wipe that can be used when switching the canvas to a new graph
+    // 
+    // @param object obj The graph object
+    //
+    RGraph.Effects.Common.slideIn = function ()
     {
         // This function gets added to the chart object - so the this
         // variable is the chart object
@@ -1116,18 +1180,18 @@
         var frame    = 0;
         var callback = arguments[1] || function () {};
         var color    = opt.background || opt.color || opt.backgroundColor || 'white';
-        var xy       = RG.getCanvasXY(this.canvas);
+        var xy       = RGraph.getCanvasXY(this.canvas);
         var width    = this.canvas.width / 10;
-        var div      = RG.Effects.wrap(obj.canvas);
+        var div      = RGraph.Effects.wrap(obj.canvas);
         var from     = opt.from || 'left';
 
         div.style.overflow = 'hidden';
 
-        RG.clear(obj.canvas);
-        RG.redrawCanvas(obj.canvas);
+        RGraph.clear(obj.canvas);
+        RGraph.redrawCanvas(obj.canvas);
 
         
-        canvas.style.position = 'relative';
+        obj.canvas.style.position = 'relative';
         
         if (from == 'left') {
             obj.canvas.style.left = (0 - div.offsetWidth) + 'px';
@@ -1154,15 +1218,19 @@
 
 
 
-    /**
-    * Slide out
-    * 
-    * This function is a wipe that can be used when switching the canvas to a new graph
-    * 
-    * @param object   Optional object containing configuration.
-    * @param function Optional callback function
-    */
-    RG.Effects.Common.slideOut = function ()
+
+
+
+
+    //
+    // Slide out
+    // 
+    // This function is a wipe that can be used when switching the canvas to a new graph
+    // 
+    // @param object   Optional object containing configuration.
+    // @param function Optional callback function
+    //
+    RGraph.Effects.Common.slideOut = function ()
     {
         // This function gets added to the chart object - so the this
         // variable is the chart object
@@ -1173,9 +1241,9 @@
         var frame    = 0;
         var callback = arguments[1] || function () {};
         var color    = opt.background || opt.color || opt.backgroundColor || 'white';
-        var xy       = RG.getCanvasXY(this.canvas);
+        var xy       = RGraph.getCanvasXY(this.canvas);
         var width    = this.canvas.width / 10;
-        var div      = RG.Effects.wrap(obj.canvas);
+        var div      = RGraph.Effects.wrap(obj.canvas);
         var to       = opt.to || 'left';
 
         div.style.overflow= 'hidden';
@@ -1200,15 +1268,18 @@
 
 
 
-    /**
-    * Horizontal Scissors (open)
-    * 
-    * @param @object      Optional array of options
-    * @param function     Optional callback function
-    * 
-    */
-    RG.Effects.Common.hscissorsopen =
-    RG.Effects.Common.hScissorsOpen = function ()
+
+
+
+
+    //
+    // Horizontal Scissors (open)
+    // 
+    // @param @object      Optional array of options
+    // @param function     Optional callback function
+    // 
+    //
+    RGraph.Effects.Common.hScissorsOpen = function ()
     {
         // This function gets added to the chart object - so the this
         // variable is the chart object
@@ -1219,16 +1290,16 @@
         var frame    = 0;
         var callback = arguments[1] || function () {};
         var color    = opt.background || opt.color || opt.backgroundColor || 'white';
-        var xy       = RG.getCanvasXY(this.canvas);
+        var xy       = RGraph.getCanvasXY(this.canvas);
         var width    = this.canvas.width / 10;
         var to       = opt.to || 'left';
         var height   = obj.canvas.height / 5;
 
-        /**
-        * First draw the chart
-        */
-        RG.clear(obj.canvas);
-        RG.redrawCanvas(obj.canvas);
+        //
+        // First draw the chart
+        //
+        RGraph.clear(obj.canvas);
+        RGraph.redrawCanvas(obj.canvas);
 
         for (var i=0; i<5; ++i) {
             var div = doc.getElementById("rgraph_hscissors_" + i + '_' + obj.id)
@@ -1269,15 +1340,18 @@
 
 
 
-    /**
-    * Horizontal Scissors (Close)
-    * 
-    * @param @object      Optional object of options
-    * @param function     Optional callback function
-    * 
-    */
-    RG.Effects.Common.hScissorsClose =
-    RG.Effects.Common.hscissorsclose = function ()
+
+
+
+
+    //
+    // Horizontal Scissors (Close)
+    // 
+    // @param @object      Optional object of options
+    // @param function     Optional callback function
+    // 
+    //
+    RGraph.Effects.Common.hScissorsClose = function ()
     {
         // This function gets added to the chart object - so the this
         // variable is the chart object
@@ -1288,16 +1362,16 @@
         var frame    = 0;
         var callback = arguments[1] || function () {};
         var color    = opt.background || opt.color || opt.backgroundColor || 'white';
-        var xy       = RG.getCanvasXY(this.canvas);
+        var xy       = RGraph.getCanvasXY(this.canvas);
         var height   = obj.canvas.height / 5;
 
 
         
-        /**
-        * First draw the chart
-        */
-        //RG.clear(obj.canvas);
-        RG.redrawCanvas(obj.canvas);
+        //
+        // First draw the chart
+        //
+        //RGraph.clear(obj.canvas);
+        RGraph.redrawCanvas(obj.canvas);
 
         for (var i=0; i<5; ++i) {
             var div                = doc.createElement('DIV');
@@ -1317,7 +1391,16 @@
             }
         }
         
-        setTimeout(function () {callback(obj);}, duration);
+        setTimeout(function ()
+        {
+            RGraph.clear(obj.canvas);
+            jQuery('#' + 'rgraph_hscissors_' + 0 + '_' + obj.id).remove();
+            jQuery('#' + 'rgraph_hscissors_' + 1 + '_' + obj.id).remove();
+            jQuery('#' + 'rgraph_hscissors_' + 2 + '_' + obj.id).remove();
+            jQuery('#' + 'rgraph_hscissors_' + 3 + '_' + obj.id).remove();
+            jQuery('#' + 'rgraph_hscissors_' + 4 + '_' + obj.id).remove();
+            callback(obj);
+        }, duration);
         
         return this;
     };
@@ -1325,15 +1408,18 @@
 
 
 
-    /**
-    * Vertical Scissors (open)
-    * 
-    * @param @object      Optional object of options
-    * @param function     Optional callback function
-    * 
-    */
-    RG.Effects.Common.vScissorsOpen =
-    RG.Effects.Common.vscissorsopen = function ()
+
+
+
+
+    //
+    // Vertical Scissors (open)
+    // 
+    // @param @object      Optional object of options
+    // @param function     Optional callback function
+    // 
+    //
+    RGraph.Effects.Common.vScissorsOpen = function ()
     {
         // This function gets added to the chart object - so the this
         // variable is the chart object
@@ -1343,16 +1429,16 @@
         var duration = (frames / 60) * 1000;
         var frame    = 0;
         var callback = arguments[1] || function () {};
-        var xy       = RG.getCanvasXY(obj.canvas);
+        var xy       = RGraph.getCanvasXY(obj.canvas);
         var color    = opt.background || opt.color || opt.backgroundColor || 'white';
-        var xy       = RG.getCanvasXY(this.canvas);
+        var xy       = RGraph.getCanvasXY(this.canvas);
         var width    = this.canvas.width / 10;
         
-        /**
-        * First draw the chart
-        */
-        //RG.clear(obj.canvas);
-        RG.redrawCanvas(obj.canvas);
+        //
+        // First draw the chart
+        //
+        //RGraph.clear(obj.canvas);
+        RGraph.redrawCanvas(obj.canvas);
 
         for (var i=0; i<10; ++i) {
             var div = doc.getElementById("rgraph_vscissors_" + i + '_' + obj.id);
@@ -1394,16 +1480,19 @@
 
 
 
-    /**
-    * Vertical Scissors (close)
-    * 
-    * @param object   obj The graph object
-    * @param @object      An array of options
-    * @param function     Optional callback function
-    * 
-    */
-    RG.Effects.Common.vscissorsclose =
-    RG.Effects.Common.vScissorsClose = function ()
+
+
+
+
+    //
+    // Vertical Scissors (close)
+    // 
+    // @param object   obj The graph object
+    // @param @object      An array of options
+    // @param function     Optional callback function
+    // 
+    //
+    RGraph.Effects.Common.vScissorsClose = function ()
     {
         // This function gets added to the chart object - so the this
         // variable is the chart object
@@ -1413,16 +1502,16 @@
         var duration = (frames / 60) * 1000;
         var frame    = 0;
         var callback = arguments[1] || function () {};
-        var xy       = RG.getCanvasXY(obj.canvas);
+        var xy       = RGraph.getCanvasXY(obj.canvas);
         var color    = opt.background || opt.color || opt.backgroundColor || 'white';
-        var xy       = RG.getCanvasXY(this.canvas);
+        var xy       = RGraph.getCanvasXY(this.canvas);
         var width    = this.canvas.width / 10;
         
-        /**
-        * First draw the chart
-        */
-        //RG.clear(obj.canvas);
-        RG.redrawCanvas(obj.canvas);
+        //
+        // First draw the chart
+        //
+        //RGraph.clear(obj.canvas);
+        RGraph.redrawCanvas(obj.canvas);
 
         for (var i=0; i<10; ++i) {
             var div = doc.getElementById("rgraph_vscissors_" + i + '_' + obj.id)
@@ -1445,7 +1534,14 @@
             }
         }
         
-        setTimeout(function () {callback(obj);}, duration);
+        setTimeout(function ()
+        {
+            RGraph.clear(obj.canvas);
+            for (var i=0; i<10; i++) {
+                jQuery('#rgraph_vscissors_' + i + '_' + obj.id).remove();
+            }
+            callback(obj);
+        }, duration);
         
         return this;
     };
@@ -1453,29 +1549,35 @@
 
 
 
-    /**
-    * The Animate function. Similar to the jQuery Animate() function - simply pass it a
-    * map of the properties and their target values, and this function will animate
-    * them to get to those values.
-    * 
-    * @param object map A map (an associative array) of the properties and their target values.
-    * @param            An optional function which will be called when the animation is complete
-    */
-    RG.Effects.Common.animate = function (map)
+
+
+
+
+    //
+    // The Animate function. Similar to the jQuery Animate() function - simply pass it a
+    // map of the properties and their target values, and this function will animate
+    // them to get to those values.
+    // 
+    // @param object map A map (an associative array) of the properties and their target values.
+    // @param            An optional function which will be called when the animation is complete
+    //
+    RGraph.Effects.Common.animate = function (map)
     {
         var obj = this;
         obj.draw();
 
-        var totalFrames    = (map && map['frames']) ? map['frames'] : 30;
-        var currentFrame   = new Array();
-        var originalValues = new Array();
-        var diffs          = new Array();
-        var steps          = new Array();
-        var callback       = arguments[1]
+        var totalFrames    = (map && map['frames']) ? map['frames'] : 30,
+            currentFrame   = new Array(),
+            originalValues = new Array(),
+            diffs          = new Array(),
+            steps          = new Array(),
+            callback       = arguments[1];
 
         function iterator ()
         {
             var id = [obj.id +  '_' + obj.type];
+            
+            RGraph.cache = {};
 
             // Initialise the arrays
             if (!currentFrame[id]) {
@@ -1497,14 +1599,14 @@
 
                     obj.set(i, obj.get(i) + steps[id][i]);
 
-                    RG.clear(obj.canvas);
+                    RGraph.clear(obj.canvas);
                     obj.draw();
                 }
             }
 
             // If the current frame number is above zero, run the animation iterator again
             if (--currentFrame[id] > 0) {
-                RG.Effects.updateCanvas(iterator);
+                RGraph.Effects.updateCanvas(iterator);
             
             // Optional callback
             } else {
@@ -1517,6 +1619,10 @@
 
         iterator();
     }
+
+
+
+
 
 
 

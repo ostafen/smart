@@ -1,157 +1,893 @@
-// version: 2015-12-16
-    /**
-    * o--------------------------------------------------------------------------------o
-    * | This file is part of the RGraph package - you can learn more at:               |
-    * |                                                                                |
-    * |                          http://www.rgraph.net                                 |
-    * |                                                                                |
-    * | RGraph is dual licensed under the Open Source GPL (General Public License)     |
-    * | v2.0 license and a commercial license which means that you're not bound by     |
-    * | the terms of the GPL. The commercial license starts at just £99 (GBP) and      |
-    * | you can read about it here:                                                    |
-    * |                                                                                |
-    * |                      http://www.rgraph.net/license                             |
-    * o--------------------------------------------------------------------------------o
-    */
+'version:2023-02-25 (6.11)';
+//
+    // o--------------------------------------------------------------------------------o
+    // | This file is part of the RGraph package - you can learn more at:               |
+    // |                                                                                |
+    // |                         https://www.rgraph.net                                 |
+    // |                                                                                |
+    // | RGraph is licensed under the Open Source MIT license. That means that it's     |
+    // | totally free to use and there are no restrictions on what you can do with it!  |
+    // o--------------------------------------------------------------------------------o
 
-    RGraph = window.RGraph || {isRGraph: true};
-
-
-
+    RGraph = window.RGraph || {isrgraph:true,isRGraph: true,rgraph:true};
 
 // Module pattern
 (function (win, doc, undefined)
 {
-    var RG  = RGraph,
-        ua  = navigator.userAgent,
-        ma  = Math;
+    var ua  = navigator.userAgent;
+
+    //
+    // This is used in two functions, hence it's here
+    //
+    RGraph.tooltips     = {};
+    RGraph.tooltips.css = 
+    RGraph.tooltips.style = {
+        display:    'inline-block',
+        position:   'absolute',
+        padding:    '6px',
+        fontFamily: 'Arial',
+        fontSize:   '10pt',
+        fontWeight: 'normal',
+        textAlign:  'center',
+        left:       0,
+        top:        0,
+        backgroundColor: 'black',
+        color:      'white',
+        visibility: 'visible',
+        zIndex:     3,
+        borderRadius: '5px',
+        boxShadow:  'rgba(96,96,96,0.5) 0 0 5px',
+        opacity:    0,
+        lineHeight: RGraph.ISIE ? 'normal' : 'initial'
+    };
 
 
 
-
-    /**
-    * This is used in two functions, hence it's here
-    */
-    RG.tooltips           = {};
-    RG.tooltips.padding   = '3px';
-    RG.tooltips.font_face = 'Tahoma';
-    RG.tooltips.font_size = '10pt';
-
-
-
-
-    /**
-    * Shows a tooltip next to the mouse pointer
-    * 
-    * @param canvas object The canvas element object
-    * @param text   string The tooltip text
-    * @param int     x      The X position that the tooltip should appear at. Combined with the canvases offsetLeft
-    *                       gives the absolute X position
-    * @param int     y      The Y position the tooltip should appear at. Combined with the canvases offsetTop
-    *                       gives the absolute Y position
-    * @param int     idx    The index of the tooltip in the graph objects tooltip array
-    * @param object  e      The event object
-    */
-    RG.tooltip =
-    RG.Tooltip = function (obj, text, x, y, idx, e)
+    //
+    // Shows a tooltip next to the mouse pointer
+    // 
+    // @param object object The canvas element object
+    // @param string text   The tooltip text
+    // @param int    x      The X position that the tooltip should appear at. Combined with the canvases offsetLeft
+    //                      gives the absolute X position
+    // @param int    y      The Y position the tooltip should appear at. Combined with the canvases offsetTop
+    //                      gives the absolute Y position
+    // @param int    index  The index of the tooltip in the graph objects tooltip array
+    // @param object event  The event object
+    //
+    RGraph.tooltip = function ()
     {
-        /**
-        * chart.tooltip.override allows you to totally take control of rendering the tooltip yourself
-        */
-        if (typeof(obj.Get('chart.tooltips.override')) == 'function') {
-            return obj.Get('chart.tooltips.override')(obj, text, x, y, idx);
+        var args = RGraph.getArgs(arguments, 'object,text,x,y,index,event');
+
+        // Set the CSS transition effect on the tooltips default
+        // object if the effect is set to slide
+        if (args.object.properties.tooltipsEffect === 'slide') {
+            RGraph.tooltips.style.transition = 'left ease-out .25s, top ease-out .25s'
         }
 
-        /**
-        * Save the X/Y coords
-        */
-        var originalX = x;
-        var originalY = y;
+        if (RGraph.SHOW_TOOLTIP_TIMER) {
+            clearTimeout(RGraph.SHOW_TOOLTIP_TIMER);
+        }
+    
+        if (RGraph.trim(args.text).length === 0) {
+            return;
+        }
 
-        /**
-        * This facilitates the "id:xxx" format
-        */
-        text = RGraph.getTooltipTextFromDIV(text);
 
-        /**
-        * First clear any exising timers
-        */
-        var timers = RGraph.Registry.Get('chart.tooltip.timers');
+
+        //
+        // Fire the beforetooltip event
+        //
+        RGraph.fireCustomEvent(args.object, 'onbeforetooltip');
+
+
+
+        //
+        // tooltipOverride allows you to totally take control of rendering the tooltip yourself
+        //
+        if (typeof args.object.get('tooltipsOverride') == 'function') {
+            return args.object.get('tooltipsOverride')(
+                args.object,
+                args.text,
+                args.x,
+                args.y,
+                args.index
+            );
+        }
+
+
+
+
+        //
+        // Save the X/Y coords
+        //
+        var originalX = args.x;
+        var originalY = args.y;
+
+        //
+        // This facilitates the "id:xxx" format
+        //
+        args.text = RGraph.getTooltipTextFromDIV(args.text);
+
+        //
+        // First clear any exising timers
+        //
+        var timers = RGraph.Registry.get('tooltip.timers');
 
         if (timers && timers.length) {
             for (i=0; i<timers.length; ++i) {
                 clearTimeout(timers[i]);
             }
         }
-        RGraph.Registry.Set('chart.tooltip.timers', []);
+        RGraph.Registry.set('tooltip.timers', []);
 
-        /**
-        * Hide the context menu if it's currently shown
-        */
-        if (obj.Get('chart.contextmenu')) {
-            RGraph.HideContext();
+        //
+        // Hide the context menu if it's currently shown
+        //
+        if (args.object.get('contextmenu')) {
+            RGraph.hideContext();
         }
 
-        var effect = obj.Get('chart.tooltips.effect') ? obj.Get('chart.tooltips.effect').toLowerCase() : 'fade';
 
 
-        /**
-        * Show a tool tip
-        */
-        var tooltipObj  = document.createElement('DIV');
-        tooltipObj.className             = obj.Get('chart.tooltips.css.class');
-        tooltipObj.style.display         = 'none';
-        tooltipObj.style.position        = RGraph.isFixed(obj.canvas) ? 'fixed' : 'absolute';
-        tooltipObj.style.left            = 0;
-        tooltipObj.style.top             = 0;
-        tooltipObj.style.backgroundColor = 'rgb(255,255,239)';
-        tooltipObj.style.color           = 'black';
-        if (!document.all) tooltipObj.style.border = '';
-        tooltipObj.style.visibility      = 'visible';
-        tooltipObj.style.paddingLeft     = RGraph.tooltips.padding;
-        tooltipObj.style.paddingRight    = RGraph.tooltips.padding;
-        tooltipObj.style.fontFamily      = RGraph.tooltips.font_face;
-        tooltipObj.style.fontSize        = RGraph.tooltips.font_size;
-        tooltipObj.style.zIndex          = 3;
-
-        // Only apply a border if there's content
-        if (RGraph.trim(text).length > 0) {
-            tooltipObj.style.border             = '1px #bbb solid';
+        //
+        // Show a tool tip
+        //
+        if (typeof args.object.get('tooltipsCssClass') !== 'string' ) {
+            args.object.set('tooltipsCssClass', 'RGraph_tooltip');
         }
 
-        tooltipObj.style.borderRadius       = '5px';
-        tooltipObj.style.MozBorderRadius    = '5px';
-        tooltipObj.style.WebkitBorderRadius = '5px';
-        tooltipObj.style.WebkitBoxShadow    = 'rgba(96,96,96,0.5) 0 0 5px';
-        tooltipObj.style.MozBoxShadow       = 'rgba(96,96,96,0.5) 0 0 5px';
-        tooltipObj.style.boxShadow          = 'rgba(96,96,96,0.5) 0 0 5px';
-        tooltipObj.style.filter             = 'progid:DXImageTransform.Microsoft.Shadow(color=#666666,direction=135)';
-        tooltipObj.style.opacity            = 0;
-        //tooltipObj.style.overflow           = 'hidden';
-        tooltipObj.innerHTML                = text;
-        tooltipObj.__text__                 = text; // This is set because the innerHTML can change when it's set
-        tooltipObj.__canvas__               = obj.canvas;
-        tooltipObj.style.display            = 'inline';
-        tooltipObj.id                       = '__rgraph_tooltip_' + obj.canvas.id + '_' + obj.uid + '_'+ idx;
-        tooltipObj.__event__                = obj.Get('chart.tooltips.event') || 'click';
-        tooltipObj.__object__               = obj;
+        var tooltipObj       = document.createElement('DIV');
+        tooltipObj.className = args.object.get('tooltipsCssClass');
 
-        if (typeof(idx) == 'number') {
-            tooltipObj.__index__ = idx;
-            origIdx = idx;
+        // Add the default CSS to the tooltip
+        for (var i in RGraph.tooltips.style) {
+            if (typeof i === 'string') {
+                tooltipObj.style[i] = substitute(RGraph.tooltips.style[i]);
+            }
         }
-        
-        if (obj.type == 'line' || obj.type == 'radar') {
-            for (var ds=0; ds<obj.data.length; ++ds) {
-                if (idx >= obj.data[ds].length) {
-                    idx -= obj.data[ds].length;
+
+        for (var i in RGraph.tooltips.css) {
+            if (typeof i === 'string') {
+                tooltipObj.style[i] = substitute(RGraph.tooltips.css[i]);
+            }
+        }
+
+        //
+        // If the tooltipsCss property is populated then add those values
+        // to the tooltip
+        //
+        if (!RGraph.isNull(args.object.properties.tooltipsCss)) {
+            for (var i in args.object.properties.tooltipsCss) {
+                if (typeof i === 'string') {
+                    tooltipObj.style[i] = substitute(args.object.properties.tooltipsCss[i]);
+                }
+            }
+        }
+
+        // Set the initial values of the CSS left/top properties
+        // to the previously stored coordsof the left/top values
+        // (ie the last values of the previous tooltip). So when
+        // they're changed to the new values the transition will
+        // animate them
+        if (args.object.properties.tooltipsEffect === 'slide') {
+            tooltipObj.style.left = typeof RGraph.tooltip_slide_effect_previous_x_coordinate === 'string' ? RGraph.tooltip_slide_effect_previous_x_coordinate : 0;
+            tooltipObj.style.top  = typeof RGraph.tooltip_slide_effect_previous_y_coordinate === 'string' ? RGraph.tooltip_slide_effect_previous_y_coordinate : 0;
+        }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        ///////////////////////////////////////
+        // Do tooltip text substitution here //
+        ///////////////////////////////////////
+        function substitute (original)
+        {
+            // Must be a string
+            original = String(original);
+
+            var prop       = args.object.properties;
+            var properties = args.object.properties;
+
+            if (typeof args.object.tooltipSubstitutions !== 'function') {
+                return original;
+            }
+
+            //
+            // Get hold of the indexes from the sequentialIndex that we have.
+            //
+            if (typeof args.object.tooltipSubstitutions === 'function') {
+                var specific = args.object.tooltipSubstitutions({
+                    index: args.index
+                });
+            }
+
+
+            // This allows for escaping the percent
+            var text = original.replace(/%%/g, '___--PERCENT--___');
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            //
+            // Draws the key in the tooltip
+            //
+            (function ()
+            {
+                if (!specific.values) {
+                    return;
+                }
+
+                //
+                // Allow the user to specify the key colors
+                //
+                var colors = properties.tooltipsFormattedKeyColors ? properties.tooltipsFormattedKeyColors : properties.colors;
+            
+                // Build up the HTML table that becomes the key
+                for (var i=0,str=[]; i<specific.values.length; ++i) {
+
+                    var value = (typeof specific.values === 'object' && typeof specific.values[i] === 'number') ? specific.values[i] : 0;
+                    var color = properties.colorsSequential ? colors[args.index] : colors[i];
+                    var label = ( (typeof properties.tooltipsFormattedKeyLabels === 'object' && typeof properties.tooltipsFormattedKeyLabels[i] === 'string') ? properties.tooltipsFormattedKeyLabels[i] : '');
+
+
+
+
+                    // Chart specific customisations -------------------------
+                    if (typeof args.object.tooltipsFormattedCustom === 'function') {
+
+                        // The index/group/sequential index
+                        // The index
+                        // The colors
+                        var ret  = args.object.tooltipsFormattedCustom(
+                            specific,
+                            i,
+                            colors
+                        );
+
+                        if (ret.continue ) {continue;};
+
+                        if (typeof ret.label === 'string') {label = ret.label;};
+                        if (ret.color)                     {color = ret.color;};
+                        if (typeof ret.value === 'number') {value = ret.value;};
+                    }
+
+
+
+
+                    value = RGraph.numberFormat({
+                        object:    args.object,
+                        number:    value.toFixed(args.object.properties.tooltipsFormattedDecimals),
+                        thousand:  args.object.properties.tooltipsFormattedThousand  || ',',
+                        point:     args.object.properties.tooltipsFormattedPoint     || '.',
+                        unitspre:  args.object.properties.tooltipsFormattedUnitsPre  || '',
+                        unitspost: args.object.properties.tooltipsFormattedUnitsPost || ''
+                    });
+
+                    //
+                    // If the tooltipsFormattedKeyColorsShape property is set to circle then add
+                    // some border-radius to the DIV tag
+                    //
+                    var borderRadius = 0;
+                    
+                    if (   typeof args.object.properties.tooltipsFormattedKeyColorsShape === 'string'
+                        && args.object.properties.tooltipsFormattedKeyColorsShape === 'circle') {
+                        
+                        borderRadius = '100px';
+                    }
+
+
+
+                    str[i] = '<tr><td><div id="RGraph_tooltipsFormattedKeyColor_' + i + '" class="RGraph_tooltipsFormattedKeyColor">Ml</div></td><td id="RGraph_tooltipsFormattedKeyLabel_' + i + '">'
+                        + '<span>{1}</span>'.format(label)
+                        + ' ' + value + '</td></tr>';
+                    
+                    
+                    // Now that styles can't be applied inline
+                    // (due to the CSP header) then apply them with
+                    // JavaScript after a small delay.
+                    (function (index, color, borderRadius)
+                    {
+                        setTimeout(function ()
+                        {
+                            var obj = document.getElementById('RGraph_tooltipsFormattedKeyLabel_' + index);
+
+                            // Align the label left
+                            if (obj && obj.style) {
+                                obj.style.textAlign = 'left';
+                            }
+                            
+                            // Add some styles to the color blob
+                            var colorBlob = document.getElementById('RGraph_tooltipsFormattedKeyColor_' + index);
+
+                            if (colorBlob) {
+                                colorBlob.style.textAlign       = 'left';
+                                colorBlob.style.backgroundColor = color;
+                                colorBlob.style.color           = 'transparent';
+                                colorBlob.style.pointerEvents   = 'none';
+                                colorBlob.style.borderRadius    = borderRadius;
+                            }
+                            
+                            // Add user specified styles from the
+                            // tooltipsFormattedKeyColorsCss property
+                            for (var property in properties.tooltipsFormattedKeyColorsCss) {
+                                if (typeof property === 'string') {
+                                    colorBlob.style[property] = properties.tooltipsFormattedKeyColorsCss[property];
+                                }
+                            }
+                        }, 5);
+                    })(i, color, borderRadius);
+                }
+                str = str.join('');
+            
+                // Add the key to the tooltip text - replacing the placeholder
+                text = text.replace('%{key}', '<table id="rgraph_tooltip_key" class="rgraph_tooltip_key RGraph_tooltip_key">' + str + '</table>');
+                setTimeout(function ()
+                {
+                    var obj = document.getElementById('rgraph_tooltip_key');
+                    
+                    if (obj && obj.style) {
+                        obj.style.color = 'inherit';
+                    }
+                }, 1);
+            })();
+
+
+
+
+
+
+
+
+
+
+
+            // Replace the index of the tooltip
+            text = text.replace(/%{index}/g, specific.index);
+            
+            // Replace the dataset/group of the tooltip
+            text = text.replace(/%{dataset2}/g, specific.dataset2); // Used by the Bipolar
+            text = text.replace(/%{dataset}/g, specific.dataset);
+            text = text.replace(/%{group2}/g, specific.dataset2);
+            text = text.replace(/%{group}/g, specific.dataset);
+            
+            // Replace the sequentialIndex of the tooltip
+            text = text.replace(/%{sequential_index}/g, specific.sequentialIndex);
+            text = text.replace(/%{seq}/g, specific.sequentialIndex);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            //Do %{list} sunstitution
+            if (text.indexOf('%{list}') !== -1) {
+                (function ()
+                {
+                    if (properties.tooltipsFormattedListType === 'unordered') properties.tooltipsFormattedListType = 'ul';
+                    if (properties.tooltipsFormattedListType === '<ul>')      properties.tooltipsFormattedListType = 'ul';
+                    if (properties.tooltipsFormattedListType === 'ordered')   properties.tooltipsFormattedListType = 'ol';
+                    if (properties.tooltipsFormattedListType === '<ol>')      properties.tooltipsFormattedListType = 'ol';
+            
+                    var str   = properties.tooltipsFormattedListType === 'ol' ? '<ol id="rgraph_formatted_tooltips_list">' : '<ul id="rgraph_formatted_tooltips_list">';
+                    var items = properties.tooltipsFormattedListItems[specific.sequentialIndex];
+                    
+                    if (items && items.length) {
+                        for (var i=0; i<items.length; ++i) {
+                            str += '<li>' + items[i] + '</li>';
+                        }
+                    }
+                    
+                    str += properties.tooltipsFormattedListType === 'ol' ? '</ol>' : '</ul>';
+                    
+                    // Add the list to the tooltip
+                    text = text.replace(/%{list}/, str);
+                    
+                })();
+            }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            // Do table substitution (ie %{table} )
+            if (text.indexOf('%{table}') !== -1) {
+                (function ()
+                {
+                    var str = '<table>';
+            
+                    // Add the headers if they're defined
+                    if (properties.tooltipsFormattedTableHeaders && properties.tooltipsFormattedTableHeaders.length) {
+                        str += '<thead><tr>';
+                        for (var i=0; i<properties.tooltipsFormattedTableHeaders.length; ++i) {
+                            str += '<th>' + properties.tooltipsFormattedTableHeaders[i] + '</th>';
+                        }
+                        str += '</tr></thead>';
+                    }
+
+
+
+
+
+                    // Add each row of data
+                    if (typeof properties.tooltipsFormattedTableData === 'object' && !RGraph.isNull(properties.tooltipsFormattedTableData)) {
+                        str += '<tbody>';
+
+                        for (var i=0; i<properties.tooltipsFormattedTableData[specific.sequentialIndex].length; ++i) {
+                            str += '<tr>';
+                            for (var j=0; j<properties.tooltipsFormattedTableData[specific.sequentialIndex][i].length; ++j) {
+                                str += '<td>' + String(properties.tooltipsFormattedTableData[specific.sequentialIndex][i][j]) + '</td>';
+                            }
+                            str += '</tr>';
+                        }
+                
+                        str += '</tbody>';
+                    }
+                    
+                    // Close the table
+                    str += '</table>';
+            
+                    text = text.replace(/%{table}/g, str);
+                })();
+            }
+
+
+
+
+
+
+
+
+
+
+
+
+
+            // Do property substitution when there's an index to the property
+            var reg = /%{prop(?:erty)?:([_a-z0-9]+)\[([0-9]+)\]}/i;
+
+            while (text.match(reg)) {
+
+                var property = RegExp.$1;
+                var index    = parseInt(RegExp.$2);
+
+                if (args.object.properties[property]) {
+                    text = text.replace(
+                        reg,
+                        args.object.properties[property][index] || ''
+                    );
+
+                // Get rid of the text
+                } else {
+                    text = text.replace(reg,'');
+                }
+                    
+                RegExp.lastIndex = null;
+            }
+
+
+
+
+            // Replace this: %%property:xxx%%
+            while (text.match(/%{property:([_a-z0-9]+)}/i)) {
+                var str = '%{property:' + RegExp.$1 + '}';
+                text    = text.replace(str, args.object.properties[RegExp.$1]);
+            }
+
+
+
+
+            // Replace this: %%prop:xxx%%
+            while (text.match(/%{prop:([_a-z0-9]+)}/i)) {
+                var str = '%{prop:' + RegExp.$1 + '}';
+                text    = text.replace(str, args.object.properties[RegExp.$1]);
+            }
+
+
+
+
+            // THIS IS ONLY FOR A NON-EQUI-ANGULAR ROSE CHART
+            //
+            // Replace this: %{value2}
+            if (args.object.type === 'rose' && args.object.properties.variant === 'non-equi-angular') {
+                while (text.match(/%{value2}/i)) {
+                    text    = text.replace('%{value2}', specific.value2);
+                }
+            }
+
+
+
+
+            // Replace this: %{value} and this: %{value_formatted}
+            while (text.match(/%{value(?:_formatted)?}/i)) {
+                
+                var value = specific.value;
+
+                if (text.match(/%{value_formatted}/i)) {
+                    text = text.replace(
+                        '%{value_formatted}',
+                        typeof value === 'number' ? RGraph.numberFormat({
+                            object:    args.object,
+                            number:    value.toFixed(args.object.properties.tooltipsFormattedDecimals),
+                            thousand:  args.object.properties.tooltipsFormattedThousand  || ',',
+                            point:     args.object.properties.tooltipsFormattedPoint     || '.',
+                            unitspre:  args.object.properties.tooltipsFormattedUnitsPre  || '',
+                            unitspost: args.object.properties.tooltipsFormattedUnitsPost || ''
+                        }) : null
+                    );
+                } else {
+                    text = text.replace('%{value}', value);
+                }
+            }
+
+
+
+
+
+
+
+
+
+          ////////////////////////////////////////////////////////////////
+         // Do global substitution when there's an index to the global //
+        ////////////////////////////////////////////////////////////////
+        var reg = /%{global:([_a-z0-9.]+)\[([0-9]+)\]}/i;
+
+        while (text.match(reg)) {
+
+            var name  = RegExp.$1,
+                index = parseInt(RegExp.$2);
+
+            if (eval(name)) {
+                text = text.replace(
+                    reg,
+                    eval(name)[index] || ''
+                );
+
+            // Get rid of the text if there was nothing to replace the template bit with
+            } else {
+                text = text.replace(reg,'');
+            }
+                
+            RegExp.lastIndex = null;
+        }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+          //////////////////////////////////////////////////
+         // Do global substitution when there's no index //
+        //////////////////////////////////////////////////
+        var reg = /%{global:([_a-z0-9.]+)}/i;
+
+        while (text.match(reg)) {
+
+            var name = RegExp.$1;
+
+            if (eval(name)) {
+                text = text.replace(
+                    reg,
+                    eval(name) || ''
+                );
+
+            // Get rid of the text if there was nothing to replace the template bit with
+            } else {
+                text = text.replace(reg,'');
+            }
+                
+            RegExp.lastIndex = null;
+        }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            // And lastly - call any functions
+            // MUST be last
+            var regexp = /%{function:([_A-Za-z0-9]+)\((.*?)\)}/;
+            
+            // Temporarily replace carriage returns and line feeds with CR and LF
+            // so the the s option is not needed
+            text = text.replace(/\r/,'|CR|');
+            text = text.replace(/\n/,'|LF|');
+
+            while (text.match(regexp)) {
+
+                var str  = RegExp.$1 + '(' + RegExp.$2 + ')';
+                
+                for (var i=0,len=str.length; i<len; ++i) {
+                    str  = str.replace(/\r?\n/, "\\n");
+                }
+                
+                RGraph.Registry.set('tooltip-templates-function-object', args.object);
+
+                var func = new Function ('return ' + str);
+                var ret  = func();
+
+                text = text.replace(regexp, ret)
+            }
+
+            // Replace CR and LF with a space
+            text = text.replace(/\|CR\|/, ' ');
+            text = text.replace(/\|LF\|/, ' ');
+
+
+
+
+
+
+
+            
+            // Replace line returns with br tags
+            text = text.replace(/\r?\n/g, '<br />');
+            text = text.replace(/___--PERCENT--___/g, '%')
+
+
+            return text.toString();
+        }
+        // Save the original text on the tooltip
+        tooltipObj.__original_text__  = args.text;
+
+        args.text = substitute(args.text);
+
+
+        // Add the pointer if requested. The background color is updated to match the
+        // tooltip further down.
+        if (args.object.properties.tooltipsPointer) {
+            
+            // Styles are applied to the pointer below to
+            // circumvent a Content-Security-Policy header
+            // problem
+            args.text += '<div id="RGraph_tooltipsPointer"></div>';
+
+
+
+            //
+            // If the tooltipsPointerCss property is populated then do the
+            // substitution on those too
+            //
+            if (!RGraph.isNull(args.object.properties.tooltipsPointerCss)) {
+                
+                // This is in a timer to allow the tooltip (and the pointer) to be
+                // added to the document. Then the document.getElementById('') method
+                // will be able to retrieve it
+                setTimeout(function ()
+                {
+                    var pointerObj = document.getElementById('RGraph_tooltipsPointer');
+
+                    for (var i in args.object.properties.tooltipsPointerCss) {
+                        if (typeof i === 'string') {
+                            pointerObj.style[i] = substitute(args.object.properties.tooltipsPointerCss[i]);
+                        }
+                    }
+                }, 50);
+            }
+        }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        tooltipObj.innerHTML   = args.text;
+        tooltipObj.__text__    = args.text; // This is set because the innerHTML can change when it's set
+        tooltipObj.__canvas__  = args.object.canvas;
+        tooltipObj.__event__   = args.object.get('tooltipsEvent') || 'click';
+        tooltipObj.__object__  = args.object;
+        tooltipObj.id          = '__rgraph_tooltip_' + args.object.canvas.id + '_' + args.object.uid + '_'+ args.index;
+
+
+
+    // Set styles on the pointer. It's done this way
+    // (not adding the style to the HTML above) to
+    // prevent an error bein thrown should a
+    // Content-Security-Policy header using style-src
+    // be in place
+    setTimeout(function ()
+    {
+        var pointerObj = document.getElementById('RGraph_tooltipsPointer');
+        var styles     = window.getComputedStyle(tooltipObj, false);
+
+        if (pointerObj) {
+            pointerObj.style.backgroundColor = styles.backgroundColor;
+            pointerObj.style.color           = 'transparent';
+            pointerObj.style.position        = 'absolute';
+            pointerObj.style.bottom          = '-5px';
+            pointerObj.style.left            = '50%';
+            pointerObj.style.transform       = 'translateX(-50%) rotate(45deg)';
+            pointerObj.style.width           = '10px';
+            pointerObj.style.height          = '10px';
+        }
+    }, 16.666);
+
+        if (typeof args.index === 'number') {
+            tooltipObj.__index__ = args.index;
+            origIdx = args.index;
+        }
+
+        if (args.object.type === 'line' || args.object.type === 'radar') {
+            for (var ds=0; ds<args.object.data.length; ++ds) {
+                if (args.index >= args.object.data[ds].length) {
+                    args.index -= args.object.data[ds].length;
                 } else {
                     break;
                 }
             }
             
             tooltipObj.__dataset__ = ds;
-            tooltipObj.__index2__  = idx;
+            tooltipObj.__index2__  = args.index;
         }
 
         document.body.appendChild(tooltipObj);
@@ -160,59 +896,226 @@
         var height = tooltipObj.offsetHeight;
 
 
-        /**
-        * Set the width on the tooltip so it doesn't resize if the window is resized
-        */
+        //
+        // Set the width on the tooltip so it doesn't resize if the window is resized
+        //
         tooltipObj.style.width = width + 'px';
 
 
 
-        tooltipObj.style.top  = (y - height - 2) + 'px';
 
-        /**
-        * If the function exists call the object specific tooltip positioning function
-        */
+//
+        // Now that the tooltip pointer has been added, determine the background-color and update
+        // the color of the pointer
+        if (args.object.properties.tooltipsPointer) {
 
-        if (typeof(obj.positionTooltip) == 'function') {
-            if (tooltipObj.innerHTML.length > 0) {
+            var styles = window.getComputedStyle(tooltipObj, false);
+            var pointer = document.getElementById('RGraph_tooltipsPointer');
 
-                obj.positionTooltip(obj, x, y, tooltipObj, origIdx ? origIdx : idx);
+            pointer.style.backgroundColor = styles['background-color'];
 
-                if (obj.Get('chart.tooltips.coords.page')) {
+            // Add the pointer to the tooltip as a property
+            tooltipObj.__pointer__ = pointer;
 
-                    tooltipObj.style.left = e.pageX - (width / 2) - 4.25 + 'px';
-                    tooltipObj.style.top = e.pageY - height - 10 + 'px';
-                    
-                    document.getElementById('__rgraph_tooltip_pointer__').style.left = (parseInt(tooltipObj.offsetWidth) / 2)  - 8.5 + 'px';
+            // Facilitate the  property that allows CSS to be added to
+            // the tooltip key color blob
+            var tooltipsPointerCss = '';
+
+            if (args.object.properties.tooltipsPointerCss) {
+            
+                var pointerDiv = document.getElementById('RGraph_tooltipsPointer');
+            
+                for(property in args.object.properties.tooltipsPointerCss) {
+                    if (typeof property === 'string') {
+                        pointerDiv.style[property] = args.object.properties.tooltipsPointerCss[property];
+                    }
                 }
             }
-        } else {
-            tooltipObj.style.left = e.pageX - (width / 2) - 4.25 + 'px';
-            tooltipObj.style.top = e.pageY - height - 7 + 'px';
         }
 
 
-        if (effect == 'fade' || effect == 'expand' || effect == 'contract' || effect == 'snap') {
-            setTimeout(function () {tooltipObj.style.opacity = 0.1;}, 25);
-            setTimeout(function () {tooltipObj.style.opacity = 0.2;}, 50);
-            setTimeout(function () {tooltipObj.style.opacity = 0.3;}, 75);
-            setTimeout(function () {tooltipObj.style.opacity = 0.4;}, 100);
-            setTimeout(function () {tooltipObj.style.opacity = 0.5;}, 125);
-            setTimeout(function () {tooltipObj.style.opacity = 0.6;}, 150);
-            setTimeout(function () {tooltipObj.style.opacity = 0.7;}, 175);
-            setTimeout(function () {tooltipObj.style.opacity = 0.8;}, 200);
-            setTimeout(function () {tooltipObj.style.opacity = 0.9;}, 225);
+
+
+        //
+        // position the tooltip on the mouse pointers position
+        //
+        var mouseXY  = RGraph.getMouseXY(args.event);
+        var canvasXY = RGraph.getCanvasXY(args.object.canvas);
+
+        // Set these properties to 0 (ie an integer) in case chart libraries are missing
+        // default values for them
+        args.object.properties.tooltipsOffsetx = args.object.properties.tooltipsOffsetx || 0;
+        args.object.properties.tooltipsOffsety = args.object.properties.tooltipsOffsety || 0;
+
+        // Position based on the mouse pointer coords on the page
+        tooltipObj.style.left = args.event.pageX - (parseFloat(tooltipObj.style.paddingLeft) + (width / 2)) + args.object.properties.tooltipsOffsetx + 'px';
+        tooltipObj.style.top  = args.event.pageY - height - 10 + args.object.properties.tooltipsOffsety + 'px';
+        
+        // If the left is less than zero - set it to 5
+        if (parseFloat(tooltipObj.style.left) <= 5) {
+            tooltipObj.style.left = 5 + args.object.properties.tooltipsOffsetx + 'px';
+        }
+        
+        // If the top is less than zero - set it to 5
+        if (parseFloat(tooltipObj.style.top) <= 5) {
+            tooltipObj.style.top = 5 + args.object.properties.tooltipsOffsety + 'px';
+        }
+
+        // If the tooltip goes over the right hand edge then
+        // adjust the positioning
+        if (parseFloat(tooltipObj.style.left) + parseFloat(tooltipObj.style.width) > window.innerWidth) {
+            tooltipObj.style.left  = '';
+            tooltipObj.style.right = 5 + args.object.properties.tooltipsOffsetx + 'px';
+        }
+
+
+
+
+
+
+
+
+
+        
+        
+
+        //
+        // Allow for static positioning.
+        //
+        if (args.object.properties.tooltipsPositionStatic && typeof args.object.positionTooltipStatic === 'function') {
+
+            args.object.positionTooltipStatic({
+                object:  args.object,
+                event:   args.event,
+                tooltip: tooltipObj,
+                index:   origIdx
+            });
+        }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        //
+        // Move the tooltip and its pointer if they're off-screen LHS
+        //
+        if (parseInt(tooltipObj.style.left) < 0) {
+            var left  = parseInt(tooltipObj.style.left);
+            var width = parseInt(tooltipObj.style.width)
             
-            if (effect == 'expand' || effect == 'contract' || effect == 'snap') {
-                console.log('[RGRAPH] The snap, expand and contract tooltip effects are deprecated. Available effects now are fade and none');
-            }
+            left = left + (width * 0.1 * 4);
+            
+            tooltipObj.style.left = left + 'px';
+            var pointer = document.getElementById('RGraph_tooltipsPointer');
+
+            (function (pointer)
+            {
+                setTimeout(function ()
+                {
+                    if (pointer) {
+                        pointer.style.left = 'calc(10% + 5px)';
+                    }
+                }, 25);
+            })(pointer)
+        
+        //
+        // Move the tooltip and its pointer if they're off-screen RHS
+        //
+        //NB but only if the LHS checking was negative
+        //
+        } else if ( (parseInt(tooltipObj.style.left) + parseInt(tooltipObj.offsetWidth)) > document.body.offsetWidth) {
+            var left  = parseInt(tooltipObj.style.left);
+            var width = parseInt(tooltipObj.style.width)
+            
+            left = left - (width * 0.1 * 4);
+            
+            tooltipObj.style.left = left + 'px';
+            var pointer = document.getElementById('RGraph_tooltipsPointer');
+
+            (function (pointer)
+            {
+                setTimeout(function ()
+                {
+                    if (pointer) {
+                        pointer.style.left = 'calc(90% - 5px)';
+                    }
+                }, 25)
+            })(pointer);
         }
 
-        setTimeout("if (RGraph.Registry.Get('chart.tooltip')) { RGraph.Registry.Get('chart.tooltip').style.opacity = 1;}", effect == 'none' ? 50 : 250);
 
-        /**
-        * If the tooltip it self is clicked, cancel it
-        */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        // If the canvas has fixed positioning then set the tooltip position to
+        // fixed too
+        if (RGraph.isFixed(args.object.canvas)) {
+            tooltipObj.style.position = 'fixed';
+        }
+        
+        
+        
+        
+        
+        
+        // If the effect is fade:
+        // Increase the opacity from its default 0 up to 1 - fading the tooltip in
+        if (args.object.get('tooltipsEffect') === 'fade') {
+            //setTimeout(function ()
+            //{
+                for (var i=1; i<=10; ++i) {
+                    (function (index)
+                    {
+                        setTimeout(function ()
+                        {
+                            tooltipObj.style.opacity = index / 10;
+                        }, index * 25);
+                    })(i);
+                }
+            //}, 1000)
+        } else {
+            tooltipObj.style.opacity = 1;
+        }
+
+
+
+
+
+
+
+
+
+
+
+        //
+        // If the tooltip itself is clicked, cancel it
+        //
         tooltipObj.onmousedown = function (e){e.stopPropagation();}
         tooltipObj.onmouseup   = function (e){e.stopPropagation();}
         tooltipObj.onclick     = function (e){if (e.button == 0) {e.stopPropagation();}}
@@ -223,46 +1126,68 @@
 
 
 
-        /**
-        * Keep a reference to the tooltip in the registry
-        */
-        RGraph.Registry.Set('chart.tooltip', tooltipObj);
+        //
+        // Keep a reference to the tooltip in the registry
+        //
+        RGraph.Registry.set('tooltip', tooltipObj);
+        
+        //
+        // Store the final X/Y coordinates so that sliding works
+        //
+        if (args.object.properties.tooltipsEffect === 'slide') {
+            RGraph.tooltip_slide_effect_previous_x_coordinate = tooltipObj.style.left;
+            RGraph.tooltip_slide_effect_previous_y_coordinate = tooltipObj.style.top;
+        }
 
-        /**
-        * Fire the tooltip event
-        */
-        RG.FireCustomEvent(obj, 'ontooltip');
+        //
+        // Fire the tooltip event
+        //
+        RGraph.fireCustomEvent(args.object, 'ontooltip');
     };
-    
 
 
 
 
-    /**
-    * 
-    */
-    RG.getTooltipTextFromDIV = function (text)
+
+
+
+
+    //
+    // 
+    //
+    RGraph.getTooltipTextFromDIV = function ()
     {
+        var args = RGraph.getArgs(arguments, 'text');
+
         // This regex is duplicated firher down on roughly line 888
-        var result = /^id:(.*)/.exec(text);
+        var result = /^id:(.*)/.exec(args.text);
 
         if (result && result[1] && document.getElementById(result[1])) {
-            text = document.getElementById(result[1]).innerHTML;
+            args.text = document.getElementById(result[1]).innerHTML;
         } else if (result && result[1]) {
-            text = '';
+            args.text = '';
         }
         
-        return text;
+        return args.text;
     };
 
 
-    /**
-    * 
-    */
-    RG.getTooltipWidth = function (text, obj)
+
+
+
+
+
+
+    //
+    // Get the width that is set on the tooltip DIV based on the text
+    // that has been given
+    //
+    RGraph.getTooltipWidth = function ()
     {
+        var args = RGraph.getArgs(arguments, 'text,object');
+
         var div = document.createElement('DIV');
-            div.className             = obj.Get('chart.tooltips.css.class');
+            div.className             = args.object.get('tooltipsCssClass');
             div.style.paddingLeft     = RGraph.tooltips.padding;
             div.style.paddingRight    = RGraph.tooltips.padding;
             div.style.fontFamily      = RGraph.tooltips.font_face;
@@ -272,244 +1197,78 @@
             div.style.top            = '300px';
             div.style.left             = 0;
             div.style.display         = 'inline';
-            div.innerHTML             = RGraph.getTooltipTextFromDIV(text);
+            div.innerHTML             = RGraph.getTooltipTextFromDIV(args.text);
         document.body.appendChild(div);
 
         return div.offsetWidth;
     };
 
 
-    /**
-    * Hides the currently shown tooltip
-    */
-    RG.hideTooltip =
-    RG.HideTooltip = function ()
+
+
+
+
+
+
+    //
+    // Hides the currently shown tooltip
+    //
+    RGraph.hideTooltip = function ()
     {
-        var tooltip = RGraph.Registry.Get('chart.tooltip');
+        var tooltip = RGraph.Registry.get('tooltip');
         var uid     = arguments[0] && arguments[0].uid ? arguments[0].uid : null;
 
         if (tooltip && tooltip.parentNode && (!uid || uid == tooltip.__canvas__.uid)) {
+        
+            // Delete references, that were put there by RGraph,
+            // from the tooltip
+            for (var v of ['__canvas__', '__event__', '__index__', '__object__','__original_text__','__shape__','__text__']) {
+                if (typeof tooltip[v] !== 'undefined') {
+                    delete tooltip[v];
+                }
+            }
+
+            // Delete references, that were put there by RGraph,
+            // from the tooltip (that start with "rgraph_"
+            for (i in tooltip) {
+                if (i.substr(0,7) === 'rgraph_') {
+                    delete tooltip[i];
+                }
+            }
+        
             tooltip.parentNode.removeChild(tooltip);
-            tooltip.style.display = 'none';                
+            tooltip.style.display    = 'none';                
             tooltip.style.visibility = 'hidden';
-            RGraph.Registry.Set('chart.tooltip', null);
+            RGraph.Registry.set('tooltip', null);
         }
     };
 
-    
-    
-    /**
-    * This installs the window mousedown event listener. It clears any highlight that may
-    * be present.
-    * 
-    * @param object obj The chart object
-    *
-    RGraph.InstallWindowMousedownTooltipListener = function (obj)
+
+
+
+    //
+    // This (as the name suggests preloads any images it can find in the tooltip text
+    // 
+    // @param object obj The chart object
+    //
+    RGraph.preLoadTooltipImages = function ()
     {
-        if (RGraph.Registry.Get('__rgraph_event_listeners__')['window_mousedown']) {
-            return;
-        }
+        var args = RGraph.getArgs(arguments, 'object');
+
+        var tooltips = args.object.get('tooltips');
         
-        // When the canvas is cleared, reset this flag so that the event listener is installed again
-        RGraph.AddCustomEventListener(obj, 'onclear', function (obj) {RGraph.Registry.Get('__rgraph_event_listeners__')['window_mousedown'] = false;})
-
-        // NOTE: Global on purpose
-        rgraph_window_mousedown = function (e)
-        {
-            if (RGraph.Registry.Get('chart.tooltip')) {
-
-                var obj    = RGraph.Registry.Get('chart.tooltip').__object__;
-                var canvas = obj.canvas;
-
-                /**
-                * Get rid of the tooltip and redraw all canvases on the page
-                *
-                RGraph.HideTooltip();
-                
-                /**
-                * No need to clear if highlighting is disabled
-                * 
-                * TODO Really, need to check ALL of the pertinent objects that
-                * are drawing on the canvas using the ObjectRegistry -
-                * ie RGraph.ObjectRegistry.getObjectsByCanvasID()
-                *
-                if (obj.Get('chart.tooltips.highlight')) {
-                    RGraph.RedrawCanvas(canvas);
-                }
-            }
-        }
-        window.addEventListener('mousedown', rgraph_window_mousedown, false);
-        RGraph.AddEventListener('window_' + obj.id, 'mousedown', rgraph_window_mousedown);
-    }
-    */
-
-
-    /**
-    * This installs the canvas mouseup event listener. This is the function that
-    * actually shows the appropriate (if any) tooltip.
-    * 
-    * @param object obj The chart object
-    *
-    RGraph.InstallCanvasMouseupTooltipListener = function (obj)
-    {
-        if (RGraph.Registry.Get('__rgraph_event_listeners__')[obj.canvas.id + '_mouseup']) {
-            return;
-        }
-        RGraph.Registry.Get('__rgraph_event_listeners__')[obj.canvas.id + '_mouseup'] = true;
-
-        // When the canvas is cleared, reset this flag so that the event listener is installed again
-        RGraph.AddCustomEventListener(obj, 'onclear', function (obj) {RGraph.Registry.Get('__rgraph_event_listeners__')[obj.canvas.id + '_mouseup'] = false});
-
-        // Install the onclick event handler for the tooltips
-        //
-        // // NOTE: Global on purpose
-        rgraph_canvas_mouseup_func = function (e)
-        {
-            var x = arguments[1] ? arguments[1] : e.pageX;
-            var y = arguments[2] ? arguments[2] : e.pageY;
-
-            var objects = RGraph.ObjectRegistry.getObjectsByCanvasID(e.target.id);
-
-            // It's important to go backwards through the array so that the front charts
-            // are checked first, then the charts at the back
-            for (var i=(objects.length - 1); i>=0; --i) {
-                
-                var shape = objects[i].getShape(e);
-
-                if (shape && shape['object'] && !RGraph.Registry.Get('chart.tooltip')) {
-
-                    /**
-                    * This allows the Scatter chart funky tooltips style
-                    *
-                    if (objects[i].type == 'scatter' && shape['dataset'] > 0) {
-                        for (var j=0; j<(objects[i].data.length - 1); ++j) {
-                            shape['index'] += objects[i].data[j].length;
-                        }
-                    }
-
-                    var text = RGraph.parseTooltipText(objects[i].Get('chart.tooltips'), shape['index']);
-    
-                    if (text) {
-                    
-                        if (shape['object'].Get('chart.tooltips.hotspot.xonly')) {
-                            var canvasXY = RGraph.getCanvasXY(objects[i].canvas);
-                            x = canvasXY[0] + shape[1];
-                            y = canvasXY[1] + shape[2];
-                        }
-
-                        RGraph.Tooltip(objects[i], text, x, y, shape['index']);
-                        objects[i].Highlight(shape);
-    
-                        e.stopPropagation();
-                        e.cancelBubble = true;
-                        return false;
-                    }
-                }
-            }
-        }
-        obj.canvas.addEventListener('mouseup', rgraph_canvas_mouseup_func, false);
-        RGraph.AddEventListener(obj.id, 'mouseup', rgraph_canvas_mouseup_func);
-    }
-    */
-
-
-
-    /**
-    * This installs the canvas mousemove event listener. This is the function that
-    * changes the mouse pointer if need be.
-    * 
-    * @param object obj The chart object
-    *
-    RGraph.InstallCanvasMousemoveTooltipListener = function (obj)
-    {
-        if (RGraph.Registry.Get('__rgraph_event_listeners__')[obj.canvas.id + '_mousemove']) {
-            return;
-        }
-        RGraph.Registry.Get('__rgraph_event_listeners__')[obj.canvas.id + '_mousemove'] = true;
+        if (RGraph.hasTooltips(args.object)) {
         
-        // When the canvas is cleared, reset this flag so that the event listener is installed again
-        RGraph.AddCustomEventListener(obj, 'onclear', function (obj) {RGraph.Registry.Get('__rgraph_event_listeners__')[obj.canvas.id + '_mousemove'] = false})
-
-        // Install the mousemove event handler for the tooltips
-        //
-        // NOTE: Global on purpose
-        rgraph_canvas_mousemove_func = function (e)
-        {
-            var objects = RGraph.ObjectRegistry.getObjectsByCanvasID(e.target.id);
-
-            for (var i=0; i<objects.length; ++i) {
-
-                var shape = objects[i].getShape(e);
-
-                if (shape && shape['object']) {
-
-                    /**
-                    * This allows the Scatter chart funky tooltips style
-                    *
-                    if (objects[i].type == 'scatter' && shape['dataset'] > 0) {
-                        for (var j=0; j<(objects[i].data.length - 1); ++j) {
-                            shape['index'] += objects[i].data[j].length;
-                        }
-                    }
-
-                    var text = RGraph.parseTooltipText(objects[i].Get('chart.tooltips'), shape['index']);
-
-
-                    if (text) {
-
-                        e.target.style.cursor = 'pointer';
-
-                        /**
-                        * This facilitates the event triggering the tooltips being mousemove
-                        *
-
-                        if (   typeof(objects[i].Get('chart.tooltips.event')) == 'string'
-                            && objects[i].Get('chart.tooltips.event') == 'onmousemove'
-                            && (!RGraph.Registry.Get('chart.tooltip') || shape['index'] != RGraph.Registry.Get('chart.tooltip').__index__ || shape['object'].uid != RGraph.Registry.Get('chart.tooltip').__object__.uid)
-                           ) {
-                           
-                           // Hide any current tooltip
-                           rgraph_window_mousedown(e);
-                           
-                           rgraph_canvas_mouseup_func(e);
-                        }
-                    }
-                }
-            }
-        }
-        obj.canvas.addEventListener('mousemove', rgraph_canvas_mousemove_func, false);
-        RGraph.AddEventListener(obj.id, 'mousemove', rgraph_canvas_mousemove_func);
-    }
-    */
-
-
-
-
-
-
-
-    /**
-    * This (as the name suggests preloads any images it can find in the tooltip text
-    * 
-    * @param object obj The chart object
-    */
-    RG.preLoadTooltipImages =
-    RG.PreLoadTooltipImages = function (obj)
-    {
-        var tooltips = obj.Get('chart.tooltips');
-        
-        if (RGraph.hasTooltips(obj)) {
-        
-            if (obj.type == 'rscatter') {
+            if (args.object.type == 'rscatter') {
                 tooltips = [];
-                for (var i=0; i<obj.data.length; ++i) {
-                    tooltips.push(obj.data[3]);
+                for (var i=0; i<args.object.data.length; ++i) {
+                    tooltips.push(args.object.data[3]);
                 }
             }
             
             for (var i=0; i<tooltips.length; ++i) {
                 // Add the text to an offscreen DIV tag
-                var div = document.createElement('DIV');
+                var div = document.createElement('div');
                     div.style.position = 'absolute';
                     div.style.opacity = 0;
                     div.style.top = '-100px';
@@ -523,7 +1282,7 @@
                 // Create the image in an off-screen image tag
                 for (var j=0; j<img_tags.length; ++j) {
                         if (img_tags && img_tags[i]) {
-                        var img = document.createElement('IMG');
+                        var img = document.createElement('img');
                             img.style.position = 'absolute';
                             img.style.opacity = 0;
                             img.style.top = '-100px';
@@ -544,53 +1303,69 @@
 
 
 
-    /**
-    * This is the tooltips canvas onmousemove listener
-    */
-    RG.tooltips_mousemove =
-    RG.Tooltips_mousemove = function (obj, e)
+
+
+
+
+    //
+    // This is the tooltips canvas onmousemove listener
+    //
+    RGraph.tooltips_mousemove = function ()
     {
-        var shape = obj.getShape(e);
-        var changeCursor_tooltips = false
+        var args                  = RGraph.getArgs(arguments, 'object,event'),
+            shape                 = args.object.getShape(args.event),
+            changeCursor_tooltips = false
 
         if (   shape
-            && typeof(shape['index']) == 'number'
-            && obj.Get('chart.tooltips')[shape['index']]
+            && typeof shape.index === 'number'
+            && args.object.get('tooltips')[shape.index]
            ) {
 
-            var text = RGraph.parseTooltipText(obj.Get('chart.tooltips'), shape['index']);
+            var text = RGraph.parseTooltipText(
+                args.object.get('tooltips'),
+                shape.index
+            );
 
             if (text) {
 
-                /**
-                * Change the cursor
-                */
+                //
+                // Change the cursor
+                //
                 changeCursor_tooltips = true;
 
-                if (obj.Get('chart.tooltips.event') == 'onmousemove') {
+                if (args.object.get('tooltipsEvent') === 'onmousemove') {
 
                     // Show the tooltip if it's not the same as the one already visible
                     if (
-                           !RGraph.Registry.Get('chart.tooltip')
-                        || RGraph.Registry.Get('chart.tooltip').__object__.uid != obj.uid
-                        || RGraph.Registry.Get('chart.tooltip').__index__ != shape['index']
+                           !RGraph.Registry.get('tooltip')
+                        || RGraph.Registry.get('tooltip').__object__.uid != args.object.uid
+                        || RGraph.Registry.get('tooltip').__index__ != shape.index
                        ) {
 
-                        RGraph.HideTooltip();
-                        RGraph.Clear(obj.canvas);
-                        RGraph.Redraw();
-                        RGraph.Tooltip(obj, text, e.pageX, e.pageY, shape['index']);
-                        obj.Highlight(shape);
+                        RGraph.hideTooltip();
+                        RGraph.clear(args.object.canvas);
+                        RGraph.redraw();
+                        RGraph.tooltip(
+                            args.object,
+                            text,
+                            args.event.pageX,
+                            args.event.pageY,
+                            shape.index
+                        );
+                        args.object.highlight(shape);
                     }
                 }
             }
         
-        /**
-        * More highlighting
-        */
-        } else if (shape && typeof(shape['index']) == 'number') {
+        //
+        // More highlighting
+        //
+        } else if (shape && typeof shape.index === 'number') {
 
-            var text = RGraph.parseTooltipText(obj.Get('chart.tooltips'), shape['index']);
+            var text = RGraph.parseTooltipText(
+                args.object.get('tooltips'),
+                shape.index
+            );
 
             if (text) {
                 changeCursor_tooltips = true
@@ -599,6 +1374,10 @@
 
         return changeCursor_tooltips;
     };
+
+
+
+
 
 
 
