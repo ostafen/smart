@@ -1,5 +1,5 @@
 
-Copyright (c) 2012, Simone Faro and Thierry Lecroq.  
+Copyright (c) 2012, Simone Faro, Thierry Lecroq, Stefano Scafiti and Matthew Palmer.
 http://www.dmi.unict.it/~faro/
 http://www-igm.univ-mlv.fr/~lecroq/
 
