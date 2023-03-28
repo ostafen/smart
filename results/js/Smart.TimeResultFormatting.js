@@ -83,16 +83,42 @@ function setBestColors(document) {
 function showChildDivs(parentElement, divClass, show) {
     const preProcessingTimes = parentElement.querySelectorAll("." + divClass);
     const displayValue = show ? 'block' : 'none';
-    for (const counter in preProcessingTimes) {
-        preProcessingTimes[counter].style.display = displayValue;
+    for (const counter of preProcessingTimes) {
+        try {
+            counter.style.display = displayValue;
+        } catch (e) {
+            console.log(counter); //TODO: why do some items get a TypeError when the debugger shows them all to be the right div class.
+        }
     }
+}
+
+function setMilliseconds(document) {
+    showChildDivs(document, "result_in_gbs", false);
+    showChildDivs(document, "result_in_ms", true);
+}
+
+function setResultUnits(document, useMilliseconds)
+{
+    if (useMilliseconds)
+    {
+        setMilliseconds(document);
+    }
+    else
+    {
+        setGigabytesPerSecond(document);
+    }
+}
+
+function setGigabytesPerSecond(document) {
+    showChildDivs(document, "result_in_ms", false);
+    showChildDivs(document, "result_in_gbs", true);
 }
 
 function showDivs(document, divClass, show) {
   const preProcessingTimes = document.getElementsByClassName(divClass);
   const displayValue = show ? 'block' : 'none';
-  for (const counter in preProcessingTimes) {
-    preProcessingTimes[counter].style.display = displayValue;
+  for (const counter of preProcessingTimes) {
+    counter.style.display = displayValue;
   }
 }
 
