@@ -179,4 +179,25 @@ int cpu_stats_end(cpu_stats_t *stats)
 {
     return 0;
 }
+
+
+int cpu_perf_open(cpu_perf_events_t *perf_events, const int cpu_stats_to_get)
+{
+    return 0;
+}
+
+int cpu_perf_close(cpu_perf_events_t *perf_events)
+{
+    return 0;
+}
+
+int cpu_perf_start(cpu_perf_events_t *perf_events)
+{
+    return 0;
+}
+
+int cpu_perf_end(cpu_perf_events_t *perf_events, cpu_stats_t *stats)
+{
+    return 0;
+}
 #endif
