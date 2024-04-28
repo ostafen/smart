@@ -140,7 +140,7 @@ double compute_median(const double *T, int n)
 
     if (n % 2 == 0)
     {
-        return (sorted[n / 2 - 1] + sorted[n / 2]) / 2; // return mean of n/2 and n/2+1 elements.
+        return (sorted[n / 2 - 1] + sorted[n / 2]) / 2; // return mean of n/2-1 and n/2 elements.
     }
     else
     {
