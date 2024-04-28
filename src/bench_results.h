@@ -137,13 +137,14 @@ double compute_median(const double *T, int n)
     qsort(sorted, n, sizeof(double), double_compare);
 
     // if the list of doubles  has an even number of elements:
+
     if (n % 2 == 0)
     {
-        return (sorted[n / 2] + sorted[n / 2 + 1]) / 2; // return mean of n/2 and n/2+1 elements.
+        return (sorted[n / 2 - 1] + sorted[n / 2]) / 2; // return mean of n/2 and n/2+1 elements.
     }
     else
     {
-        return sorted[(n + 1) / 2]; // return the element in the middle of the sorted array.
+        return sorted[(n + 1) / 2 - 1]; // return the element in the middle of the sorted array.
     }
 }
 
