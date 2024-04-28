@@ -81,16 +81,15 @@ enum measurement_status run_algo(unsigned char **pattern_list, int m,
             cpu_perf_end(&perf_events, &(results->measurements.cpu_stats[k]));
         }
 
-        //TODO: for user supplied patterns and/or data, it is possible to have zero matches and not be an error.
-        if (occur == 0 || occur == ERROR_SEARCHING)
-        {
-            status = ERROR;
-            break; // there must be at least one match for each text and pattern (patterns are extracted from text).
-        }
-
         if (occur == INFO_CANNOT_SEARCH) {
             status = CANNOT_SEARCH; // negative value returned from search means it cannot search this pattern (e.g. it is too short)
             break;
+        }
+
+        if (occur == ERROR_SEARCHING)
+        {
+            status = ERROR;
+            break; // there must be at least one match for each text and pattern (patterns are extracted from text).
         }
 
         results->occurrence_count += occur;
