@@ -9,6 +9,7 @@
 #include "string_set.h"
 #include "config.h"
 #include "utils.h"
+#include "algos/include/stats.h"
 
 static const char *ALGO_COLUMN_FORMAT = "%-*s ";
 static const int ALGO_NUM_COLUMNS = (MAX_LINE_LEN / ALGO_NAME_LEN);
@@ -16,7 +17,7 @@ static const int ALGO_NUM_COLUMNS = (MAX_LINE_LEN / ALGO_NAME_LEN);
 /*
  * Function signature typedef of the internal search function called to benchmark algorithms.
  */
-typedef int search_function(unsigned char *, int, unsigned char *, int, double *, double *);
+typedef int search_function(unsigned char *, int, unsigned char *, int, double *, double *, algo_stats_t *);
 
 /*
  * Struct containing information about the algorithms to open and their shared object handles and function pointers.
