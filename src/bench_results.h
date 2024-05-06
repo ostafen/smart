@@ -6,6 +6,7 @@
 #include <math.h>
 
 #include "utils.h"
+#include "algos/include/stats.h"
 #include "cpu_stats.h"
 
 
@@ -28,7 +29,9 @@ typedef struct algo_measurements
     double *search_times;
     double *pre_times;
     cpu_stats_t *cpu_stats;
+    algo_stats_t *algo_stats;
 } algo_measurements_t;
+
 
 /*
  * Various statistics which can be computed from the measurements of an algorithm for a single pattern length.
@@ -54,6 +57,7 @@ typedef struct algo_statistics
     double std_total_time;
 
     cpu_stats_t sum_cpu_stats;
+    algo_stats_t sum_algo_stats;
 } algo_statistics_t;
 
 /*
@@ -117,12 +121,25 @@ double compute_average(const double *T, int n)
  */
 cpu_stats_t compute_sum_cpu_stats(const cpu_stats_t *stats, int n)
 {
-    cpu_stats_t mean;
-    zero_cpu_stats(&mean);
+    cpu_stats_t sum;
+    zero_cpu_stats(&sum);
     for (int i = 0; i < n; i++)
-        cpu_stats_add(&mean, stats + i);
+        cpu_stats_add(&sum, stats + i);
 
-    return mean;
+    return sum;
+}
+
+/*
+ * Computes and returns the sum of a list of algorithm stat measurements of size n.
+ */
+algo_stats_t compute_sum_algo_stats(const algo_stats_t *stats, int n)
+{
+    algo_stats_t sum;
+    init_stats(&sum);
+    for (int i = 0; i < n; i++)
+        algo_stats_add(&sum, stats + i);
+
+    return sum;
 }
 
 /*
@@ -209,6 +226,9 @@ void calculate_algo_statistics(algo_results_t *results, int num_measurements, in
     // Compute sum cpu stats:
     results->statistics.sum_cpu_stats = compute_sum_cpu_stats(results->measurements.cpu_stats, num_measurements);
 
+    // Compute sum algo stats:
+    results->statistics.sum_algo_stats = compute_sum_algo_stats(results->measurements.algo_stats, num_measurements);
+
     free(total_times);
 }
 
@@ -229,6 +249,7 @@ void allocate_benchmark_results(benchmark_results_t bench_result[], int num_patt
             bench_result[i].algo_results[j].measurements.search_times = (double *)malloc(sizeof(double) * num_runs);
             bench_result[i].algo_results[j].measurements.pre_times = (double *)malloc(sizeof(double) * num_runs);
             bench_result[i].algo_results[j].measurements.cpu_stats = (cpu_stats_t *)malloc(sizeof(cpu_stats_t) * num_runs);
+            bench_result[i].algo_results[j].measurements.algo_stats = (algo_stats_t *)malloc(sizeof(algo_stats_t) * num_runs);
         }
     }
 }
@@ -247,6 +268,7 @@ void free_benchmark_results(benchmark_results_t bench_result[], int num_pattern_
             free(bench_result[i].algo_results[j].measurements.search_times);
             free(bench_result[i].algo_results[j].measurements.pre_times);
             free(bench_result[i].algo_results[j].measurements.cpu_stats);
+            free(bench_result[i].algo_results[j].measurements.algo_stats);
         }
         free(bench_result[i].algo_results);
     }
