@@ -74,12 +74,14 @@ void debug_search(test_results_info_t *test_results, unsigned char *pattern, int
     {
         double pre_time = 0.0;
         double search_time = 0.0;
+        algo_stats_t stats;
+        init_stats(&stats);
 
         // Put a breakpoint here and enable the --debug flag to re-run a failing search algorithm.
         // The number of expected occurrences is found in: test_results->last_expected_count
         // The number of actual occurrences found is in:   test_results->last_actual_count
         int expected_count = reference_search(pattern, m, T, n);
-        test_results->search_func(pattern, m, T, n, &pre_time, &search_time);
+        test_results->search_func(pattern, m, T, n, &pre_time, &search_time, &stats);
     }
 }
 
@@ -109,9 +111,11 @@ int test_algo(unsigned char *pattern, const int m, unsigned char *data, const in
     // We don't need these in testing, but we still initialise them to avoid valgrind warnings or subtle bugs.
     double search_time = 0;
     double pre_time = 0;
+    algo_stats_t stats;
+    init_stats(&stats);
 
     // Get the result for the algorithm being tested:
-    test_results->last_actual_count = test_results->search_func(pattern, m, data, n, &search_time, &pre_time);
+    test_results->last_actual_count = test_results->search_func(pattern, m, data, n, &pre_time, &search_time, &stats);
 
     // Get the reference expected count using a brute force search:
     test_results->last_expected_count = reference_search(pattern, m, data, n);
