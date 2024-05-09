@@ -424,7 +424,7 @@ void parse_run_algo_name(run_command_opts_t *opts, int curr_arg, const char **ar
 {
     if (opts->num_algo_names < MAX_SELECT_ALGOS)
     {
-        opts->algo_names[opts->num_algo_names++] = argv[curr_arg];
+        strncpy(opts->algo_names[opts->num_algo_names++], argv[curr_arg], STR_BUF);
         opts->algo_source = ALGO_REGEXES;
     }
     else
@@ -762,7 +762,7 @@ void parse_test_args(int argc, const char **argv, smart_subcommand_t *subcommand
         }
         else
         {
-            opts->algo_names[num_algo_names++] = argv[curr_arg];
+            strncpy(opts->algo_names[num_algo_names++], argv[curr_arg], STR_BUF);
         }
     }
 
@@ -859,7 +859,7 @@ void parse_select_args(int argc, const char **argv, smart_subcommand_t *subcomma
         }
         else
         {
-            opts->algos[k++] = argv[curr_arg];
+            strncpy(opts->algos[k++], argv[curr_arg], STR_BUF);
         }
     }
 
