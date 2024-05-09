@@ -258,7 +258,7 @@ typedef struct run_command_opts
 {
     enum algo_sources algo_source;               // source of algorithms to benchmark.
     char algo_filename[STR_BUF];                 // The filename in the config directory containing the algorithms to benchmark.
-    const char *algo_names[MAX_SELECT_ALGOS];    // algo_names to benchmark, as POSIX regular expressions on the command line.
+    char algo_names[MAX_SELECT_ALGOS][ALGO_REGEX_LEN];  // algo_names to benchmark, as POSIX regular expressions on the command line.
     int num_algo_names;                          // Number of algo names recorded.
     enum data_source_type data_source;           // What type of data is to be scanned - files or random.
     const char *data_sources[MAX_DATA_SOURCES];  // A list of files/data_sources to load data from.
@@ -299,7 +299,7 @@ void init_run_command_opts(run_command_opts_t *opts)
     opts->num_algo_names = 0;
     for (int i = 0; i < MAX_SELECT_ALGOS; i++)
     {
-        opts->algo_names[i] = NULL;
+        opts->algo_names[0][i] = STR_END_CHAR;
     }
     opts->data_source = DATA_SOURCE_NOT_DEFINED;
     for (int i = 0; i < MAX_DATA_SOURCES; i++)
@@ -596,7 +596,7 @@ enum select_command_type {NO_SELECT_COMMAND, ADD, REMOVE, DESELECT_ALL, SAVE_AS,
 typedef struct select_command_opts
 {
     enum select_command_type select_command;
-    const char *algos[MAX_SELECT_ALGOS];
+    char algos[MAX_SELECT_ALGOS][ALGO_REGEX_LEN];
     int n_algos;
     const char *named_set;
 } select_command_opts_t;
@@ -667,7 +667,7 @@ typedef struct test_command_opts
     enum test_command_type test_type;              // The type of test to run
     enum algo_sources algo_source;                 // source of algorithms to test.
     const char *named_set;                         // name of the named set to load algorithms from, if specified.
-    const char *algo_names[MAX_SELECT_ALGOS];      // algo_names to test, as POSIX regular expressions.
+    char algo_names[MAX_SELECT_ALGOS][ALGO_REGEX_LEN];    // algo_names to test, as POSIX regular expressions.
     int num_algo_names;                            // Number of algo names recorded.
     long random_seed;                              // Random seed used to generate text or patterns.
     pattern_len_info_t pattern_info;               // Info about what pattern sizes to test random patterns with.
@@ -685,7 +685,7 @@ void init_test_command_opts(test_command_opts_t *opts)
     opts->algo_source  = ALGO_REGEXES;       // default is just user specified algo_names unless a command says different.
     opts->named_set    = NULL;
     for (int i = 0; i < MAX_SELECT_ALGOS; i++)
-        opts->algo_names[i] = NULL;
+        opts->algo_names[0][i] = STR_END_CHAR;
     opts->num_algo_names = 0;
     opts->random_seed  = time(NULL);   // default is random seed set by the current time, unless -seed option is specified.
     opts->debug = FALSE;
