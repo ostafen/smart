@@ -35,6 +35,7 @@
 #define MAX_SELECT_ALGOS 2048             // maximum number of algorithms which can be selected for benchmarking.
 #define MAX_DATA_FILES 128                // max number of different files to load to fill the benchmark text buffer.
 #define NUM_PATTERNS_MAX 100              // maximum number of different pattern lengths to benchmark at one time.
+#define ALGO_REGEX_LEN 64                 // max length of algorithm regex from command line.
 #define MAX_LINE_LEN 128                  // max length of line to output to console.
 #define STR_BUF 256                       // general strings with a bit of space to spare - parameters, filenames, etc.
 #define NUM_PATTERNS_AT_END_OF_TEXT 2     // Number of pattern-lengths to add to the text buffer so algorithms that write
@@ -51,6 +52,7 @@
 #define SELECTED_ALGOS_FILENAME "selected_algos"
 #define TESTED_ALGOS_FILENAME "tested_algos"
 #define ALGO_FILENAME_SUFFIX ".algos"
+#define STATS_FILENAME_PREFIX "stat_"
 
 /*
  * Environment variable names to configure directories and search paths.
