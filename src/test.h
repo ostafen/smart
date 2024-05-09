@@ -1124,7 +1124,7 @@ void merge_regex_algos(const smart_config_t *smart_config, const test_command_op
     {
         algo_info_t regex_algos;
         get_all_algo_names(smart_config, &regex_algos);
-        filter_out_names_not_matching_regexes(&regex_algos, NULL, opts->algo_names, opts->num_algo_names);
+        filter_out_names_not_matching_regexes(&regex_algos, NULL, NULL, opts->algo_names, opts->num_algo_names);
         merge_algorithms(algorithms, &regex_algos, NULL);
     }
 }
@@ -1140,7 +1140,7 @@ void get_algonames_to_test(algo_info_t *algorithms, const test_command_opts_t *o
     case ALGO_REGEXES:
     {
         get_all_algo_names(smart_config, algorithms);
-        filter_out_names_not_matching_regexes(algorithms, NULL, opts->algo_names, opts->num_algo_names);
+        filter_out_names_not_matching_regexes(algorithms, NULL, NULL, opts->algo_names, opts->num_algo_names);
         break;
     }
     case SELECTED_ALGOS:
