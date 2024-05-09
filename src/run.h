@@ -578,9 +578,11 @@ void load_and_run_benchmarks(const smart_config_t *smart_config, run_command_opt
 }
 
 /*
- * Loads the algorithms to benchmark given the run options and config.
+ * Builds the algorithms to use in performance benchmarking mode.
+ * The -all algorithms command will exclude stat_ version of algorithms as they are generally not suitable for performance profiling.
+ *
  */
-void get_algorithms_to_benchmark(const smart_config_t *smart_config, run_command_opts_t *opts, algo_info_t *algorithms)
+void get_algorithms_for_performance(const smart_config_t *smart_config, run_command_opts_t *opts, algo_info_t *algorithms)
 {
     init_algo_info(algorithms);
 
@@ -589,35 +591,138 @@ void get_algorithms_to_benchmark(const smart_config_t *smart_config, run_command
         case ALGO_REGEXES:
         {
             get_all_algo_names(smart_config, algorithms);
-            filter_out_names_not_matching_regexes(algorithms, NULL, opts->algo_names, opts->num_algo_names);
+            filter_out_names_not_matching_regexes(algorithms, NULL, NULL, opts->algo_names, opts->num_algo_names);
             break;
         }
         case NAMED_SET_ALGOS:
         {
+            //TODO: ensure that the algo names in the file actually exist - load all and filter.
             read_algo_names_from_file(smart_config, algorithms, opts->algo_filename);
             if (opts->num_algo_names > 0)
             {
                 algo_info_t regex_algos;
                 init_algo_info(&regex_algos);
                 get_all_algo_names(smart_config, &regex_algos);
-                filter_out_names_not_matching_regexes(&regex_algos, NULL, opts->algo_names, opts->num_algo_names);
+                filter_out_names_not_matching_regexes(&regex_algos, NULL, NULL, opts->algo_names, opts->num_algo_names);
                 merge_algorithms(algorithms, &regex_algos, NULL);
             }
             break;
         }
         case SELECTED_ALGOS:
         {
+            //TODO: ensure that the algo names in the file actually exist - load all and filter.
             read_algo_names_from_file(smart_config, algorithms, opts->algo_filename);
             break;
         }
         case ALL_ALGOS:
         {
             get_all_algo_names(smart_config, algorithms);
+            char regex[MAX_SELECT_ALGOS][ALGO_REGEX_LEN];
+            strncpy(regex[0], STATS_FILENAME_PREFIX, ALGO_REGEX_LEN);
+            strncpy(regex[0] + strlen(STATS_FILENAME_PREFIX), ".*", ALGO_REGEX_LEN - strlen(STATS_FILENAME_PREFIX));
+            filter_out_names_matching_regexes(algorithms, NULL, regex, 1);
             break;
         }
         default:
         {
             error_and_exit("Unknown algorithm source specified: %d", opts->algo_source);
+        }
+    }
+}
+
+/*
+ * Loads the algorithm names defined in the named set file, then finds all the stat_ versions of them in the existing
+ * set of algorithms.  Also merges in any algorithms specified on the command line (also ensuring it is the stat_
+ * versions that are added).
+ */
+void load_named_set_algorithms_for_algo_stats(const smart_config_t *smart_config, run_command_opts_t *opts, algo_info_t *algorithms)
+{
+    // Get algorithms from file:
+    algo_info_t file_algos;
+    init_algo_info(&file_algos);
+    read_algo_names_from_file(smart_config, &file_algos, opts->algo_filename);
+
+    // Convert algo names into regex array:
+    char algo_regexes[MAX_SELECT_ALGOS][ALGO_REGEX_LEN];
+    for (int i = 0; i < file_algos.num_algos; i++)
+        strncpy(algo_regexes[i], file_algos.algo_names[i], ALGO_REGEX_LEN);
+
+    // Load all the algorithms that exist:
+    get_all_algo_names(smart_config, algorithms);
+
+    // Filter out from the existing algorithms anything that doesn't match a name loaded from the file, with a stat_ prefix in front of it.
+    filter_out_names_not_matching_regexes(algorithms, NULL, STATS_FILENAME_PREFIX, algo_regexes, file_algos.num_algos);
+
+    // If we have specified additional algorithms on the command line, merge those in, ensuring a stat_ prefix for them.
+    if (opts->num_algo_names > 0)
+    {
+        algo_info_t regex_algos;
+        init_algo_info(&regex_algos);
+        get_all_algo_names(smart_config, &regex_algos);
+        filter_out_names_not_matching_regexes(&regex_algos, NULL, STATS_FILENAME_PREFIX, opts->algo_names, opts->num_algo_names);
+        merge_algorithms(algorithms, &regex_algos, NULL);
+    }
+}
+
+/*
+ * Builds the list of algorithms suitable for running in algo stats mode.
+ * Ensures it uses the stat_ version of algorithms for any command line or file-based algorithm specifications.
+ * The -all algorithms command will only return _stat algorithms.
+ */
+void get_algorithms_for_algostats(const smart_config_t *smart_config, run_command_opts_t *opts, algo_info_t *algorithms)
+{
+    init_algo_info(algorithms);
+    switch (opts->algo_source)
+    {
+        case ALGO_REGEXES:
+        {
+            get_all_algo_names(smart_config, algorithms);
+            filter_out_names_not_matching_regexes(algorithms, NULL, STATS_FILENAME_PREFIX, opts->algo_names, opts->num_algo_names);
+            break;
+        }
+        case NAMED_SET_ALGOS:
+        {
+            load_named_set_algorithms_for_algo_stats(smart_config, opts, algorithms);
+            break;
+        }
+        case SELECTED_ALGOS:
+        {
+            load_named_set_algorithms_for_algo_stats(smart_config, opts, algorithms);
+            break;
+        }
+        case ALL_ALGOS:
+        {
+            get_all_algo_names(smart_config, algorithms);
+            char regex[MAX_SELECT_ALGOS][ALGO_REGEX_LEN];
+            strncpy(regex[0], STATS_FILENAME_PREFIX, ALGO_REGEX_LEN);
+            strncpy(regex[0] + strlen(STATS_FILENAME_PREFIX), ".*", ALGO_REGEX_LEN - strlen(STATS_FILENAME_PREFIX));
+            filter_out_names_not_matching_regexes(algorithms, NULL, NULL, regex, 1);
+            break;
+        }
+        default:
+        {
+            error_and_exit("Unknown algorithm source specified: %d", opts->algo_source);
+        }
+    }
+}
+
+/*
+ * Loads the algorithms to benchmark given the run options and config.
+ */
+void get_algorithms_to_benchmark(const smart_config_t *smart_config, run_command_opts_t *opts, algo_info_t *algorithms)
+{
+    switch (opts->statistics_type) {
+        case STATS_PERFORMANCE: {
+            get_algorithms_for_performance(smart_config, opts, algorithms);
+            break;
+        }
+        case STATS_ALGORITHM: {
+            get_algorithms_for_algostats(smart_config, opts, algorithms);
+            break;
+        }
+        default:
+        {
+            error_and_exit("Unknown statistics type specified: %d", opts->statistics_type);
         }
     }
 
