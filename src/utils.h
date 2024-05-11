@@ -244,6 +244,14 @@ static int double_compare(const void *a, const void *b)
 }
 
 /*
+ * Compares a long with another long.
+ */
+static int long_compare(const void *a, const void *b)
+{
+    return (*(long*)a > *(long*)b) ? 1 : (*(long*)a < *(long*)b) ? -1 : 0;
+}
+
+/*
  * Compares a string with another string.
  */
 static int str_compare(const void *str1, const void *str2)
