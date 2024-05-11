@@ -165,12 +165,12 @@ void output_benchmark_run_summary(const smart_config_t *smart_config, const run_
 void output_algorithm_measurements_csv(const smart_config_t *smart_config, const run_command_opts_t *opts, int num_pattern_lengths,
                                        benchmark_results_t *results, const algo_info_t *algorithms)
 {
-    const int MEASUREMENT_COLUMNS = 9 + NUM_EXTRA_FIELDS;
+    const int MEASUREMENT_COLUMNS = 12 + NUM_EXTRA_FIELDS;
 
     FILE *rf = open_experiment_file_for_writing(smart_config, opts, "algo-measurements", "csv");
 
     fprintf(rf, "EXPERIMENT\tPLEN\tALGORITHM\tMeasurement");
-    fprintf(rf, "\t%% Text read\tAvg jump\tText bytes read\tPattern bytes read\t#Computations\t#Writes\t#Branches\t#Jumps\t#Lookups\t#Verifications");
+    fprintf(rf, "\t%% Text read\tAvg jump\tMem Used\tText bytes read\tPattern bytes read\t#Computations\t#Writes\t#Branches\t#Jumps\t#Lookups\t#Verifications");
     for (int i = 0; i < NUM_EXTRA_FIELDS; i++) {
         fprintf(rf, "\tExtra data %d", i);
     }
@@ -197,11 +197,12 @@ void output_algorithm_measurements_csv(const smart_config_t *smart_config, const
                     {
                         fprintf(rf, "%s\t%d\t%s\t%d\t", opts->expcode, pat_len, upper_case_name, measurement);
 
-                        fprintf(rf, "%.*f\t%.*f\t%ld\t%ld\t%ld\t%ld\t%ld\t%ld\t%ld\t%ld",
-                                opts->precision, (double) measurements->algo_stats[measurement].text_bytes_read / opts->num_runs /
+                        fprintf(rf, "%.*f\t%.*f\t%ld\t%ld\t%ld\t%ld\t%ld\t%ld\t%ld\t%ld\t%ld",
+                                opts->precision, (double) measurements->algo_stats[measurement].text_bytes_read /
                                                   opts->text_stats.text_actual_length * 100,
-                                0, (double) (opts->text_stats.text_actual_length - pat_len) /
-                                            ((double) measurements->algo_stats[measurement].num_jumps / opts->num_runs),
+                                opts->precision, (double) (opts->text_stats.text_actual_length - pat_len) /
+                                                 ((double) measurements->algo_stats[measurement].num_jumps),
+                                measurements->algo_stats[measurement].memory_used,
                                 measurements->algo_stats[measurement].text_bytes_read,
                                 measurements->algo_stats[measurement].pattern_bytes_read,
                                 measurements->algo_stats[measurement].num_computations,
@@ -348,15 +349,53 @@ void output_performance_measurements_csv(const smart_config_t *smart_config, con
     fclose(rf);
 }
 
+void output_algorithm_stats_row(FILE *rf, const run_command_opts_t *opts, const char *type, algo_stats_t *stats, algo_stats_t *extra, int pat_len)
+{
+    algo_stats_t *min_stats = extra == NULL? stats : extra;
+    fprintf(rf, "%s\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f",
+            type, opts->precision, (double) stats->text_bytes_read / opts->text_stats.text_actual_length * 100,
+            opts->precision, (double) (opts->text_stats.text_actual_length - pat_len) / ((double) min_stats->num_jumps),
+            0, (double) stats->memory_used,
+            0, (double) stats->text_bytes_read,
+            0, (double) stats->pattern_bytes_read,
+            0, (double) stats->num_computations,
+            0, (double) stats->num_writes,
+            0, (double) stats->num_branches,
+            0, (double) stats->num_jumps,
+            0, (double) stats->num_lookups,
+            0, (double) stats->num_verifications);
+    for (int i = 0; i < NUM_EXTRA_FIELDS; i++) {
+        fprintf(rf, "\t%.*f", 0, (double) stats->extra[i] / opts->num_runs);
+    }
+}
+
+void output_algorithm_stats_std_row(FILE *rf, const run_command_opts_t *opts, const char *type, algo_stats_t *stats, int pat_len)
+{
+    fprintf(rf, "%s\t%s\t%s\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f",
+            type, "", "",
+            0, (double) stats->memory_used,
+            0, (double) stats->text_bytes_read,
+            0, (double) stats->pattern_bytes_read,
+            0, (double) stats->num_computations,
+            0, (double) stats->num_writes,
+            0, (double) stats->num_branches,
+            0, (double) stats->num_jumps,
+            0, (double) stats->num_lookups,
+            0, (double) stats->num_verifications);
+    for (int i = 0; i < NUM_EXTRA_FIELDS; i++) {
+        fprintf(rf, "\t%.*f", 0, (double) stats->extra[i] / opts->num_runs);
+    }
+}
+
 void output_algorithm_statistics_csv(const smart_config_t *smart_config, const run_command_opts_t *opts, int num_pattern_lengths,
                                      benchmark_results_t *results, const algo_info_t *algorithms)
 {
     FILE *rf = open_experiment_file_for_writing(smart_config, opts, "algo-statistics", "csv");
 
-    const int MEASUREMENT_COLUMNS = 12;
+    const int MEASUREMENT_COLUMNS = 15;
 
     fprintf(rf, "EXPERIMENT\tPLEN\tALGORITHM");
-    fprintf(rf, "\t%% Text read\tAv jump\tText bytes read\tPattern bytes read\t#Computations\t#Writes\t#Branches\t#Jumps\t#Lookups\t#Verifications");
+    fprintf(rf, "\tStat type\t%% Text read\tAv jump\tMem used\tText bytes read\tPattern bytes read\t#Computations\t#Writes\t#Branches\t#Jumps\t#Lookups\t#Verifications");
     for (int i = 0; i < NUM_EXTRA_FIELDS; i++) {
         fprintf(rf, "\tExtra data %d", i);
     }
@@ -380,22 +419,19 @@ void output_algorithm_statistics_csv(const smart_config_t *smart_config, const r
                 case SUCCESS:
                 {
                     algo_statistics_t *stats = &(algo_res->statistics);
-                    fprintf(rf, "%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f",
-                            opts->precision, (double) stats->sum_algo_stats.text_bytes_read / opts->num_runs /
-                                                      opts->text_stats.text_actual_length * 100,
-                            0, (double) (opts->text_stats.text_actual_length - pat_len) /
-                               ((double) stats->sum_algo_stats.num_jumps / opts->num_runs),
-                            0, (double) stats->sum_algo_stats.text_bytes_read / opts->num_runs,
-                            0, (double) stats->sum_algo_stats.pattern_bytes_read / opts->num_runs,
-                            0, (double) stats->sum_algo_stats.num_computations / opts->num_runs,
-                            0, (double) stats->sum_algo_stats.num_writes / opts->num_runs,
-                            0, (double) stats->sum_algo_stats.num_branches / opts->num_runs,
-                            0, (double) stats->sum_algo_stats.num_jumps / opts->num_runs,
-                            0, (double) stats->sum_algo_stats.num_lookups / opts->num_runs,
-                            0, (double) stats->sum_algo_stats.num_verifications / opts->num_runs);
-                    for (int i = 0; i < NUM_EXTRA_FIELDS; i++) {
-                        fprintf(rf, "\t%.*f", 0, (double) stats->sum_algo_stats.extra[i] / opts->num_runs);
-                    }
+                    output_algorithm_stats_row(rf, opts, "median", &(stats->median_algo_stats), NULL, pat_len);
+
+                    fprintf(rf, "\n%s\t%d\t%s\t", opts->expcode, pat_len, upper_case_name);
+                    output_algorithm_stats_row(rf, opts, "mean", &(stats->mean_algo_stats), NULL,  pat_len);
+
+                    fprintf(rf, "\n%s\t%d\t%s\t", opts->expcode, pat_len, upper_case_name);
+                    output_algorithm_stats_std_row(rf, opts, "std", &(stats->std_algo_stats), pat_len);
+
+                    fprintf(rf, "\n%s\t%d\t%s\t", opts->expcode, pat_len, upper_case_name);
+                    output_algorithm_stats_row(rf, opts, "min", &(stats->min_algo_stats), &(stats->max_algo_stats), pat_len);
+
+                    fprintf(rf, "\n%s\t%d\t%s\t", opts->expcode, pat_len, upper_case_name);
+                    output_algorithm_stats_row(rf, opts, "max", &(stats->max_algo_stats), &(stats->min_algo_stats), pat_len);
                     break;
                 }
                 case CANNOT_SEARCH:
