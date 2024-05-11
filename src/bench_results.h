@@ -56,8 +56,14 @@ typedef struct algo_statistics
     double median_total_time;
     double std_total_time;
 
-    cpu_stats_t sum_cpu_stats;
-    algo_stats_t sum_algo_stats;
+    cpu_stats_t sum_cpu_stats; // TODO: investigate mean, std, median, min, max for cpu stats too.
+
+    algo_stats_t min_algo_stats;
+    algo_stats_t max_algo_stats;
+    algo_stats_t mean_algo_stats;
+    algo_stats_t std_algo_stats;
+    algo_stats_t median_algo_stats;
+
 } algo_statistics_t;
 
 /*
@@ -165,6 +171,214 @@ double compute_median(const double *T, int n)
 }
 
 /*
+ * Computes and returns the median of an array T of doubles of size n.
+ * It creates a copy of the array and sorts it before obtaining the median.
+ */
+long compute_median_long(const long *T, int n)
+{
+    // Sort the array passed in:
+    long sorted[n];
+    memcpy(sorted, T, sizeof(long) * n);
+    qsort(sorted, n, sizeof(long), double_compare);
+
+    // if the list of longs  has an even number of elements:
+    if (n % 2 == 0)
+    {
+        return (sorted[n / 2] + sorted[n / 2 + 1]) / 2; // return mean of n/2 and n/2+1 elements.
+    }
+    else
+    {
+        return sorted[(n + 1) / 2]; // return the element in the middle of the sorted array.
+    }
+}
+
+/*
+ * Returns the mean average of a list of n integers.
+ */
+long compute_mean_long(const long *T, int n)
+{
+    long avg =0;
+    for (int i = 0; i < n; i++)
+        avg += T[i];
+    return avg / n;
+}
+
+/*
+ * Computes and returns the minimum value of an array T of doubles of size n.
+ * Returns -1 if n < 1.
+  */
+long compute_min_long(const long *T, int n)
+{
+   long min_value = n > 0 ? T[0] : -1;
+   for (int i = 1; i < n; i++) {
+       min_value = MIN(min_value, T[i]);
+   }
+   return min_value;
+}
+
+/*
+ * Computes and returns the minimum value of an array T of doubles of size n.
+ * Returns -1 if n < 1.
+  */
+long compute_max_long(const long *T, int n)
+{
+    long max_value = n > 0 ? T[0] : -1;
+    for (int i = 1; i < n; i++) {
+        max_value = MAX(max_value, T[i]);
+    }
+    return max_value;
+}
+
+/*
+ * Computes and returns the sample standard deviation given a mean average, and a list of integers of size n.
+ *
+ * Sample standard deviation differs from population standard deviation, by dividing by one less than the number of
+ * samples.  This biases the sample standard deviation to be slightly bigger, to account for likely wider variation
+ * in the population as a whole.
+ *
+ * See: https://www.statology.org/population-vs-sample-standard-deviation/
+ */
+long compute_std_long(long avg, long *T, int n)
+{
+    double std = 0.0;
+    for (int i = 0; i < n; i++)
+        std += pow(avg - T[i], 2.0);
+    int sample_divisor = MAX(1, n - 1);
+    return (long) sqrt(std / sample_divisor);
+}
+
+void buildMemoryUsedList(long *values, const algo_stats_t *measurements, int n)
+{
+    for (int i = 0; i < n; i++) values[i] = measurements[i].memory_used;
+}
+
+void buildTextBytesReadList(long *values, const algo_stats_t *measurements, int n)
+{
+    for (int i = 0; i < n; i++) values[i] = measurements[i].text_bytes_read;
+}
+
+void buildPatternBytesReadList(long *values, const algo_stats_t *measurements, int n)
+{
+    for (int i = 0; i < n; i++) values[i] = measurements[i].pattern_bytes_read;
+}
+
+void buildNumComputeList(long *values, const algo_stats_t *measurements, int n)
+{
+    for (int i = 0; i < n; i++) values[i] = measurements[i].num_computations;
+}
+
+void buildNumWriteList(long *values, const algo_stats_t *measurements, int n)
+{
+    for (int i = 0; i < n; i++) values[i] = measurements[i].num_writes;
+}
+
+void buildNumJumpList(long *values, const algo_stats_t *measurements, int n)
+{
+    for (int i = 0; i < n; i++) values[i] = measurements[i].num_jumps;
+}
+
+void buildNumLookupList(long *values, const algo_stats_t *measurements, int n)
+{
+    for (int i = 0; i < n; i++) values[i] = measurements[i].num_lookups;
+}
+
+void buildNumBranchList(long *values, const algo_stats_t *measurements, int n)
+{
+    for (int i = 0; i < n; i++) values[i] = measurements[i].num_branches;
+}
+
+void buildNumVerificationList(long *values, const algo_stats_t *measurements, int n)
+{
+    for (int i = 0; i < n; i++) values[i] = measurements[i].num_verifications;
+}
+
+void buildNumExtraList(int extraIndex, long *values, const algo_stats_t *measurements, int n)
+{
+    for (int i = 0; i < n; i++) values[i] = measurements[i].extra[extraIndex];
+}
+
+/*
+ * Computes and returns the median values of algorithm stat measurements of size n.
+ */
+void compute_algo_stats(const algo_stats_t *measurements, int n, algo_statistics_t *results)
+{
+    long valuelist[n];
+
+    buildMemoryUsedList(valuelist, measurements, n);
+    results->mean_algo_stats.memory_used = compute_mean_long(valuelist, n);
+    results->std_algo_stats.memory_used = compute_std_long(results->mean_algo_stats.text_bytes_read,  valuelist, n);
+    results->median_algo_stats.memory_used = compute_median_long(valuelist, n);
+    results->min_algo_stats.memory_used = compute_min_long(valuelist, n);
+    results->max_algo_stats.memory_used = compute_max_long(valuelist, n);
+
+    buildTextBytesReadList(valuelist, measurements, n);
+    results->mean_algo_stats.text_bytes_read = compute_mean_long(valuelist, n);
+    results->std_algo_stats.text_bytes_read = compute_std_long(results->mean_algo_stats.text_bytes_read,  valuelist, n);
+    results->median_algo_stats.text_bytes_read = compute_median_long(valuelist, n);
+    results->min_algo_stats.text_bytes_read = compute_min_long(valuelist, n);
+    results->max_algo_stats.text_bytes_read = compute_max_long(valuelist, n);
+
+    buildPatternBytesReadList(valuelist, measurements, n);
+    results->mean_algo_stats.pattern_bytes_read = compute_mean_long(valuelist, n);
+    results->std_algo_stats.pattern_bytes_read = compute_std_long(results->mean_algo_stats.pattern_bytes_read,  valuelist, n);
+    results->median_algo_stats.pattern_bytes_read = compute_median_long(valuelist, n);
+    results->min_algo_stats.pattern_bytes_read = compute_min_long(valuelist, n);
+    results->max_algo_stats.pattern_bytes_read = compute_max_long(valuelist, n);
+
+    buildNumComputeList(valuelist, measurements, n);
+    results->mean_algo_stats.num_computations = compute_mean_long(valuelist, n);
+    results->std_algo_stats.num_computations = compute_std_long(results->mean_algo_stats.num_computations,  valuelist, n);
+    results->median_algo_stats.num_computations = compute_median_long(valuelist, n);
+    results->min_algo_stats.num_computations = compute_min_long(valuelist, n);
+    results->max_algo_stats.num_computations = compute_max_long(valuelist, n);
+
+    buildNumWriteList(valuelist, measurements, n);
+    results->mean_algo_stats.num_writes = compute_mean_long(valuelist, n);
+    results->std_algo_stats.num_writes = compute_std_long(results->mean_algo_stats.num_writes,  valuelist, n);
+    results->median_algo_stats.num_writes = compute_median_long(valuelist, n);
+    results->min_algo_stats.num_writes = compute_min_long(valuelist, n);
+    results->max_algo_stats.num_writes = compute_max_long(valuelist, n);
+
+    buildNumJumpList(valuelist, measurements, n);
+    results->mean_algo_stats.num_jumps = compute_mean_long(valuelist, n);
+    results->std_algo_stats.num_jumps = compute_std_long(results->mean_algo_stats.num_jumps,  valuelist, n);
+    results->median_algo_stats.num_jumps = compute_median_long(valuelist, n);
+    results->min_algo_stats.num_jumps = compute_min_long(valuelist, n);
+    results->max_algo_stats.num_jumps = compute_max_long(valuelist, n);
+
+    buildNumBranchList(valuelist, measurements, n);
+    results->mean_algo_stats.num_branches = compute_mean_long(valuelist, n);
+    results->std_algo_stats.num_branches = compute_std_long(results->mean_algo_stats.num_branches,  valuelist, n);
+    results->median_algo_stats.num_branches = compute_median_long(valuelist, n);
+    results->min_algo_stats.num_branches = compute_min_long(valuelist, n);
+    results->max_algo_stats.num_branches = compute_max_long(valuelist, n);
+
+    buildNumVerificationList(valuelist, measurements, n);
+    results->mean_algo_stats.num_verifications = compute_mean_long(valuelist, n);
+    results->std_algo_stats.num_verifications = compute_std_long(results->mean_algo_stats.num_verifications,  valuelist, n);
+    results->median_algo_stats.num_verifications = compute_median_long(valuelist, n);
+    results->min_algo_stats.num_verifications = compute_min_long(valuelist, n);
+    results->max_algo_stats.num_verifications = compute_max_long(valuelist, n);
+
+    buildNumLookupList(valuelist, measurements, n);
+    results->mean_algo_stats.num_lookups = compute_mean_long(valuelist, n);
+    results->std_algo_stats.num_lookups = compute_std_long(results->mean_algo_stats.num_lookups,  valuelist, n);
+    results->median_algo_stats.num_lookups = compute_median_long(valuelist, n);
+    results->min_algo_stats.num_lookups = compute_min_long(valuelist, n);
+    results->max_algo_stats.num_lookups = compute_max_long(valuelist, n);
+
+    for (int i = 0; i < NUM_EXTRA_FIELDS; i++)
+    {
+        buildNumExtraList(i, valuelist, measurements, n);
+        results->mean_algo_stats.extra[i] = compute_mean_long(valuelist, n);
+        results->std_algo_stats.extra[i] = compute_std_long(results->mean_algo_stats.extra[i],  valuelist, n);
+        results->median_algo_stats.extra[i] = compute_median_long(valuelist, n);
+        results->min_algo_stats.extra[i] = compute_min_long(valuelist, n);
+        results->max_algo_stats.extra[i] = compute_max_long(valuelist, n);
+    }
+}
+
+/*
  * Computes and returns the sample standard deviation given a mean average, and a list of search times of size n.
  *
  * Sample standard deviation differs from population standard deviation, by dividing by one less than the number of
@@ -226,8 +440,8 @@ void calculate_algo_statistics(algo_results_t *results, int num_measurements, in
     // Compute sum cpu stats:
     results->statistics.sum_cpu_stats = compute_sum_cpu_stats(results->measurements.cpu_stats, num_measurements);
 
-    // Compute sum algo stats:
-    results->statistics.sum_algo_stats = compute_sum_algo_stats(results->measurements.algo_stats, num_measurements);
+    // Compute algo stats:
+    compute_algo_stats(results->measurements.algo_stats, num_measurements, &(results->statistics));
 
     free(total_times);
 }
