@@ -405,7 +405,7 @@ int benchmark_algos_with_patterns(algo_results_t *results, const run_command_opt
         results[algo].success_state = run_algo(pattern_list, m, T, opts, algorithms->algo_functions[algo], results + algo);
 
         if (results[algo].success_state == SUCCESS)
-            calculate_algo_statistics(results + algo, opts->num_runs, opts->text_stats.text_actual_length);
+            calculate_algo_statistics(opts->statistics_type, results + algo, opts->num_runs, opts->text_stats.text_actual_length);
 
         print_benchmark_res(opts, results + algo, m);
     }

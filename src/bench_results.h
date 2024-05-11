@@ -8,6 +8,7 @@
 #include "utils.h"
 #include "algos/include/stats.h"
 #include "cpu_stats.h"
+#include "commands.h"
 
 
 /*
@@ -400,50 +401,54 @@ double compute_std(double avg, double *T, int n)
  * Calculates statistics for an algorithm for a given pattern length, given the measurements taken for that
  * algorithm over a number of runs.
  */
-void calculate_algo_statistics(algo_results_t *results, int num_measurements, int text_length)
+void calculate_algo_statistics(enum statistics_gather_type statistics_type, algo_results_t *results, int num_measurements, int text_length)
 {
-    // Compute total of pre and search times:
-    double *total_times = malloc(sizeof(double) * num_measurements);
-    for (int i = 0; i < num_measurements; i++)
+    if (statistics_type == STATS_PERFORMANCE)
     {
-        total_times[i] = results->measurements.pre_times[i] + results->measurements.search_times[i];
+        // Compute total of pre and search times:
+        double *total_times = malloc(sizeof(double) * num_measurements);
+        for (int i = 0; i < num_measurements; i++)
+        {
+            total_times[i] = results->measurements.pre_times[i] + results->measurements.search_times[i];
+        }
+
+        // Compute min and max pre, search and total times:
+        compute_min_max(results->measurements.pre_times, num_measurements,
+                        &(results->statistics.min_pre_time), &(results->statistics.max_pre_time));
+        compute_min_max(results->measurements.search_times, num_measurements,
+                        &(results->statistics.min_search_time), &(results->statistics.max_search_time));
+        compute_min_max(total_times, num_measurements,
+                        &(results->statistics.min_total_time), &(results->statistics.max_total_time));
+
+        // Compute mean pre, search and total times and the standard deviation:
+        results->statistics.mean_pre_time = compute_average(results->measurements.pre_times, num_measurements);
+        results->statistics.mean_search_time = compute_average(results->measurements.search_times, num_measurements);
+        results->statistics.std_search_time = compute_std(results->statistics.mean_search_time,
+                                                          results->measurements.search_times, num_measurements);
+        results->statistics.mean_total_time = compute_average(total_times, num_measurements);
+        results->statistics.std_total_time = compute_std(results->statistics.mean_total_time, total_times, num_measurements);
+
+        // Compute standard deviation for Gigabytes per second:
+        double gbs[num_measurements];
+        for (int i = 0; i < num_measurements; i++)
+            gbs[i] = GBs(results->measurements.search_times[i], text_length);
+        double mean_gbs = compute_average(gbs, num_measurements);
+        results->statistics.std_search_time_gbs = compute_std(mean_gbs, gbs, num_measurements);
+
+        // Compute median pre, search and total times:
+        results->statistics.median_pre_time = compute_median(results->measurements.pre_times, num_measurements);
+        results->statistics.median_search_time = compute_median(results->measurements.search_times, num_measurements);
+        results->statistics.median_total_time = compute_median(total_times, num_measurements);
+
+        // Compute sum cpu stats:
+        results->statistics.sum_cpu_stats = compute_sum_cpu_stats(results->measurements.cpu_stats, num_measurements);
+
+        free(total_times);
     }
-
-    // Compute min and max pre, search and total times:
-    compute_min_max(results->measurements.pre_times, num_measurements,
-                    &(results->statistics.min_pre_time), &(results->statistics.max_pre_time));
-    compute_min_max(results->measurements.search_times, num_measurements,
-                    &(results->statistics.min_search_time), &(results->statistics.max_search_time));
-    compute_min_max(total_times, num_measurements,
-                    &(results->statistics.min_total_time), &(results->statistics.max_total_time));
-
-    // Compute mean pre, search and total times and the standard deviation:
-    results->statistics.mean_pre_time = compute_average(results->measurements.pre_times, num_measurements);
-    results->statistics.mean_search_time = compute_average(results->measurements.search_times, num_measurements);
-    results->statistics.std_search_time = compute_std(results->statistics.mean_search_time,
-                                                      results->measurements.search_times, num_measurements);
-    results->statistics.mean_total_time = compute_average(total_times, num_measurements);
-    results->statistics.std_total_time = compute_std(results->statistics.mean_total_time, total_times, num_measurements);
-
-    // Compute standard deviation for Gigabytes per second:
-    double gbs[num_measurements];
-    for (int i = 0; i < num_measurements; i++)
-        gbs[i] = GBs(results->measurements.search_times[i], text_length);
-    double mean_gbs = compute_average(gbs, num_measurements);
-    results->statistics.std_search_time_gbs = compute_std(mean_gbs, gbs, num_measurements);
-
-    // Compute median pre, search and total times:
-    results->statistics.median_pre_time = compute_median(results->measurements.pre_times, num_measurements);
-    results->statistics.median_search_time = compute_median(results->measurements.search_times, num_measurements);
-    results->statistics.median_total_time = compute_median(total_times, num_measurements);
-
-    // Compute sum cpu stats:
-    results->statistics.sum_cpu_stats = compute_sum_cpu_stats(results->measurements.cpu_stats, num_measurements);
-
-    // Compute algo stats:
-    compute_algo_stats(results->measurements.algo_stats, num_measurements, &(results->statistics));
-
-    free(total_times);
+    else
+    {
+        compute_algo_stats(results->measurements.algo_stats, num_measurements, &(results->statistics));
+    }
 }
 
 /*
