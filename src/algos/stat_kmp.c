@@ -49,6 +49,8 @@ int search(unsigned char *x, int m, unsigned char *y, int n) {
    preKmp(x, m, kmpNext);
    END_PREPROCESSING
 
+    _stats.memory_used = (m + 1) * sizeof(int);
+
    /* Searching */
    BEGIN_SEARCHING
    count = 0;

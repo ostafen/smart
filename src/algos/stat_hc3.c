@@ -129,6 +129,8 @@ int search(unsigned char *x, int m, unsigned char *y, int n) {
     const unsigned int Hm = preprocessing(x, m, B);
     END_PREPROCESSING
 
+    _stats.memory_used = ASIZE * sizeof(unsigned int);
+
     /* Searching */
     BEGIN_SEARCHING
     int count = 0;

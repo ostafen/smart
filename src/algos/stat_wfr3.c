@@ -79,6 +79,8 @@ int search(unsigned char *x, int m, unsigned char *y, int n)
         y[n + i] = x[i];
     END_PREPROCESSING
 
+    _stats.memory_used = (256 * 256 * sizeof(char)) + m; // needs to write m bytes to the text, which counts as additional space required.
+
     BEGIN_SEARCHING
     /* Searching */
     count = 0;

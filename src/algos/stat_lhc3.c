@@ -126,7 +126,9 @@ int search(unsigned char *x, int m, unsigned char *y, int n) {
     pre_kmp(x, m, KMP);
     END_PREPROCESSING
 
-    /* Searching */
+    _stats.memory_used = (ASIZE * sizeof(unsigned int)) + ((m+1) * sizeof(int));
+
+            /* Searching */
     BEGIN_SEARCHING
     int count = 0;
     int pos = m - 1;

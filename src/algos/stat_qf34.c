@@ -51,8 +51,10 @@ int search(unsigned char *x, int m, unsigned char *y, int n)
 			B[ch] |= (1<<((m-i) % Q));
 	}
    END_PREPROCESSING
-	
-	/* Searching */
+
+    _stats.memory_used = ASIZE * sizeof(int);
+
+            /* Searching */
    BEGIN_SEARCHING
    _stats.num_writes++;
     _stats.num_branches++;

@@ -36,6 +36,8 @@ int search(unsigned char *P, int m, unsigned char *T, int n) {
    Pre_Horspool(P, m, hbc);
    END_PREPROCESSING
 
+   _stats.memory_used = SIGMA * sizeof(int);
+
    /* Searching */
    BEGIN_SEARCHING
    s = 0;
