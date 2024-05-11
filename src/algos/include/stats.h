@@ -24,6 +24,7 @@
 
 typedef struct algostats
 {
+    long memory_used;             // Number of bytes of memory allocated by the search algorithm (does not include local variables like loops, constants and temp values, does include arrays)
     long text_bytes_read;         // Number of bytes read from the text during search.
     long pattern_bytes_read;      // Number of bytes read from the pattern during search.
     long num_computations;        // Number of significant computations performed (e.g. calculating a hash function).
@@ -40,6 +41,7 @@ typedef struct algostats
  */
 void init_stats(algo_stats_t *stats)
 {
+    stats->memory_used = 0;
     stats->text_bytes_read = 0;
     stats->pattern_bytes_read = 0;
     stats->num_computations = 0;
@@ -59,6 +61,7 @@ void init_stats(algo_stats_t *stats)
  */
 void algo_stats_add(algo_stats_t *sum, const algo_stats_t *to_add)
 {
+    sum->memory_used += to_add->memory_used;
     sum->text_bytes_read += to_add->text_bytes_read;
     sum->pattern_bytes_read += to_add->pattern_bytes_read;
     sum->num_computations += to_add->num_computations;
@@ -72,6 +75,30 @@ void algo_stats_add(algo_stats_t *sum, const algo_stats_t *to_add)
         sum->extra[i] += to_add->extra[i];
     }
 }
+
+/*
+ * Divides the stats in dividend by the number in divisor.
+ */
+void algo_stats_divide(algo_stats_t *dividend, long divisor)
+{
+    if (divisor != 0)
+    {
+        dividend->memory_used /= divisor;
+        dividend->text_bytes_read /= divisor;
+        dividend->pattern_bytes_read /= divisor;
+        dividend->num_computations /= divisor;
+        dividend->num_writes /= divisor;
+        dividend->num_branches /= divisor;
+        dividend->num_jumps /= divisor;
+        dividend->num_lookups /= divisor;
+        dividend->num_verifications /= divisor;
+        for (int i = 0; i < NUM_EXTRA_FIELDS; i++)
+        {
+            dividend->extra[i] /= divisor;
+        }
+    }
+}
+
 
 #endif //SMART_ALGOSTATS_H
 
