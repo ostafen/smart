@@ -20,8 +20,11 @@
 #ifndef SMART_ALGOSTATS_H
 #define SMART_ALGOSTATS_H
 
-#define NUM_EXTRA_FIELDS 3        // Number of extra fields available for custom stats.
+#define NUM_EXTRA_FIELDS 5        // Number of extra fields available for custom stats.
 
+/*
+ * Information to track about the operation of search algorithms.
+ */
 typedef struct algostats
 {
     long memory_used;             // Number of bytes of memory allocated by the search algorithm (does not include local variables like loops, constants and temp values, does include arrays)
@@ -99,6 +102,54 @@ void algo_stats_divide(algo_stats_t *dividend, long divisor)
     }
 }
 
+/*
+ * Functions to sum information about tables used by search algorithms.
+ */
+
+/*
+ * Counts all the bits set in an unsigned integer.
+ * Algorithm is by Brian Kernighan, as described in: https://graphics.stanford.edu/~seander/bithacks.html#CountBitsSetKernighan
+ */
+unsigned long count_set_bits_uint(unsigned int value)
+{
+    unsigned long count;
+    for (count = 0; value; count++) {
+        value &= value - 1;
+    }
+    return count;
+}
+
+/*
+ * Counts all the bits set in a table of unsigned ints, of length n.
+ */
+unsigned long count_set_bits_int_table(unsigned int *table, int n)
+{
+    unsigned long count = 0;
+    for (int i = 0; i < n; i++) {
+        count += count_set_bits_uint(table[i]);
+    }
+    return count;
+}
+
+/*
+ * Counts all the entries in a table of ints which have a non-zero value.
+ */
+unsigned long count_non_zero_entries_int_table(unsigned int *table, int n)
+{
+    unsigned long count = 0;
+    for (int i = 0; i < n; i++) if (table[i] != 0) count++;
+    return count;
+}
+
+/*
+ * Counts all the entries in a table of ints which have entries smaller than a max_value.
+ */
+unsigned long count_smaller_entries_int_table(unsigned int *table, int n, int max_value)
+{
+    unsigned long count = 0;
+    for (int i = 0; i < n; i++) if (table[i] < max_value) count++;
+    return count;
+}
 
 #endif //SMART_ALGOSTATS_H
 
