@@ -36,7 +36,7 @@
 #define MAX_DATA_FILES 128                // max number of different files to load to fill the benchmark text buffer.
 #define NUM_PATTERNS_MAX 100              // maximum number of different pattern lengths to benchmark at one time.
 #define ALGO_REGEX_LEN 64                 // max length of algorithm regex from command line.
-#define MAX_LINE_LEN 192                  // max length of line to output to console.
+#define MAX_LINE_LEN 256                  // max length of line to output to console.
 #define MAX_LINES 5                       // max number of lines that can be output to the console in one go.
 #define MAX_OUTPUT_LEN MAX_LINE_LEN * MAX_LINES // max output length when writing multiple lines
 #define STR_BUF 256                       // general strings with a bit of space to spare - parameters, filenames, etc.
