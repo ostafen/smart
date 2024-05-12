@@ -171,65 +171,36 @@ void get_occurrence_results_text(char occurence[STR_BUF], const run_command_opts
 void format_algorithm_statistics(char output_line[MAX_LINE_LEN], char occurence[STR_BUF], const char *stat_type,
                                  const run_command_opts_t *opts, algo_stats_t *stats, algo_stats_t *extra_stats, int m, int calculate_derived_stats)
 {
-    if (calculate_derived_stats == 1)
-    {
-        snprintf(output_line, MAX_LINE_LEN, " %*s %*.*f %*.*f %*.*f %*.*f %*.*f %*.*f %*.*f %*.*f %*.*f %*.*f %*.*f %*.*f %*.*f %*.*f \t%s",
-                 ALGO_STAT_COL_WIDTH, stat_type,
+    const int SPACING = ALGO_STAT_COL_WIDTH + 1;
+    snprintf(output_line, MAX_LINE_LEN, " %*s", ALGO_STAT_COL_WIDTH, stat_type);
+
+    if (calculate_derived_stats) {
+        algo_stats_t *jump_stats = extra_stats == NULL? stats : extra_stats;
+        snprintf(output_line + SPACING, MAX_LINE_LEN - SPACING, " %*.*f %*.*f",
                  ALGO_STAT_COL_WIDTH, opts->precision, (double) stats->text_bytes_read / opts->text_stats.text_actual_length * 100,
-                 ALGO_STAT_COL_WIDTH, 1, (double) (opts->text_stats.text_actual_length - m) / ((double) stats->num_jumps),
-                 ALGO_STAT_COL_WIDTH, 0, (double) stats->memory_used,
-                 ALGO_STAT_COL_WIDTH, 0, (double) stats->text_bytes_read,
-                 ALGO_STAT_COL_WIDTH, 0, (double) stats->pattern_bytes_read,
-                 ALGO_STAT_COL_WIDTH, 0, (double) stats->num_computations,
-                 ALGO_STAT_COL_WIDTH, 0, (double) stats->num_writes,
-                 ALGO_STAT_COL_WIDTH, 0, (double) stats->num_branches,
-                 ALGO_STAT_COL_WIDTH, 0, (double) stats->num_jumps,
-                 ALGO_STAT_COL_WIDTH, 0, (double) stats->num_lookups,
-                 ALGO_STAT_COL_WIDTH, 0, (double) stats->num_verifications,
-                 ALGO_STAT_COL_WIDTH, 0, (double) stats->extra[0],
-                 ALGO_STAT_COL_WIDTH, 0, (double) stats->extra[1],
-                 ALGO_STAT_COL_WIDTH, 0, (double) stats->extra[2],
-                 occurence);
+                 ALGO_STAT_COL_WIDTH, 1, (double) (opts->text_stats.text_actual_length - m) / ((double) jump_stats->num_jumps));
+    } else {
+        snprintf(output_line + SPACING, MAX_LINE_LEN - SPACING, " %*s %*s",
+                 ALGO_STAT_COL_WIDTH, "", ALGO_STAT_COL_WIDTH, "");
     }
-    else if (calculate_derived_stats == 2)
-    {
-        snprintf(output_line, MAX_LINE_LEN, " %*s %*.*f %*.*f %*.*f %*.*f %*.*f %*.*f %*.*f %*.*f %*.*f %*.*f %*.*f %*.*f %*.*f %*.*f \t%s",
-                 ALGO_STAT_COL_WIDTH, stat_type,
-                 ALGO_STAT_COL_WIDTH, opts->precision, (double) stats->text_bytes_read / opts->text_stats.text_actual_length * 100,
-                 ALGO_STAT_COL_WIDTH, 1, (double) (opts->text_stats.text_actual_length - m) / ((double) extra_stats->num_jumps),
-                 ALGO_STAT_COL_WIDTH, 0, (double) stats->memory_used,
-                 ALGO_STAT_COL_WIDTH, 0, (double) stats->text_bytes_read,
-                 ALGO_STAT_COL_WIDTH, 0, (double) stats->pattern_bytes_read,
-                 ALGO_STAT_COL_WIDTH, 0, (double) stats->num_computations,
-                 ALGO_STAT_COL_WIDTH, 0, (double) stats->num_writes,
-                 ALGO_STAT_COL_WIDTH, 0, (double) stats->num_branches,
-                 ALGO_STAT_COL_WIDTH, 0, (double) stats->num_jumps,
-                 ALGO_STAT_COL_WIDTH, 0, (double) stats->num_lookups,
-                 ALGO_STAT_COL_WIDTH, 0, (double) stats->num_verifications,
-                 ALGO_STAT_COL_WIDTH, 0, (double) stats->extra[0],
-                 ALGO_STAT_COL_WIDTH, 0, (double) stats->extra[1],
-                 ALGO_STAT_COL_WIDTH, 0, (double) stats->extra[2],
-                 occurence);
+
+    snprintf(output_line + SPACING * 3, MAX_LINE_LEN - SPACING * 3, " %*.*f %*.*f %*.*f %*.*f %*.*f %*.*f %*.*f %*.*f %*.*f",
+             ALGO_STAT_COL_WIDTH, 0, (double) stats->memory_used,
+             ALGO_STAT_COL_WIDTH, 0, (double) stats->text_bytes_read,
+             ALGO_STAT_COL_WIDTH, 0, (double) stats->pattern_bytes_read,
+             ALGO_STAT_COL_WIDTH, 0, (double) stats->num_computations,
+             ALGO_STAT_COL_WIDTH, 0, (double) stats->num_writes,
+             ALGO_STAT_COL_WIDTH, 0, (double) stats->num_branches,
+             ALGO_STAT_COL_WIDTH, 0, (double) stats->num_jumps,
+             ALGO_STAT_COL_WIDTH, 0, (double) stats->num_lookups,
+             ALGO_STAT_COL_WIDTH, 0, (double) stats->num_verifications);
+
+    for (int i = 0; i < NUM_EXTRA_FIELDS; i++) {
+        snprintf(output_line + SPACING * (12 + i), MAX_LINE_LEN - SPACING * (12 + i), " %*.*f",
+                 ALGO_STAT_COL_WIDTH, 0, (double) stats->extra[i]);
     }
-    else
-    {
-        snprintf(output_line, MAX_LINE_LEN, " %*s %*s %*s %*s %*.*f %*.*f %*.*f %*.*f %*.*f %*.*f %*.*f %*.*f %*.*f %*.*f %*.*f \t%s",
-                 ALGO_STAT_COL_WIDTH, stat_type,
-                 ALGO_STAT_COL_WIDTH, "", ALGO_STAT_COL_WIDTH, "", ALGO_STAT_COL_WIDTH, "",
-                 ALGO_STAT_COL_WIDTH, 0, (double) stats->text_bytes_read,
-                 ALGO_STAT_COL_WIDTH, 0, (double) stats->pattern_bytes_read,
-                 ALGO_STAT_COL_WIDTH, 0, (double) stats->num_computations,
-                 ALGO_STAT_COL_WIDTH, 0, (double) stats->num_writes,
-                 ALGO_STAT_COL_WIDTH, 0, (double) stats->num_branches,
-                 ALGO_STAT_COL_WIDTH, 0, (double) stats->num_jumps,
-                 ALGO_STAT_COL_WIDTH, 0, (double) stats->num_lookups,
-                 ALGO_STAT_COL_WIDTH, 0, (double) stats->num_verifications,
-                 ALGO_STAT_COL_WIDTH, 0, (double) stats->extra[0],
-                 ALGO_STAT_COL_WIDTH, 0, (double) stats->extra[1],
-                 ALGO_STAT_COL_WIDTH, 0, (double) stats->extra[2],
-                 occurence);
-    }
-    //TODO: dynamically format extra columns.
+
+    //TODO: add occurence as a field, not a weird extra tabbed value.
 }
 
 void format_all_algo_stats(char output_line[MAX_OUTPUT_LEN], char occurence[STR_BUF],
@@ -376,13 +347,21 @@ int benchmark_algos_with_patterns(algo_results_t *results, const run_command_opt
     info("\tSearching for a set of %d patterns with length %d", opts->num_runs, m);
 
     if (opts->statistics_type == STATS_ALGORITHM) {
-        info("\tTesting %d algorithms              %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s", algorithms->num_algos,
-             ALGO_STAT_COL_WIDTH, "%text read", ALGO_STAT_COL_WIDTH, "av jump",
-             ALGO_STAT_COL_WIDTH, "mem used", ALGO_STAT_COL_WIDTH, "text read", ALGO_STAT_COL_WIDTH, "patt read",
-             ALGO_STAT_COL_WIDTH, "#compute", ALGO_STAT_COL_WIDTH, "#writes", ALGO_STAT_COL_WIDTH, "#branches",
-             ALGO_STAT_COL_WIDTH, "#jumps", ALGO_STAT_COL_WIDTH, "#lookups", ALGO_STAT_COL_WIDTH, "#verifies",
-             ALGO_STAT_COL_WIDTH, "extra 0", ALGO_STAT_COL_WIDTH, "extra 1", ALGO_STAT_COL_WIDTH, "extra 2");
-        //TODO: dynamically do extra fields.
+        char output_line[MAX_LINE_LEN];
+        const int SPACING = ALGO_STAT_COL_WIDTH + 1;
+        snprintf(output_line, MAX_LINE_LEN,
+                 "\tTesting %d algorithms              %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s", algorithms->num_algos,
+                 ALGO_STAT_COL_WIDTH, "%text read", ALGO_STAT_COL_WIDTH, "av jump",
+                 ALGO_STAT_COL_WIDTH, "mem used", ALGO_STAT_COL_WIDTH, "text read", ALGO_STAT_COL_WIDTH, "patt read",
+                 ALGO_STAT_COL_WIDTH, "#compute", ALGO_STAT_COL_WIDTH, "#writes", ALGO_STAT_COL_WIDTH, "#branches",
+                 ALGO_STAT_COL_WIDTH, "#jumps", ALGO_STAT_COL_WIDTH, "#lookups", ALGO_STAT_COL_WIDTH, "#verifies");
+        size_t len = strlen(output_line);
+        for (int i = 0; i < NUM_EXTRA_FIELDS; i++) {
+            char header[STR_BUF];
+            snprintf(header, STR_BUF, "extra %d", i);
+            snprintf(output_line + len + (SPACING * i), MAX_LINE_LEN - len - (SPACING * i), " %*s", ALGO_STAT_COL_WIDTH, header);
+        }
+        info("%s", output_line);
     }
     else if (opts->pre)
     {
