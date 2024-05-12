@@ -307,7 +307,7 @@ void compute_algo_stats(const algo_stats_t *measurements, int n, algo_statistics
 
     buildMemoryUsedList(valuelist, measurements, n);
     results->mean_algo_stats.memory_used = compute_mean_long(valuelist, n);
-    results->std_algo_stats.memory_used = compute_std_long(results->mean_algo_stats.text_bytes_read,  valuelist, n);
+    results->std_algo_stats.memory_used = compute_std_long(results->mean_algo_stats.memory_used,  valuelist, n);
     results->median_algo_stats.memory_used = compute_median_long(valuelist, n);
     results->min_algo_stats.memory_used = compute_min_long(valuelist, n);
     results->max_algo_stats.memory_used = compute_max_long(valuelist, n);
