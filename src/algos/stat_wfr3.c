@@ -34,6 +34,20 @@
  *		Otherwise we stop scanning (w is not a factor of the pattern) and jump to the right, like in BOM.
  */
 
+/*
+ * This implementation is written to gather run-time statistics about the algorithm.
+ * Performance measurements of this algorithm will not be comparable, as gathering the data takes time.
+ * This should not be used for performance profiling, it is used to gather run-time algorithm statistics.
+ *
+ * EXTRA FIELDS
+ * ============
+ *
+ * extra[0]    Tracks the number of times the algorithm matches the first hash it sees at the end of the window.
+ * extra[1]    The number of entries that remain zero in the main hash table.
+ * extra[2]    The total number of addressable bits in the hash table.
+ * extra[3]    The number of bits set in the hash table.
+ */
+
 #include "include/define.h"
 #include "include/main.h"
 #include "include/GRAPH.h"
@@ -80,6 +94,11 @@ int search(unsigned char *x, int m, unsigned char *y, int n)
     END_PREPROCESSING
 
     _stats.memory_used = (256 * 256 * sizeof(char)) + m; // needs to write m bytes to the text, which counts as additional space required.
+    _stats.num_lookup_entries1 = 256 * 256;
+
+    _stats.extra[1] = count_non_zero_entries_char_table(F, 256*256);
+    _stats.extra[2] = 256*256;
+    _stats.extra[3] = count_set_bits_char_table(F, 256*256);
 
     BEGIN_SEARCHING
     /* Searching */
@@ -103,6 +122,11 @@ int search(unsigned char *x, int m, unsigned char *y, int n)
         _stats.num_writes++; // store value.
         _stats.num_lookups++;
         _stats.num_branches++;
+
+        if (F[h]) {
+            _stats.extra[0]++; // number of times the first hash matches.
+        }
+
         while ((test = F[h]) && j > i + Q - 1)
         {
             j -= Q;

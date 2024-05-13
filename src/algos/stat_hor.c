@@ -20,6 +20,17 @@
  * in R. N. Horspool. Practical fast searching in strings. Softw. Pract. Exp., vol.10, n.6, pp.501--506, (1980).
  */
 
+/*
+ * An instrumented implementation of Horspool.
+ * This should not be used for performance profiling, it is used to gather run-time algorithm statistics.
+ *
+ * EXTRA FIELDS
+ * ============
+ *
+ * Field extra[0] tracks the number of entries in the shift table whose value is less than m.
+ * This is the number of distinct characters which received a smaller value when pre-processing.
+ */
+
 #include "include/define.h"
 #include "include/main.h"
 
@@ -37,6 +48,8 @@ int search(unsigned char *P, int m, unsigned char *T, int n) {
    END_PREPROCESSING
 
    _stats.memory_used = SIGMA * sizeof(int);
+   _stats.num_lookup_entries1 = SIGMA;
+   _stats.extra[0] = count_smaller_entries_int_table(hbc, SIGMA, m);
 
    /* Searching */
    BEGIN_SEARCHING

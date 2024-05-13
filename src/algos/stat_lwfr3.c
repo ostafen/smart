@@ -15,6 +15,19 @@
  *      Linearity is obtained by combaining the veification phase of the KMP algorithm
  */
 
+/*
+ * This implementation is written to gather run-time statistics about the algorithm.
+ * Performance measurements of this algorithm will not be comparable, as gathering the data takes time.
+ * This should not be used for performance profiling, it is used to gather run-time algorithm statistics.
+ *
+ * EXTRA FIELDS
+ * ============
+ *
+ * extra[0]    Tracks the number of times the algorithm matches the first hash it sees at the end of the window.
+ * extra[1]    The number of entries that remain zero in the main hash table.
+ * extra[2]    The total number of addressable bits in the hash table.
+ * extra[3]    The number of bits set in the hash table.
+ */
 
 #include "include/define.h"
 #include "include/main.h"
@@ -76,6 +89,11 @@ int search(unsigned char *x, int m, unsigned char *y, int n) {
     END_PREPROCESSING
 
     _stats.memory_used = (256*256 * sizeof(char)) + ((m+1) * sizeof(int)) + m; // needs to write m bytes to end of text, which also counts.
+    _stats.num_lookup_entries1 = 256*256;
+    _stats.num_lookup_entries2 = m + 1;
+    _stats.extra[1] = count_non_zero_entries_char_table(F, 256*256);
+    _stats.extra[2] = 256*256;
+    _stats.extra[3] = count_set_bits_char_table(F, 256*256);
 
     BEGIN_SEARCHING
     /* Searching */
@@ -96,6 +114,7 @@ int search(unsigned char *x, int m, unsigned char *y, int n) {
 
         _stats.num_lookups++; // for the first time around the loop F[h]
         _stats.num_branches++;
+
         while (!F[h]) {
             j += mq;
             _stats.num_writes++; // store value.
@@ -108,8 +127,13 @@ int search(unsigned char *x, int m, unsigned char *y, int n) {
             _stats.num_lookups++; // for the next time around the loop F[h].
             _stats.num_branches++;
         }
+
+        if (F[h]) {
+            _stats.extra[0]++; // number of times the first hash matches.
+        }
+
         lf = b = j - m + Q;
-        _stats.num_writes++; // store value.
+        _stats.num_writes += 2; // store value.
         _stats.num_branches++;
         if (b < tp) {
             b = tp - 1;  //b is the maximum between lf and tp-1

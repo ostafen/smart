@@ -23,6 +23,21 @@
  * Q is the dimension of q-grams
  */
 
+/*
+ * This implementation is written to gather run-time statistics about the algorithm.
+ * Performance measurements of this algorithm will not be comparable, as gathering the data takes time.
+ * This should not be used for performance profiling, it is used to gather run-time algorithm statistics.
+ *
+ * EXTRA FIELDS
+ * ============
+ *
+ * extra[0]    Tracks the number of times the algorithm matches the first hash it sees at the end of the window.
+ * extra[1]    The number of entries that remain zero in the main hash table.
+ * extra[2]    The total number of addressable bits in the hash table.  Each entry can only store Q bits in the hash table.
+ * extra[3]    The number of bits set in the hash table.
+ * extra[4]    The number of times we find a full pattern match AFTER the first attempt (it tries up to Q matches each time a verification occurs).
+ */
+
 #include "include/define.h"
 #include "include/main.h"
 #define	Q	3
@@ -53,6 +68,10 @@ int search(unsigned char *x, int m, unsigned char *y, int n)
    END_PREPROCESSING
 
     _stats.memory_used = ASIZE * sizeof(int);
+    _stats.num_lookup_entries1 = ASIZE;
+    _stats.extra[1] = count_non_zero_entries_uint_table(B, ASIZE);
+    _stats.extra[2] = ASIZE * Q; // only Q bits can be set per entry with QF.
+    _stats.extra[3] = count_set_bits_int_table(B, ASIZE);
 
             /* Searching */
    BEGIN_SEARCHING
@@ -105,9 +124,17 @@ int search(unsigned char *x, int m, unsigned char *y, int n)
                     _stats.num_writes++;
                 }
                 _stats.num_branches++;
+
+                int statcount = 0; // not part of algo - used to trigger when to gather extra[4] info.
+
                 for(  ; k <= j; k++) {
                     _stats.num_branches++;
-                    if (stats_verify_pattern(k, x, m, y, n) == m) count++;
+                    statcount++;
+
+                    if (stats_verify_pattern(k, x, m, y, n) == m) {
+                        count++;
+                        if (statcount == 1) _stats.extra[4]++; else _stats.extra[5]++;
+                    }
                     _stats.num_branches++;
                 }
 		   }

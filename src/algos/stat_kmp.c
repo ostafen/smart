@@ -50,6 +50,7 @@ int search(unsigned char *x, int m, unsigned char *y, int n) {
    END_PREPROCESSING
 
     _stats.memory_used = (m + 1) * sizeof(int);
+    _stats.num_lookup_entries1 = m + 1;
 
    /* Searching */
    BEGIN_SEARCHING
@@ -60,7 +61,6 @@ int search(unsigned char *x, int m, unsigned char *y, int n) {
     while (j < n) {
        _stats.num_verifications++;
 
-       _stats.num_branches++;
        if (i > -1) {
            _stats.pattern_bytes_read++;
            _stats.text_bytes_read++;

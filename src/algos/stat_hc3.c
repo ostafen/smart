@@ -17,9 +17,15 @@
 /*
  * This implementation is written to gather run-time statistics about the algorithm.
  * Performance measurements of this algorithm will not be comparable, as gathering the data takes time.
+ * This should not be used for performance profiling, it is used to gather run-time algorithm statistics.
  *
- * In addition to the standard algorithm statistics, this also gathers in field extra[0] the maximum
- * distance that the algorithm scans back to find a mismatch.
+ * EXTRA FIELDS
+ * ============
+ *
+ * extra[0]    Tracks the number of times the algorithm matches the first hash it sees at the end of the window.
+ * extra[1]    The number of entries that remain zero in the main hash table.
+ * extra[2]    The total number of addressable bits in the hash table.
+ * extra[3]    The number of bits set in the hash table.
  */
 
 #include "include/define.h"
@@ -130,6 +136,11 @@ int search(unsigned char *x, int m, unsigned char *y, int n) {
     END_PREPROCESSING
 
     _stats.memory_used = ASIZE * sizeof(unsigned int);
+    _stats.num_lookup_entries1 = ASIZE;
+
+    _stats.extra[1] = count_non_zero_entries_int_table(B, ASIZE);
+    _stats.extra[2] = _stats.memory_used * 8; // 8 bits per byte in the table.
+    _stats.extra[3] = count_set_bits_int_table(B, ASIZE);
 
     /* Searching */
     BEGIN_SEARCHING
