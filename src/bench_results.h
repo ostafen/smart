@@ -253,6 +253,16 @@ void buildMemoryUsedList(long *values, const algo_stats_t *measurements, int n)
     for (int i = 0; i < n; i++) values[i] = measurements[i].memory_used;
 }
 
+void buildNumLookupEntries1List(long *values, const algo_stats_t *measurements, int n)
+{
+    for (int i = 0; i < n; i++) values[i] = measurements[i].num_lookup_entries1;
+}
+
+void buildNumLookupEntries2List(long *values, const algo_stats_t *measurements, int n)
+{
+    for (int i = 0; i < n; i++) values[i] = measurements[i].num_lookup_entries2;
+}
+
 void buildTextBytesReadList(long *values, const algo_stats_t *measurements, int n)
 {
     for (int i = 0; i < n; i++) values[i] = measurements[i].text_bytes_read;
@@ -311,6 +321,20 @@ void compute_algo_stats(const algo_stats_t *measurements, int n, algo_statistics
     results->median_algo_stats.memory_used = compute_median_long(valuelist, n);
     results->min_algo_stats.memory_used = compute_min_long(valuelist, n);
     results->max_algo_stats.memory_used = compute_max_long(valuelist, n);
+
+    buildNumLookupEntries1List(valuelist, measurements, n);
+    results->mean_algo_stats.num_lookup_entries1 = compute_mean_long(valuelist, n);
+    results->std_algo_stats.num_lookup_entries1 = compute_std_long(results->mean_algo_stats.num_lookup_entries1,  valuelist, n);
+    results->median_algo_stats.num_lookup_entries1 = compute_median_long(valuelist, n);
+    results->min_algo_stats.num_lookup_entries1 = compute_min_long(valuelist, n);
+    results->max_algo_stats.num_lookup_entries1 = compute_max_long(valuelist, n);
+
+    buildNumLookupEntries2List(valuelist, measurements, n);
+    results->mean_algo_stats.num_lookup_entries2 = compute_mean_long(valuelist, n);
+    results->std_algo_stats.num_lookup_entries2 = compute_std_long(results->mean_algo_stats.num_lookup_entries2,  valuelist, n);
+    results->median_algo_stats.num_lookup_entries2 = compute_median_long(valuelist, n);
+    results->min_algo_stats.num_lookup_entries2 = compute_min_long(valuelist, n);
+    results->max_algo_stats.num_lookup_entries2 = compute_max_long(valuelist, n);
 
     buildTextBytesReadList(valuelist, measurements, n);
     results->mean_algo_stats.text_bytes_read = compute_mean_long(valuelist, n);
