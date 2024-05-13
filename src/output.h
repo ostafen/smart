@@ -165,12 +165,12 @@ void output_benchmark_run_summary(const smart_config_t *smart_config, const run_
 void output_algorithm_measurements_csv(const smart_config_t *smart_config, const run_command_opts_t *opts, int num_pattern_lengths,
                                        benchmark_results_t *results, const algo_info_t *algorithms)
 {
-    const int MEASUREMENT_COLUMNS = 12 + NUM_EXTRA_FIELDS;
+    const int MEASUREMENT_COLUMNS = 14 + NUM_EXTRA_FIELDS;
 
     FILE *rf = open_experiment_file_for_writing(smart_config, opts, "algo-measurements", "csv");
 
     fprintf(rf, "EXPERIMENT\tPLEN\tALGORITHM\tMeasurement");
-    fprintf(rf, "\t%% Text read\tAvg jump\tMem Used\tText bytes read\tPattern bytes read\t#Computations\t#Writes\t#Branches\t#Jumps\t#Lookups\t#Verifications");
+    fprintf(rf, "\t%% Text read\tAvg jump\tMem Used\tText bytes read\tPattern bytes read\t#Computations\t#Writes\t#Branches\t#Jumps\t#Lookups\t#Verifications\t#LookupEntries1\t#LookupEntries2");
     for (int i = 0; i < NUM_EXTRA_FIELDS; i++) {
         fprintf(rf, "\tExtra data %d", i);
     }
@@ -197,7 +197,7 @@ void output_algorithm_measurements_csv(const smart_config_t *smart_config, const
                     {
                         fprintf(rf, "%s\t%d\t%s\t%d\t", opts->expcode, pat_len, upper_case_name, measurement);
 
-                        fprintf(rf, "%.*f\t%.*f\t%ld\t%ld\t%ld\t%ld\t%ld\t%ld\t%ld\t%ld\t%ld",
+                        fprintf(rf, "%.*f\t%.*f\t%ld\t%ld\t%ld\t%ld\t%ld\t%ld\t%ld\t%ld\t%ld\t%ld\t%ld",
                                 opts->precision, (double) measurements->algo_stats[measurement].text_bytes_read /
                                                   opts->text_stats.text_actual_length * 100,
                                 opts->precision, (double) (opts->text_stats.text_actual_length - pat_len) /
@@ -210,7 +210,9 @@ void output_algorithm_measurements_csv(const smart_config_t *smart_config, const
                                 measurements->algo_stats[measurement].num_branches,
                                 measurements->algo_stats[measurement].num_jumps,
                                 measurements->algo_stats[measurement].num_lookups,
-                                measurements->algo_stats[measurement].num_verifications);
+                                measurements->algo_stats[measurement].num_verifications,
+                                measurements->algo_stats[measurement].num_lookup_entries1,
+                                measurements->algo_stats[measurement].num_lookup_entries2);
                         for (int i = 0; i < NUM_EXTRA_FIELDS; i++)
                         {
                             fprintf(rf, "\t%ld", measurements->algo_stats[measurement].extra[i]);
@@ -349,10 +351,13 @@ void output_performance_measurements_csv(const smart_config_t *smart_config, con
     fclose(rf);
 }
 
+/*
+ * Outputs a row of algorithm statistics.
+ */
 void output_algorithm_stats_row(FILE *rf, const run_command_opts_t *opts, const char *type, algo_stats_t *stats, algo_stats_t *extra, int pat_len)
 {
     algo_stats_t *min_stats = extra == NULL? stats : extra;
-    fprintf(rf, "%s\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f",
+    fprintf(rf, "%s\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f",
             type, opts->precision, (double) stats->text_bytes_read / opts->text_stats.text_actual_length * 100,
             opts->precision, (double) (opts->text_stats.text_actual_length - pat_len) / ((double) min_stats->num_jumps),
             0, (double) stats->memory_used,
@@ -363,15 +368,20 @@ void output_algorithm_stats_row(FILE *rf, const run_command_opts_t *opts, const 
             0, (double) stats->num_branches,
             0, (double) stats->num_jumps,
             0, (double) stats->num_lookups,
-            0, (double) stats->num_verifications);
+            0, (double) stats->num_verifications,
+            0, (double) stats->num_lookup_entries1,
+            0, (double) stats->num_lookup_entries2);
     for (int i = 0; i < NUM_EXTRA_FIELDS; i++) {
-        fprintf(rf, "\t%.*f", 0, (double) stats->extra[i] / opts->num_runs);
+        fprintf(rf, "\t%.*f", 0, (double) stats->extra[i]);
     }
 }
 
+/*
+ * Outputs a row of algo stats for standard deviation (some computed values are not displayed for this).
+ */
 void output_algorithm_stats_std_row(FILE *rf, const run_command_opts_t *opts, const char *type, algo_stats_t *stats, int pat_len)
 {
-    fprintf(rf, "%s\t%s\t%s\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f",
+    fprintf(rf, "%s\t%s\t%s\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f",
             type, "", "",
             0, (double) stats->memory_used,
             0, (double) stats->text_bytes_read,
@@ -381,9 +391,11 @@ void output_algorithm_stats_std_row(FILE *rf, const run_command_opts_t *opts, co
             0, (double) stats->num_branches,
             0, (double) stats->num_jumps,
             0, (double) stats->num_lookups,
-            0, (double) stats->num_verifications);
+            0, (double) stats->num_verifications,
+            0, (double) stats->num_lookup_entries1,
+            0, (double) stats->num_lookup_entries2);
     for (int i = 0; i < NUM_EXTRA_FIELDS; i++) {
-        fprintf(rf, "\t%.*f", 0, (double) stats->extra[i] / opts->num_runs);
+        fprintf(rf, "\t%.*f", 0, (double) stats->extra[i]);
     }
 }
 
@@ -392,10 +404,10 @@ void output_algorithm_statistics_csv(const smart_config_t *smart_config, const r
 {
     FILE *rf = open_experiment_file_for_writing(smart_config, opts, "algo-statistics", "csv");
 
-    const int MEASUREMENT_COLUMNS = 15;
+    const int MEASUREMENT_COLUMNS = 19;
 
     fprintf(rf, "EXPERIMENT\tPLEN\tALGORITHM");
-    fprintf(rf, "\tStat type\t%% Text read\tAv jump\tMem used\tText bytes read\tPattern bytes read\t#Computations\t#Writes\t#Branches\t#Jumps\t#Lookups\t#Verifications");
+    fprintf(rf, "\tStat type\t%% Text read\tAv jump\tMem used\tText bytes read\tPattern bytes read\t#Computations\t#Writes\t#Branches\t#Jumps\t#Lookups\t#Verifications\t#LookupEntries1\t#LookupEntries2");
     for (int i = 0; i < NUM_EXTRA_FIELDS; i++) {
         fprintf(rf, "\tExtra data %d", i);
     }
