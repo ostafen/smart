@@ -20,7 +20,7 @@
 #ifndef SMART_ALGOSTATS_H
 #define SMART_ALGOSTATS_H
 
-#define NUM_EXTRA_FIELDS 5        // Number of extra fields available for custom stats.
+#define NUM_EXTRA_FIELDS 6        // Number of extra fields available for custom stats.
 
 /*
  * Information to track about the operation of search algorithms.
@@ -28,6 +28,8 @@
 typedef struct algostats
 {
     long memory_used;             // Number of bytes of memory allocated by the search algorithm (does not include local variables like loops, constants and temp values, does include arrays)
+    long num_lookup_entries1;     // Total number of available entries in the primary lookup table, if used.
+    long num_lookup_entries2;     // Total number of available entries in a secondary lookup table, if used.
     long text_bytes_read;         // Number of bytes read from the text during search.
     long pattern_bytes_read;      // Number of bytes read from the pattern during search.
     long num_computations;        // Number of significant computations performed (e.g. calculating a hash function).
@@ -45,6 +47,8 @@ typedef struct algostats
 void init_stats(algo_stats_t *stats)
 {
     stats->memory_used = 0;
+    stats->num_lookup_entries1 = 0;
+    stats->num_lookup_entries2 = 0;
     stats->text_bytes_read = 0;
     stats->pattern_bytes_read = 0;
     stats->num_computations = 0;
@@ -65,6 +69,8 @@ void init_stats(algo_stats_t *stats)
 void algo_stats_add(algo_stats_t *sum, const algo_stats_t *to_add)
 {
     sum->memory_used += to_add->memory_used;
+    sum->num_lookup_entries1 += to_add->num_lookup_entries1;
+    sum->num_lookup_entries2 += to_add->num_lookup_entries2;
     sum->text_bytes_read += to_add->text_bytes_read;
     sum->pattern_bytes_read += to_add->pattern_bytes_read;
     sum->num_computations += to_add->num_computations;
@@ -87,6 +93,8 @@ void algo_stats_divide(algo_stats_t *dividend, long divisor)
     if (divisor != 0)
     {
         dividend->memory_used /= divisor;
+        dividend->num_lookup_entries1 /= divisor;
+        dividend->num_lookup_entries2 /= divisor;
         dividend->text_bytes_read /= divisor;
         dividend->pattern_bytes_read /= divisor;
         dividend->num_computations /= divisor;
@@ -120,9 +128,22 @@ unsigned long count_set_bits_uint(unsigned int value)
 }
 
 /*
+ * Counts all the bits set in an unsigned integer.
+ * Algorithm is by Brian Kernighan, as described in: https://graphics.stanford.edu/~seander/bithacks.html#CountBitsSetKernighan
+ */
+unsigned long count_set_bits_char(unsigned char value)
+{
+    unsigned long count;
+    for (count = 0; value; count++) {
+        value &= value - 1;
+    }
+    return count;
+}
+
+/*
  * Counts all the bits set in a table of unsigned ints, of length n.
  */
-unsigned long count_set_bits_int_table(unsigned int *table, int n)
+unsigned long count_set_bits_int_table(int *table, int n)
 {
     unsigned long count = 0;
     for (int i = 0; i < n; i++) {
@@ -132,9 +153,53 @@ unsigned long count_set_bits_int_table(unsigned int *table, int n)
 }
 
 /*
+ * Counts all the bits set in a table of unsigned ints, of length n.
+ */
+unsigned long count_set_bits_uint_table(unsigned int *table, int n)
+{
+    unsigned long count = 0;
+    for (int i = 0; i < n; i++) {
+        count += count_set_bits_uint(table[i]);
+    }
+    return count;
+}
+
+/*
+ * Counts all the bits set in a table of unsigned ints, of length n.
+ */
+unsigned long count_set_bits_char_table(unsigned char *table, int n)
+{
+    unsigned long count = 0;
+    for (int i = 0; i < n; i++) {
+        count += count_set_bits_char(table[i]);
+    }
+    return count;
+}
+
+/*
+ * Counts all the entries in a table of chars which have a non-zero value.
+ */
+unsigned long count_non_zero_entries_char_table(unsigned char *table, int n)
+{
+    unsigned long count = 0;
+    for (int i = 0; i < n; i++) if (table[i] != 0) count++;
+    return count;
+}
+
+/*
  * Counts all the entries in a table of ints which have a non-zero value.
  */
-unsigned long count_non_zero_entries_int_table(unsigned int *table, int n)
+unsigned long count_non_zero_entries_int_table(int *table, int n)
+{
+    unsigned long count = 0;
+    for (int i = 0; i < n; i++) if (table[i] != 0) count++;
+    return count;
+}
+
+/*
+ * Counts all the entries in a table of ints which have a non-zero value.
+ */
+unsigned long count_non_zero_entries_uint_table(unsigned int *table, int n)
 {
     unsigned long count = 0;
     for (int i = 0; i < n; i++) if (table[i] != 0) count++;
@@ -144,7 +209,17 @@ unsigned long count_non_zero_entries_int_table(unsigned int *table, int n)
 /*
  * Counts all the entries in a table of ints which have entries smaller than a max_value.
  */
-unsigned long count_smaller_entries_int_table(unsigned int *table, int n, int max_value)
+unsigned long count_smaller_entries_uint_table(unsigned int *table, int n, int max_value)
+{
+    unsigned long count = 0;
+    for (int i = 0; i < n; i++) if (table[i] < max_value) count++;
+    return count;
+}
+
+/*
+ * Counts all the entries in a table of ints which have entries smaller than a max_value.
+ */
+unsigned long count_smaller_entries_int_table(int *table, int n, int max_value)
 {
     unsigned long count = 0;
     for (int i = 0; i < n; i++) if (table[i] < max_value) count++;
