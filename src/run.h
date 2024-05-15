@@ -81,16 +81,15 @@ enum measurement_status run_algo(unsigned char **pattern_list, int m,
             cpu_perf_end(&perf_events, &(results->measurements.cpu_stats[k]));
         }
 
-        //TODO: for user supplied patterns and/or data, it is possible to have zero matches and not be an error.
-        if (occur == 0 || occur == ERROR_SEARCHING)
-        {
-            status = ERROR;
-            break; // there must be at least one match for each text and pattern (patterns are extracted from text).
-        }
-
         if (occur == INFO_CANNOT_SEARCH) {
             status = CANNOT_SEARCH; // negative value returned from search means it cannot search this pattern (e.g. it is too short)
             break;
+        }
+
+        if (occur == ERROR_SEARCHING)
+        {
+            status = ERROR;
+            break; // there must be at least one match for each text and pattern (patterns are extracted from text).
         }
 
         results->occurrence_count += occur;
@@ -150,7 +149,7 @@ void get_results_info(char output_line[MAX_LINE_LEN], const run_command_opts_t *
 
         if (opts->pre)
         {
-            snprintf(output_line, MAX_LINE_LEN, "\t(%.*f - %.*f, %.*f, %.*f) + (%.*f - %.*f, %.*f ± %.*f, %.*f) ms\t   %s\t%s",
+            snprintf(output_line, MAX_LINE_LEN, "\t(%.*f - %.*f,  %.*f,  %.*f) + (%.*f - %.*f,  %.*f ± %.*f,  %.*f) ms\t   %s\t%s",
                      opts->precision, results->statistics.min_pre_time,
                      opts->precision, results->statistics.max_pre_time,
                      opts->precision, results->statistics.mean_pre_time,
@@ -164,7 +163,7 @@ void get_results_info(char output_line[MAX_LINE_LEN], const run_command_opts_t *
         }
         else
         {
-            snprintf(output_line, MAX_LINE_LEN, "\t%.*f - %.*f, %.*f ± %.*f, %.*f ms\t   %s\t%s",
+            snprintf(output_line, MAX_LINE_LEN, "\t%.*f - %.*f,  %.*f ± %.*f,  %.*f ms\t   %s\t%s",
                      opts->precision, results->statistics.min_total_time,
                      opts->precision, results->statistics.max_total_time,
                      opts->precision, results->statistics.mean_total_time,
@@ -177,7 +176,7 @@ void get_results_info(char output_line[MAX_LINE_LEN], const run_command_opts_t *
     {
         if (opts->pre)
         {
-            snprintf(output_line, MAX_LINE_LEN, "\t(%.*f - %.*f, %.*f, %.*f) + (%.*f - %.*f, %.*f ± %.*f, %.*f) ms\t%s",
+            snprintf(output_line, MAX_LINE_LEN, "\t(%.*f - %.*f,  %.*f,  %.*f) + (%.*f - %.*f,  %.*f ± %.*f,  %.*f) ms\t%s",
                      opts->precision, results->statistics.min_pre_time,
                      opts->precision, results->statistics.max_pre_time,
                      opts->precision, results->statistics.mean_pre_time,
@@ -191,7 +190,7 @@ void get_results_info(char output_line[MAX_LINE_LEN], const run_command_opts_t *
         }
         else
         {
-            snprintf(output_line, MAX_LINE_LEN, "\t%.*f - %.*f, %.*f ± %.*f, %.*f ms\t%s",
+            snprintf(output_line, MAX_LINE_LEN, "\t%.*f - %.*f,  %.*f ± %.*f,  %.*f ms\t%s",
                      opts->precision, results->statistics.min_total_time,
                      opts->precision, results->statistics.max_total_time,
                      opts->precision, results->statistics.mean_total_time,
@@ -271,10 +270,10 @@ int benchmark_algos_with_patterns(algo_results_t *results, const run_command_opt
                                   unsigned char **pattern_list, int m, const algo_info_t *algorithms)
 {
     info("\n------------------------------------------------------------");
-    info("\tSearching for a set of %d patterns with length %d", opts->num_runs, m);
+    info("\tSearching for a set of %d patterns with length %d",opts->num_runs, m);
 
     const char *pre_header = opts->pre ? "(preprocessing) + (search): " : "";
-    info("\tTesting %d algorithms                   %smin - max, mean ± stddev, median", algorithms->num_algos, pre_header);
+    info("\tTesting %d algorithms                   %smin - max,  mean ± stddev,  median", algorithms->num_algos, pre_header);
 
     for (int algo = 0; algo < algorithms->num_algos; algo++)
     {
