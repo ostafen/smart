@@ -262,8 +262,6 @@ void output_performance_measurements_csv(const smart_config_t *smart_config, con
 
     FILE *rf = open_experiment_file_for_writing(smart_config, opts, "algo-measurements", "csv");
 
-    //TODO: output algo statistic measurements here too, or in another file?
-
     fprintf(rf, "EXPERIMENT\tPLEN\tALGORITHM");
     fprintf(rf, "\tMEASUREMENT\tPRE TIME (ms)\tSEARCH TIME (ms)\tTOTAL TIME (ms)\tPRE TIME (Gb/s)\tSEARCH TIME (Gb/s)\tTOTAL TIME (Gb/s)");
     fprintf(rf, opts->cpu_stats ? "\tL1_CACHE_ACCESS\tL1_CACHE_MISSES\tLL_CACHE_ACCESS\tLL_CACHE_MISSES\tBRANCH INSTRUCTIONS\tBRANCH MISSES\n" : "\n");
