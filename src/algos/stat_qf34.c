@@ -67,6 +67,11 @@ int search(unsigned char *x, int m, unsigned char *y, int n)
 	}
    END_PREPROCESSING
 
+    set_extra_name("match 1st", 0);
+    set_extra_name("non zero", 1);
+    set_extra_name("total bits", 2);
+    set_extra_name("set bits", 3);
+
     _stats.memory_used = ASIZE * sizeof(int);
     _stats.num_lookup_entries1 = ASIZE;
     _stats.extra[1] = count_non_zero_entries_uint_table(B, ASIZE);

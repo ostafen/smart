@@ -88,6 +88,11 @@ int search(unsigned char *x, int m, unsigned char *y, int n) {
     for(i=0; i<m; i++) y[n+i]=x[i];
     END_PREPROCESSING
 
+    set_extra_name("match 1st", 0);
+    set_extra_name("non zero", 1);
+    set_extra_name("total bits", 2);
+    set_extra_name("set bits", 3);
+
     _stats.memory_used = (256*256 * sizeof(char)) + ((m+1) * sizeof(int)) + m; // needs to write m bytes to end of text, which also counts.
     _stats.num_lookup_entries1 = 256*256;
     _stats.num_lookup_entries2 = m + 1;

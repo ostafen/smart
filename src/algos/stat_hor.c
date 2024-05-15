@@ -50,6 +50,7 @@ int search(unsigned char *P, int m, unsigned char *T, int n) {
    _stats.memory_used = SIGMA * sizeof(int);
    _stats.num_lookup_entries1 = SIGMA;
    _stats.extra[0] = count_smaller_entries_int_table(hbc, SIGMA, m);
+    set_extra_name("#small", 0);
 
    /* Searching */
    BEGIN_SEARCHING
