@@ -31,8 +31,8 @@ typedef struct algo_measurements
     double *pre_times;
     cpu_stats_t *cpu_stats;
     algo_stats_t *algo_stats;
+    algostats_metadata_t algostats_metadata;
 } algo_measurements_t;
-
 
 /*
  * Various statistics which can be computed from the measurements of an algorithm for a single pattern length.
@@ -163,11 +163,11 @@ double compute_median(const double *T, int n)
     // if the list of doubles  has an even number of elements:
     if (n % 2 == 0)
     {
-        return (sorted[n / 2] + sorted[n / 2 + 1]) / 2; // return mean of n/2 and n/2+1 elements.
+        return (sorted[n / 2 - 1] + sorted[n / 2]) / 2; // return mean of n/2-1 and n/2 elements.
     }
     else
     {
-        return sorted[(n + 1) / 2]; // return the element in the middle of the sorted array.
+        return sorted[(n + 1) / 2 - 1]; // return the element in the middle of the sorted array.
     }
 }
 
@@ -185,11 +185,11 @@ long compute_median_long(const long *T, int n)
     // if the list of longs  has an even number of elements:
     if (n % 2 == 0)
     {
-        return (sorted[n / 2] + sorted[n / 2 + 1]) / 2; // return mean of n/2 and n/2+1 elements.
+        return (sorted[n / 2 - 1] + sorted[n / 2]) / 2; // return mean of n/2 -1 and n/2  elements.
     }
     else
     {
-        return sorted[(n + 1) / 2]; // return the element in the middle of the sorted array.
+        return sorted[(n + 1) / 2 - 1]; // return the element in the middle of the sorted array.
     }
 }
 
@@ -248,68 +248,104 @@ long compute_std_long(long avg, long *T, int n)
     return (long) sqrt(std / sample_divisor);
 }
 
+/*
+ * Builds a list of memory used measurements.
+ */
 void buildMemoryUsedList(long *values, const algo_stats_t *measurements, int n)
 {
     for (int i = 0; i < n; i++) values[i] = measurements[i].memory_used;
 }
 
+/*
+ * Builds a list of lookup entries1 measurements.
+ */
 void buildNumLookupEntries1List(long *values, const algo_stats_t *measurements, int n)
 {
     for (int i = 0; i < n; i++) values[i] = measurements[i].num_lookup_entries1;
 }
 
+/*
+ * Builds a list of lookup entries2 measurements.
+ */
 void buildNumLookupEntries2List(long *values, const algo_stats_t *measurements, int n)
 {
     for (int i = 0; i < n; i++) values[i] = measurements[i].num_lookup_entries2;
 }
 
+/*
+ * Builds a list of text bytes read measurements.
+ */
 void buildTextBytesReadList(long *values, const algo_stats_t *measurements, int n)
 {
     for (int i = 0; i < n; i++) values[i] = measurements[i].text_bytes_read;
 }
 
+/*
+ * Builds a list of pattern bytes read measurements.
+ */
 void buildPatternBytesReadList(long *values, const algo_stats_t *measurements, int n)
 {
     for (int i = 0; i < n; i++) values[i] = measurements[i].pattern_bytes_read;
 }
 
+/*
+ * Builds a list of number of significant computations (e.g. hash function) during searching.
+ */
 void buildNumComputeList(long *values, const algo_stats_t *measurements, int n)
 {
     for (int i = 0; i < n; i++) values[i] = measurements[i].num_computations;
 }
 
+/*
+ * Builds a list of numbers of writes during searching.
+ */
 void buildNumWriteList(long *values, const algo_stats_t *measurements, int n)
 {
     for (int i = 0; i < n; i++) values[i] = measurements[i].num_writes;
 }
 
+/*
+ * Builds a list of number of jumps during searching (times the search position is advanced for another round)
+ */
 void buildNumJumpList(long *values, const algo_stats_t *measurements, int n)
 {
     for (int i = 0; i < n; i++) values[i] = measurements[i].num_jumps;
 }
 
+/*
+ * Builds a list of number of times a value is looked up from a table during searching.
+ */
 void buildNumLookupList(long *values, const algo_stats_t *measurements, int n)
 {
     for (int i = 0; i < n; i++) values[i] = measurements[i].num_lookups;
 }
 
+/*
+ * Builds a list of number of branches during searching.
+ */
 void buildNumBranchList(long *values, const algo_stats_t *measurements, int n)
 {
     for (int i = 0; i < n; i++) values[i] = measurements[i].num_branches;
 }
 
+/*
+ * Builds a list of number of verification attempts during searching.
+ */
 void buildNumVerificationList(long *values, const algo_stats_t *measurements, int n)
 {
     for (int i = 0; i < n; i++) values[i] = measurements[i].num_verifications;
 }
 
+/*
+ * Builds a list of any extra algorithm-specific measurements captured during searching (or pre-processing).
+ */
 void buildNumExtraList(int extraIndex, long *values, const algo_stats_t *measurements, int n)
 {
     for (int i = 0; i < n; i++) values[i] = measurements[i].extra[extraIndex];
 }
 
 /*
- * Computes and returns the median values of algorithm stat measurements of size n.
+ * Computes statistics for the various algorithm stats measurements of size n.
  */
 void compute_algo_stats(const algo_stats_t *measurements, int n, algo_statistics_t *results)
 {
