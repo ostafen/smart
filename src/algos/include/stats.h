@@ -21,15 +21,23 @@
 #define SMART_ALGOSTATS_H
 
 #define NUM_EXTRA_FIELDS 6        // Number of extra fields available for custom stats.
+#define EXTRA_FIELD_NAME_LEN 11   // Max length of extra field name (including one for NUL byte at end).
 
 /*
  * Information to track about the operation of search algorithms.
  */
 typedef struct algostats
 {
+    /*
+     * Algorithm metadata
+     */
     long memory_used;             // Number of bytes of memory allocated by the search algorithm (does not include local variables like loops, constants and temp values, does include arrays)
     long num_lookup_entries1;     // Total number of available entries in the primary lookup table, if used.
     long num_lookup_entries2;     // Total number of available entries in a secondary lookup table, if used.
+
+    /*
+     * Measurements of searching:
+     */
     long text_bytes_read;         // Number of bytes read from the text during search.
     long pattern_bytes_read;      // Number of bytes read from the pattern during search.
     long num_computations;        // Number of significant computations performed (e.g. calculating a hash function).
@@ -38,8 +46,28 @@ typedef struct algostats
     long num_jumps;               // Number of times the search position is advanced.
     long num_lookups;             // Number of times a lookup table is consulted.
     long num_verifications;       // Number of times a verification of the pattern is attempted (whether successful or not)
+
+    /*
+     * Algorithm specific measurements.
+     */
     long extra[NUM_EXTRA_FIELDS]; // Custom fields for individual algorithms to use.
+
 } algo_stats_t;
+
+
+typedef struct algostats_metadata
+{
+    char extra_name[NUM_EXTRA_FIELDS][EXTRA_FIELD_NAME_LEN]; // names for extra fields.
+} algostats_metadata_t;
+
+
+void init_metadata(algostats_metadata_t *metadata)
+{
+    for (int i = 0; i < NUM_EXTRA_FIELDS; i++)
+    {
+        metadata->extra_name[i][0] = '\0';
+    }
+}
 
 /*
  * Initialises a stats structure to have zero.
@@ -49,6 +77,7 @@ void init_stats(algo_stats_t *stats)
     stats->memory_used = 0;
     stats->num_lookup_entries1 = 0;
     stats->num_lookup_entries2 = 0;
+
     stats->text_bytes_read = 0;
     stats->pattern_bytes_read = 0;
     stats->num_computations = 0;
@@ -57,6 +86,7 @@ void init_stats(algo_stats_t *stats)
     stats->num_jumps = 0;
     stats->num_lookups = 0;
     stats->num_verifications = 0;
+
     for (int i = 0; i < NUM_EXTRA_FIELDS; i++)
     {
         stats->extra[i] = 0;
@@ -103,6 +133,7 @@ void algo_stats_divide(algo_stats_t *dividend, long divisor)
         dividend->num_jumps /= divisor;
         dividend->num_lookups /= divisor;
         dividend->num_verifications /= divisor;
+
         for (int i = 0; i < NUM_EXTRA_FIELDS; i++)
         {
             dividend->extra[i] /= divisor;
