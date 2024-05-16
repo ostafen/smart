@@ -172,7 +172,7 @@ void output_algorithm_measurements_csv(const smart_config_t *smart_config, const
     fprintf(rf, "EXPERIMENT\tPLEN\tALGORITHM\tMeasurement");
     fprintf(rf, "\t%% Text read\tAvg jump\tMem Used\tText bytes read\tPattern bytes read\t#Computations\t#Writes\t#Branches\t#Jumps\t#Lookups\t#Verifications\t#LookupEntries1\t#LookupEntries2");
     for (int i = 0; i < NUM_EXTRA_FIELDS; i++) {
-        fprintf(rf, "\tExtra data %d", i);
+        fprintf(rf, "\tExtra name %d\tExtra data %d", i, i);
     }
     fprintf(rf, "\n");
 
@@ -215,7 +215,9 @@ void output_algorithm_measurements_csv(const smart_config_t *smart_config, const
                                 measurements->algo_stats[measurement].num_lookup_entries2);
                         for (int i = 0; i < NUM_EXTRA_FIELDS; i++)
                         {
-                            fprintf(rf, "\t%ld", measurements->algo_stats[measurement].extra[i]);
+                            fprintf(rf, "\t%s\t%ld",
+                                    measurements->algostats_metadata.extra_name[i],
+                                    measurements->algo_stats[measurement].extra[i]);
                         }
                         fprintf(rf, "\n");
                     }
@@ -352,7 +354,8 @@ void output_performance_measurements_csv(const smart_config_t *smart_config, con
 /*
  * Outputs a row of algorithm statistics.
  */
-void output_algorithm_stats_row(FILE *rf, const run_command_opts_t *opts, const char *type, algo_stats_t *stats, algo_stats_t *extra, int pat_len)
+void output_algorithm_stats_row(FILE *rf, const run_command_opts_t *opts, const char *type, algo_stats_t *stats,
+                                algo_stats_t *extra, algostats_metadata_t *metadata, int pat_len)
 {
     algo_stats_t *min_stats = extra == NULL? stats : extra;
     fprintf(rf, "%s\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f",
@@ -370,14 +373,14 @@ void output_algorithm_stats_row(FILE *rf, const run_command_opts_t *opts, const 
             0, (double) stats->num_lookup_entries1,
             0, (double) stats->num_lookup_entries2);
     for (int i = 0; i < NUM_EXTRA_FIELDS; i++) {
-        fprintf(rf, "\t%.*f", 0, (double) stats->extra[i]);
+        fprintf(rf, "\t%s\t%.*f", metadata->extra_name[i], 0, (double) stats->extra[i]);
     }
 }
 
 /*
  * Outputs a row of algo stats for standard deviation (some computed values are not displayed for this).
  */
-void output_algorithm_stats_std_row(FILE *rf, const run_command_opts_t *opts, const char *type, algo_stats_t *stats, int pat_len)
+void output_algorithm_stats_std_row(FILE *rf, const char *type, algo_stats_t *stats, algostats_metadata_t  *metadata)
 {
     fprintf(rf, "%s\t%s\t%s\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f",
             type, "", "",
@@ -393,7 +396,7 @@ void output_algorithm_stats_std_row(FILE *rf, const run_command_opts_t *opts, co
             0, (double) stats->num_lookup_entries1,
             0, (double) stats->num_lookup_entries2);
     for (int i = 0; i < NUM_EXTRA_FIELDS; i++) {
-        fprintf(rf, "\t%.*f", 0, (double) stats->extra[i]);
+        fprintf(rf, "\t\t%.*f", 0, (double) stats->extra[i]);
     }
 }
 
@@ -402,12 +405,12 @@ void output_algorithm_statistics_csv(const smart_config_t *smart_config, const r
 {
     FILE *rf = open_experiment_file_for_writing(smart_config, opts, "algo-statistics", "csv");
 
-    const int MEASUREMENT_COLUMNS = 19;
+    const int MEASUREMENT_COLUMNS = 14 + (NUM_EXTRA_FIELDS * 2);
 
     fprintf(rf, "EXPERIMENT\tPLEN\tALGORITHM");
     fprintf(rf, "\tStat type\t%% Text read\tAv jump\tMem used\tText bytes read\tPattern bytes read\t#Computations\t#Writes\t#Branches\t#Jumps\t#Lookups\t#Verifications\t#LookupEntries1\t#LookupEntries2");
     for (int i = 0; i < NUM_EXTRA_FIELDS; i++) {
-        fprintf(rf, "\tExtra data %d", i);
+        fprintf(rf, "\tExtra name %d\tExtra data %d", i, i);
     }
     fprintf(rf,"\n");
 
@@ -429,19 +432,20 @@ void output_algorithm_statistics_csv(const smart_config_t *smart_config, const r
                 case SUCCESS:
                 {
                     algo_statistics_t *stats = &(algo_res->statistics);
-                    output_algorithm_stats_row(rf, opts, "median", &(stats->median_algo_stats), NULL, pat_len);
+                    algostats_metadata_t *metadata = &(algo_res->measurements.algostats_metadata);
+                    output_algorithm_stats_row(rf, opts, "median", &(stats->median_algo_stats), NULL, metadata, pat_len);
 
                     fprintf(rf, "\n%s\t%d\t%s\t", opts->expcode, pat_len, upper_case_name);
-                    output_algorithm_stats_row(rf, opts, "mean", &(stats->mean_algo_stats), NULL,  pat_len);
+                    output_algorithm_stats_row(rf, opts, "mean", &(stats->mean_algo_stats), NULL, metadata, pat_len);
 
                     fprintf(rf, "\n%s\t%d\t%s\t", opts->expcode, pat_len, upper_case_name);
-                    output_algorithm_stats_std_row(rf, opts, "std", &(stats->std_algo_stats), pat_len);
+                    output_algorithm_stats_std_row(rf, "std", &(stats->std_algo_stats), metadata);
 
                     fprintf(rf, "\n%s\t%d\t%s\t", opts->expcode, pat_len, upper_case_name);
-                    output_algorithm_stats_row(rf, opts, "min", &(stats->min_algo_stats), &(stats->max_algo_stats), pat_len);
+                    output_algorithm_stats_row(rf, opts, "min", &(stats->min_algo_stats), &(stats->max_algo_stats), metadata, pat_len);
 
                     fprintf(rf, "\n%s\t%d\t%s\t", opts->expcode, pat_len, upper_case_name);
-                    output_algorithm_stats_row(rf, opts, "max", &(stats->max_algo_stats), &(stats->min_algo_stats), pat_len);
+                    output_algorithm_stats_row(rf, opts, "max", &(stats->max_algo_stats), &(stats->min_algo_stats), metadata, pat_len);
                     break;
                 }
                 case CANNOT_SEARCH:
@@ -1411,6 +1415,7 @@ void write_html_algo_charts(FILE *fp, int rows, int cols,
 
         //TODO: lower bound of standard is not zero?- it is the best time the algorithm achieved for that point.
         //      we can't dip below the best time achieved really, it's not informative.
+        //      Is there a better representation than std-dev around the mean for skewed distributions?
 
         // Write out standard deviation data lower bound in gigabytes per second:
         fprintf(fp, "var std1gbs = [");
