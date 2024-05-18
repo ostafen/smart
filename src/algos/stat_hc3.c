@@ -204,7 +204,8 @@ int search(unsigned char *x, int m, unsigned char *y, int n) {
             _stats.num_branches++;
             if (H == Hm) {
                 _stats.num_branches++;
-                if (stats_verify_pattern(pos - END_FIRST_QGRAM, x, m, y, n) == m) count ++;
+                _stats.num_verifications++;
+                if (stats_match_length(pos - END_FIRST_QGRAM, x, m, y, n) == m) count ++;
             }
         }
 

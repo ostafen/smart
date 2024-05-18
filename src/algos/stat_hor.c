@@ -63,18 +63,24 @@ int search(unsigned char *P, int m, unsigned char *T, int n) {
       _stats.num_writes++;
 
       _stats.num_branches++;
-      while(i<m && P[i]==T[s+i]) {
+      if (i < m) {
           _stats.text_bytes_read++;
           _stats.pattern_bytes_read++;
-
+      }
+      while(i<m && P[i]==T[s+i]) {
           i++;
           _stats.num_writes++;
          _stats.num_branches++;
+
+          if (i < m) {
+              _stats.text_bytes_read++;
+              _stats.pattern_bytes_read++;
+          }
       }
 
-       _stats.num_branches++;
-       _stats.num_verifications++;
-       if(i==m) count++;
+      _stats.num_branches++;
+      _stats.num_verifications++;
+      if(i==m) count++;
 
       s+=hbc[T[s+m-1]];
        _stats.num_writes++;

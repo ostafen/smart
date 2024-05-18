@@ -109,7 +109,8 @@ int search(unsigned char *x, int m, unsigned char *y, int n)
     count = 0;
     _stats.num_writes++; // store value.
     _stats.num_branches++;
-    if (stats_verify_pattern(0, x, plen, y, n) == plen) count++;
+    _stats.num_verifications++;
+    if (stats_match_length(0, x, plen, y, n) == plen) count++;
 
     j = m;
     _stats.num_writes++; // store value.
@@ -146,7 +147,8 @@ int search(unsigned char *x, int m, unsigned char *y, int n)
         if (j == i && test)
         {
             _stats.num_branches++;
-            if (stats_verify_pattern(i - Q + 1, x, plen, y, n) == plen) count++;
+            _stats.num_verifications++;
+            if (stats_match_length(i - Q + 1, x, plen, y, n) == plen) count++;
         }
         j += m - Q + 1;
         _stats.num_writes++; // store value.

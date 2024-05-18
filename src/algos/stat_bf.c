@@ -32,8 +32,10 @@ int search(unsigned char *x, int m, unsigned char *y, int n) {
     count = 0;
     _stats.num_branches++;
     for (j = 0; j <= n-m; ++j, _stats.num_jumps++, _stats.num_writes++) {
-        i = stats_verify_pattern(j, x, m, y, n);
+        i = stats_match_length(j, x, m, y, n);
+        _stats.num_writes++;
         _stats.num_branches++;
+        _stats.num_verifications++;
         if (i >= m) OUTPUT(j);
         _stats.num_branches++;
     }

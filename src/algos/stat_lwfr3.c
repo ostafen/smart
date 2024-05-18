@@ -106,7 +106,8 @@ int search(unsigned char *x, int m, unsigned char *y, int n) {
     tp = 0;
     st = 0;
     _stats.num_branches++;
-    if (stats_verify_pattern(0, x, plen, y, n) == plen) count++;
+    _stats.num_verifications++;
+    if (stats_match_length(0, x, plen, y, n) == plen) count++;
     j = m;
     _stats.num_jumps++; // advances one.
     _stats.num_writes += 4; // store value.

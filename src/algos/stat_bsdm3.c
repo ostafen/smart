@@ -125,8 +125,9 @@ int search(unsigned char *x, int m, unsigned char *y, int n) {
 	    	if(k==len) {
                 _stats.num_branches++;
 	    		if(j-offset<=n-m && j-offset >= 0) {
-                    int matchlen = stats_verify_pattern(j - offset, x, m, y, n);
-                    if (matchlen == m) count++;
+                    _stats.num_branches++;
+                    _stats.num_verifications++;
+                    if (stats_match_length(j - offset, x, m, y, n) == m) count++;
                 }
 	    	}
 	    	else {

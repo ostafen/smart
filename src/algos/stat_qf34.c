@@ -128,15 +128,15 @@ int search(unsigned char *x, int m, unsigned char *y, int n)
                     j = n-m;
                     _stats.num_writes++;
                 }
-                _stats.num_branches++;
 
                 int statcount = 0; // not part of algo - used to trigger when to gather extra[4] info.
-
+                _stats.num_branches++;
                 for(  ; k <= j; k++) {
-                    _stats.num_branches++;
                     statcount++;
 
-                    if (stats_verify_pattern(k, x, m, y, n) == m) {
+                    _stats.num_branches++;
+                    _stats.num_verifications++;
+                    if (stats_match_length(k, x, m, y, n) == m) {
                         count++;
                         if (statcount == 1) _stats.extra[4]++; else _stats.extra[5]++;
                     }
