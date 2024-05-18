@@ -36,6 +36,15 @@ Note that we specify the algorithm names on the command line *exactly* the same 
 There must, of course, be a `stat_` version of an algorithm we want to gather algorithm statistics for.
 These are instrumented versions of an algorithm, saved with a `stat_` filename prefix.
 
+### Running all
+To run all the instrumented algorithms, just use the `-all` flag as normal.
+
+```shell
+smart run -all -text englishTexts -stats algo
+```
+When in `-stats algo` mode, it will select all the algorithms with a `stat_` filename prefix.
+Conversely, when in `-stats perf` mode, it will select all the algorithms without a `stat_` filename prefix.
+
 ## Output
 In addition to the statistical summary written to the console during operation, two CSV files are written at the end of the experiment, containing the statistical summary and the raw measurements taken for each run of the algorithm.
 
