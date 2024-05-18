@@ -59,16 +59,13 @@ int search(unsigned char *x, int m, unsigned char *y, int n);
  * Intended to replace usages of memcmp, or other naive verification methods that compare the pattern bytes to the text,
  * while updating stats correctly.
  *
- *  Note: it will not replicate more complex pattern matching.
- *
  * Returns the number of characters matched at position pos.
  *
  * x is the pattern to match of length m.
  * y is the text to locate a match in of length n.
  */
-int stats_verify_pattern(int pos, unsigned char *x, int m, unsigned char *y, int n)
+int stats_match_length(int pos, unsigned char *x, int m, unsigned char *y, int n)
 {
-    _stats.num_verifications++;
     int charpos = 0;
     _stats.num_branches++;
     while (charpos < m && pos + charpos < n) {
