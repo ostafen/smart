@@ -391,7 +391,7 @@ int benchmark_algos_with_patterns(algo_results_t *results, const run_command_opt
     info("\tSearching for a set of %d patterns with length %d", opts->num_runs, m);
 
     if (opts->statistics_type == STATS_ALGORITHM) {
-        info("%s", "\tTesting %d algorithms", algorithms->num_algos);
+        info("\tTesting %d algorithms", algorithms->num_algos);
     }
     else if (opts->pre)
     {
