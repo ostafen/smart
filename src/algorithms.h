@@ -12,7 +12,7 @@
 #include "algos/include/stats.h"
 
 static const char *ALGO_COLUMN_FORMAT = "%-*s ";
-static const int ALGO_NUM_COLUMNS = (MAX_LINE_LEN / ALGO_NAME_LEN);
+static const int ALGO_NUM_COLUMNS = (SMALL_LINE_LEN / ALGO_NAME_LEN);
 
 /*
  * Function signature typedef of the internal search function called to benchmark algorithms.
