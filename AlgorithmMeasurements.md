@@ -136,7 +136,7 @@ while (i > 0) {
 }
 ```
 However, this will fail to count the first branch.  If i <= 0 right at the start, then no branches will be counted as the loop body will not execute.  More generally, each loop has at least one branch (regardless of whether the loop body executes), and then will have another branch for each time the body of the loop executes.
-To count loop branches accurately, you must *also* count the first branch that governs if the loop body will execute at all.
+To count loop branches accurately, you must count the first branch before the loop starts.
 
 ```C
 _stats.num_branches++; // count the first test of the loop
@@ -235,6 +235,9 @@ This is still a test the algorithm would have to perform, regardless of its matc
 A jump occurs when the search position is advanced.  Most of the time, this occurs just before the algorithm goes around its main loop again.
 Some algorithms also have "fast" loops embedded within the main loop that can also advance the search position.  These also need to be accounted for.
 
+The average jump achieved is calculated after measurements have been taken,
+from the number of jumps made and the length of the text.
+
 ### Extra fields
 There are 6 additional long integer fields for algorithms, indexed from 0 to 5, to store information that is relevant to their particular operation.
 In general, simple values or counts seem to provide the best type of measurement.
@@ -247,8 +250,12 @@ from the two quantities later.
 #### Naming 
 If you want to see extra fields displayed on the console, you have to give them a name,
 by calling `set_extra_name(name, index)`.
-All measurements will be output to the CSV files, regardless of whether they are named.
 The length of a name is limited to only 10 characters (or they are not easily displayed).
+
+All measurements will be output to the CSV files, along with any names which were provided.
+It is recommended to set a name, as it makes subsequent understanding and filtering of the 
+data easier. 
+
 
 #### Lookup table measurements
 Many search algorithms have one or more lookup tables derived in pre-processing and used during search.
