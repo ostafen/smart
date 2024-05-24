@@ -149,17 +149,17 @@ void get_results_info(char output_line[MAX_LINE_LEN], const run_command_opts_t *
 
         if (opts->pre)
         {
-            snprintf(output_line, MAX_LINE_LEN, "\t(%.*f - %.*f,  %.*f,  %.*f) + (%.*f - %.*f,  %.*f ± %.*f,  %.*f) ms\t   %s\t%s",
-                     opts->precision, results->statistics.min_pre_time,
-                     opts->precision, results->statistics.max_pre_time,
-                     opts->precision, results->statistics.mean_pre_time,
-                     opts->precision, results->statistics.median_pre_time,
-                     opts->precision, results->statistics.min_search_time,
-                     opts->precision, results->statistics.max_search_time,
-                     opts->precision, results->statistics.mean_search_time,
-                     opts->precision, results->statistics.std_search_time,
-                     opts->precision, results->statistics.median_search_time,
-                     cpu_stats, occurence);
+            snprintf(output_line, MAX_LINE_LEN, "\t(%*.*f - %*.*f, %*.*f, %*.*f) + (%*.*f - %*.*f, %*.*f ± %*.*f, %*.*f) ms\t%s",
+                     6, opts->precision, results->statistics.min_pre_time,
+                     6, opts->precision, results->statistics.max_pre_time,
+                     6, opts->precision, results->statistics.mean_pre_time,
+                     6, opts->precision, results->statistics.median_pre_time,
+                     6, opts->precision, results->statistics.min_search_time,
+                     6, opts->precision, results->statistics.max_search_time,
+                     6, opts->precision, results->statistics.mean_search_time,
+                     6, opts->precision, results->statistics.std_search_time,
+                     6, opts->precision, results->statistics.median_search_time,
+                     occurence);
         }
         else
         {
@@ -176,16 +176,16 @@ void get_results_info(char output_line[MAX_LINE_LEN], const run_command_opts_t *
     {
         if (opts->pre)
         {
-            snprintf(output_line, MAX_LINE_LEN, "\t(%.*f - %.*f,  %.*f,  %.*f) + (%.*f - %.*f,  %.*f ± %.*f,  %.*f) ms\t%s",
-                     opts->precision, results->statistics.min_pre_time,
-                     opts->precision, results->statistics.max_pre_time,
-                     opts->precision, results->statistics.mean_pre_time,
-                     opts->precision, results->statistics.median_pre_time,
-                     opts->precision, results->statistics.min_search_time,
-                     opts->precision, results->statistics.max_search_time,
-                     opts->precision, results->statistics.mean_search_time,
-                     opts->precision, results->statistics.std_search_time,
-                     opts->precision, results->statistics.median_search_time,
+            snprintf(output_line, MAX_LINE_LEN, "\t(%*.*f - %*.*f, %*.*f, %*.*f) + (%*.*f - %*.*f, %*.*f ± %*.*f, %*.*f) ms\t%s",
+                     6, opts->precision, results->statistics.min_pre_time,
+                     6, opts->precision, results->statistics.max_pre_time,
+                     6, opts->precision, results->statistics.mean_pre_time,
+                     6, opts->precision, results->statistics.median_pre_time,
+                     6, opts->precision, results->statistics.min_search_time,
+                     6, opts->precision, results->statistics.max_search_time,
+                     6, opts->precision, results->statistics.mean_search_time,
+                     6, opts->precision, results->statistics.std_search_time,
+                     6, opts->precision, results->statistics.median_search_time,
                      occurence);
         }
         else
