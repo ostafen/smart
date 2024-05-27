@@ -122,6 +122,62 @@ void write_tabbed_string(FILE *fp, const char *string, int num_repetitions)
     }
 }
 
+/**
+ * Takes a pattern and places the printable ascii bytes into ascii_text,
+ * replaces any value outside of printable ascii with an underscore.
+ *
+ * @param ascii_text The printable ascii text version of pattern.
+ * @param pattern_bytes The binary pattern bytes
+ * @param length The length of the pattern.
+ */
+void get_printable_ascii_text(unsigned char ascii_text[], unsigned char *pattern_bytes, int length)
+{
+    for (int i = 0; i < length; i++)
+    {
+        if (pattern_bytes[i] >= 32 && pattern_bytes[i] < 127) {
+            ascii_text[i] = pattern_bytes[i];
+        }
+        else {
+            ascii_text[i] = '_';
+        }
+    }
+    ascii_text[length] = STR_END_CHAR;
+}
+
+/**
+ * Takes a pattern and places a hex-byte representation of it into hex_text.
+ * @param hex_text The hex text (must be twice the number of bytes in pattern, plus one for null).
+ * @param pattern_bytes The pattern bytes to get a hex representation of.
+ * @param length The length of the pattern.
+ */
+void get_hex_text(unsigned char hex_text[], unsigned char *pattern_bytes, int length)
+{
+    for (int i = 0; i < length; i++)
+    {
+        sprintf(hex_text + (i * 2), "%02X", pattern_bytes[i]);
+    }
+    hex_text[length * 2] = STR_END_CHAR;
+}
+
+/**
+ * Outputs all the patterns for a given pattern length.
+ * @param pl The file to write to
+ * @param pattern_list The list of patterns of a given length
+ * @param num_patterns The number of patterns in the list.
+ * @param pat_len The length of each pattern in the list.
+ */
+void output_patterns_for_length(FILE *pl, unsigned char **pattern_list, int num_patterns, int pat_len)
+{
+    unsigned char hex_text[pat_len * 2 + 1];
+    unsigned char ascii_text[pat_len + 1];
+    for (int measurement = 0; measurement < num_patterns; measurement++)
+    {
+        get_printable_ascii_text(ascii_text, pattern_list[measurement], pat_len);
+        get_hex_text(hex_text, pattern_list[measurement], pat_len);
+        fprintf(pl, "%d\t%d\t%s\t%s\n", pat_len, measurement, ascii_text, hex_text);
+    }
+}
+
 /*
  * Writes out the summary of the experiment run to a text file.
  */

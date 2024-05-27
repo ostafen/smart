@@ -549,6 +549,9 @@ void benchmark_algorithms_with_text(const smart_config_t *smart_config, run_comm
     allocate_benchmark_results(results, num_pattern_lengths, algorithms->num_algos, opts->num_runs);
     allocate_pattern_matrix(pattern_list, opts->num_runs, opts->pattern_info.pattern_max_len);
 
+    FILE *pl = open_experiment_file_for_writing(smart_config, opts, "patterns", "csv");
+    fprintf(pl, "LENGTH\tMEASUREMENT\tPRINTABLE TEXT OR _\tHEX\n");
+
     opts->started_date = time(NULL);
     for (int m = opts->pattern_info.pattern_min_len, patt_len_idx = 0; m <= max_pattern_length;
              m = next_pattern_length(&(opts->pattern_info), m), patt_len_idx++)
@@ -556,6 +559,7 @@ void benchmark_algorithms_with_text(const smart_config_t *smart_config, run_comm
         gen_patterns(opts, pattern_list, m, T, opts->text_stats.text_actual_length, opts->num_runs);
         results[patt_len_idx].pattern_length = m;
         benchmark_algos_with_patterns(results[patt_len_idx].algo_results, opts, T, pattern_list, m, algorithms);
+        output_patterns_for_length(pl,  pattern_list, opts->num_runs, m);
     }
     opts->finished_date = time(NULL);
 
@@ -564,6 +568,8 @@ void benchmark_algorithms_with_text(const smart_config_t *smart_config, run_comm
 
     free_pattern_matrix(pattern_list, opts->num_runs);
     free_benchmark_results(results, num_pattern_lengths, algorithms->num_algos);
+
+    fclose(pl);
 }
 
 /*
