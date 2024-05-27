@@ -1469,10 +1469,6 @@ void write_html_algo_charts(FILE *fp, int rows, int cols,
         }
         fprintf(fp, "];\n");
 
-        //TODO: lower bound of standard is not zero?- it is the best time the algorithm achieved for that point.
-        //      we can't dip below the best time achieved really, it's not informative.
-        //      Is there a better representation than std-dev around the mean for skewed distributions?
-
         // Write out standard deviation data lower bound in gigabytes per second:
         fprintf(fp, "var std1gbs = [");
         for (int col = 0; col < cols; col++) {
