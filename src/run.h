@@ -15,6 +15,9 @@
 
 static const char *DOTS = "................................................................";
 
+#define ALGO_STAT_COL_WIDTH 10  // width of columns for algorithm stats.
+#define PERF_STAT_COL_WIDTH 8   // width of columns for performance stats.
+
 /*
  * Prints a percentage on a line which overwrites the previous percentage value using \b back.
  */
@@ -55,7 +58,8 @@ void gen_patterns(const run_command_opts_t *opts, unsigned char *patterns[], int
  */
 enum measurement_status run_algo(unsigned char **pattern_list, int m,
                                  unsigned char *T, const run_command_opts_t *opts,
-                                 search_function *search_func, algo_results_t *results)
+                                 search_function *search_func,
+                                 algo_results_t *results)
 {
     enum measurement_status status = SUCCESS; // assume success, errors will update it.
 
@@ -70,13 +74,22 @@ enum measurement_status run_algo(unsigned char **pattern_list, int m,
 
         memcpy(P, pattern_list[k], sizeof(unsigned char) * (m + 1));
         results->measurements.pre_times[k] = results->measurements.search_times[k] = 0.0;
+        init_stats(&(results->measurements.algo_stats[k]));
+
+        // Init CPU stats
         zero_cpu_stats(&(results->measurements.cpu_stats[k]));
         if (getting_cpu_stats) {
             cpu_perf_start(&perf_events);
         }
 
-        int occur = search_func(P, m, T, opts->text_stats.text_actual_length, &(results->measurements.search_times[k]), &(results->measurements.pre_times[k]));
+        // Search and gather algo measurements.
+        int occur = search_func(P, m, T, opts->text_stats.text_actual_length,
+                                 &(results->measurements.pre_times[k]),
+                                 &(results->measurements.search_times[k]),
+                                 &(results->measurements.algo_stats[k]),
+                                 &(results->measurements.algostats_metadata));
 
+        // Add cpu stats if gathering them.
         if (getting_cpu_stats) {
             cpu_perf_end(&perf_events, &(results->measurements.cpu_stats[k]));
         }
@@ -107,111 +120,217 @@ enum measurement_status run_algo(unsigned char **pattern_list, int m,
 }
 
 /*
- * Gets the results formatted according to the run options.
+ * Builds the results console output for cpu stats.
  */
-void get_results_info(char output_line[MAX_LINE_LEN], const run_command_opts_t *opts, algo_results_t *results)
+void get_cpu_stats_results(char output_line[STR_BUF], const run_command_opts_t *opts, algo_results_t *results)
 {
-    char occurence[MAX_LINE_LEN];
+    output_line[0] = STR_END_CHAR;
+    if (opts->cpu_stats) {
+        char cpu_stat[STR_BUF];
+        if (results->statistics.sum_cpu_stats.l1_cache_access > 0) {
+            snprintf(cpu_stat, STR_BUF, "L1:%.*f%%",
+                     opts->precision, (double) results->statistics.sum_cpu_stats.l1_cache_misses /
+                                      results->statistics.sum_cpu_stats.l1_cache_access * 100);
+            strcat(output_line, cpu_stat);
+        }
+
+        if (results->statistics.sum_cpu_stats.cache_references > 0) {
+            snprintf(cpu_stat, STR_BUF, strlen(output_line) > 0 ? "  LL:%.*f%%" : "LL:%.*f%%",
+                     opts->precision, (double) results->statistics.sum_cpu_stats.cache_misses /
+                                      results->statistics.sum_cpu_stats.cache_references * 100);
+            strcat(output_line, cpu_stat);
+        }
+
+        if (results->statistics.sum_cpu_stats.branch_instructions > 0) {
+            snprintf(cpu_stat, STR_BUF, strlen(output_line) > 0 ? "  Br:%.*f%%" : "Br:%.*f%%",
+                     opts->precision, (double) results->statistics.sum_cpu_stats.branch_misses /
+                                      results->statistics.sum_cpu_stats.branch_instructions * 100);
+            strcat(output_line, cpu_stat);
+        }
+    }
+}
+
+/*
+ * Builds the occurrence text, if occurrence is flagged as an option.
+ */
+void get_occurrence_results_text(char occurence[STR_BUF], const run_command_opts_t *opts, algo_results_t *results)
+{
     if (opts->occ)
     {
-        snprintf(occurence, MAX_LINE_LEN, "occ(%d)", results->occurrence_count);
+        snprintf(occurence, STR_BUF, "occ(%d)", results->occurrence_count);
     }
     else
     {
         occurence[0] = STR_END_CHAR;
     }
+}
 
-    if (opts->cpu_stats) {
-        char cpu_stats[STR_BUF];
-        char cpu_stat[STR_BUF];
-        cpu_stats[0] = STR_END_CHAR;
-        if (results->statistics.sum_cpu_stats.l1_cache_access > 0) {
-            snprintf(cpu_stat, STR_BUF, "L1:%.*f%%",
-                     opts->precision, (double) results->statistics.sum_cpu_stats.l1_cache_misses /
-                     results->statistics.sum_cpu_stats.l1_cache_access * 100);
-            strcat(cpu_stats, cpu_stat);
-        }
+/*
+ * Formats algorithm statistics for output to the console.
+ */
+void format_algorithm_statistics(char output_line[MAX_LINE_LEN], char occurence[STR_BUF], const char *stat_type,
+                                 const run_command_opts_t *opts, algo_stats_t *stats, algo_stats_t *extra_stats, algostats_metadata_t  *metadata,
+                                 int m, int calculate_derived_stats)
+{
+    const int SPACING = ALGO_STAT_COL_WIDTH + 1;
+    snprintf(output_line, MAX_LINE_LEN, " %*s", ALGO_STAT_COL_WIDTH, stat_type);
 
-        if (results->statistics.sum_cpu_stats.cache_references > 0)
+    if (calculate_derived_stats) {
+        algo_stats_t *jump_stats = extra_stats == NULL? stats : extra_stats;
+        snprintf(output_line + SPACING, MAX_LINE_LEN - SPACING, " %*.*f %*.*f",
+                 ALGO_STAT_COL_WIDTH, opts->precision, (double) stats->text_bytes_read / opts->text_stats.text_actual_length * 100,
+                 ALGO_STAT_COL_WIDTH, 1, (double) (opts->text_stats.text_actual_length - m) / ((double) jump_stats->num_jumps));
+    } else {
+        snprintf(output_line + SPACING, MAX_LINE_LEN - SPACING, " %*s %*s",
+                 ALGO_STAT_COL_WIDTH, "", ALGO_STAT_COL_WIDTH, "");
+    }
+
+    snprintf(output_line + SPACING * 3, MAX_LINE_LEN - SPACING * 3, " %*.*f %*.*f %*.*f %*.*f %*.*f %*.*f %*.*f %*.*f %*.*f",
+             ALGO_STAT_COL_WIDTH, 0, (double) stats->memory_used,
+             ALGO_STAT_COL_WIDTH, 0, (double) stats->text_bytes_read,
+             ALGO_STAT_COL_WIDTH, 0, (double) stats->pattern_bytes_read,
+             ALGO_STAT_COL_WIDTH, 0, (double) stats->num_computations,
+             ALGO_STAT_COL_WIDTH, 0, (double) stats->num_writes,
+             ALGO_STAT_COL_WIDTH, 0, (double) stats->num_branches,
+             ALGO_STAT_COL_WIDTH, 0, (double) stats->num_jumps,
+             ALGO_STAT_COL_WIDTH, 0, (double) stats->num_lookups,
+             ALGO_STAT_COL_WIDTH, 0, (double) stats->num_verifications);
+
+    int col_no = 0;
+    for (int i = 0; i < NUM_EXTRA_FIELDS; i++) {
+        if (metadata->extra_name[i][0] != STR_END_CHAR)
         {
-            snprintf(cpu_stat, STR_BUF, strlen(cpu_stats) > 0 ? "  LL:%.*f%%" : "LL:%.*f%%",
-                     opts->precision, (double) results->statistics.sum_cpu_stats.cache_misses /
-                     results->statistics.sum_cpu_stats.cache_references * 100);
-            strcat(cpu_stats, cpu_stat);
-        }
-
-        if (results->statistics.sum_cpu_stats.branch_instructions > 0) {
-            snprintf(cpu_stat, STR_BUF, strlen(cpu_stats) > 0 ? "  Br:%.*f%%" : "Br:%.*f%%",
-                     opts->precision, (double) results->statistics.sum_cpu_stats.branch_misses /
-                     results->statistics.sum_cpu_stats.branch_instructions * 100);
-            strcat(cpu_stats, cpu_stat);
-        }
-
-        if (opts->pre)
-        {
-            snprintf(output_line, MAX_LINE_LEN, "\t(%.*f - %.*f,  %.*f,  %.*f) + (%.*f - %.*f,  %.*f ± %.*f,  %.*f) ms\t   %s\t%s",
-                     opts->precision, results->statistics.min_pre_time,
-                     opts->precision, results->statistics.max_pre_time,
-                     opts->precision, results->statistics.mean_pre_time,
-                     opts->precision, results->statistics.median_pre_time,
-                     opts->precision, results->statistics.min_search_time,
-                     opts->precision, results->statistics.max_search_time,
-                     opts->precision, results->statistics.mean_search_time,
-                     opts->precision, results->statistics.std_search_time,
-                     opts->precision, results->statistics.median_search_time,
-                     cpu_stats, occurence);
-        }
-        else
-        {
-            snprintf(output_line, MAX_LINE_LEN, "\t%.*f - %.*f,  %.*f ± %.*f,  %.*f ms\t   %s\t%s",
-                     opts->precision, results->statistics.min_total_time,
-                     opts->precision, results->statistics.max_total_time,
-                     opts->precision, results->statistics.mean_total_time,
-                     opts->precision, results->statistics.std_total_time,
-                     opts->precision, results->statistics.median_total_time,
-                     cpu_stats, occurence);
+            snprintf(output_line + SPACING * (12 + col_no), MAX_LINE_LEN - SPACING * (12 + col_no), " %*.*f",
+                     ALGO_STAT_COL_WIDTH, 0, (double) stats->extra[i]);
+            col_no++;
         }
     }
-    else
+
+    //TODO: add occurence as a field, not a weird extra tabbed value.
+}
+
+/*
+ * Prints the headers for the table of algorithm column statistics to the output_line parameter.
+ */
+void print_algorithm_statistics_column_headers(char output_line[MAX_LINE_LEN], const algo_results_t *results)
+{
+    const int SPACING = ALGO_STAT_COL_WIDTH + 1;
+    snprintf(output_line, MAX_LINE_LEN,
+             " %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s", ALGO_STAT_COL_WIDTH, "type",
+             ALGO_STAT_COL_WIDTH, "%text", ALGO_STAT_COL_WIDTH, "av jump",
+             ALGO_STAT_COL_WIDTH, "mem used", ALGO_STAT_COL_WIDTH, "text read", ALGO_STAT_COL_WIDTH, "patt read",
+             ALGO_STAT_COL_WIDTH, "#compute", ALGO_STAT_COL_WIDTH, "#writes", ALGO_STAT_COL_WIDTH, "#branches",
+             ALGO_STAT_COL_WIDTH, "#jumps", ALGO_STAT_COL_WIDTH, "#lookups", ALGO_STAT_COL_WIDTH, "#verifies");
+    size_t len = strlen(output_line);
+    int col_no = 0;
+    for (int i = 0; i < NUM_EXTRA_FIELDS; i++) {
+        char header[STR_BUF];
+        if (results->measurements.algostats_metadata.extra_name[i][0] != STR_END_CHAR)
+        {
+            snprintf(header, STR_BUF, "%s", results->measurements.algostats_metadata.extra_name[i]);
+            snprintf(output_line + len + (SPACING * col_no), MAX_LINE_LEN - len - (SPACING * col_no), " %*s", ALGO_STAT_COL_WIDTH, header);
+            col_no++;
+        }
+//        else {
+//            snprintf(header, STR_BUF, "extra %d", i);
+//        }
+    }
+}
+
+
+void format_all_algo_stats(char output_line[MAX_OUTPUT_LEN], char occurence[STR_BUF],
+                           const run_command_opts_t *opts, algo_results_t *results, int m)
+{
+    char headers[MAX_LINE_LEN];
+    print_algorithm_statistics_column_headers(headers, results);
+    char median_stats[MAX_LINE_LEN];
+    format_algorithm_statistics(median_stats, occurence, "median", opts, &(results->statistics.median_algo_stats), NULL,
+                                &(results->measurements.algostats_metadata), m, 1);
+    char mean_stats[MAX_LINE_LEN];
+    format_algorithm_statistics(mean_stats, occurence, "mean", opts, &(results->statistics.mean_algo_stats), NULL,
+                                &(results->measurements.algostats_metadata), m, 1);
+    char std_stats[MAX_LINE_LEN];
+    format_algorithm_statistics(std_stats, occurence, "std", opts, &(results->statistics.std_algo_stats), NULL,
+                                &(results->measurements.algostats_metadata), m, 0);
+    char min_stats[MAX_LINE_LEN];
+    format_algorithm_statistics(min_stats, occurence, "min", opts, &(results->statistics.min_algo_stats), &(results->statistics.max_algo_stats),
+                                &(results->measurements.algostats_metadata), m, 2);
+    char max_stats[MAX_LINE_LEN];
+    format_algorithm_statistics(max_stats, occurence, "max", opts, &(results->statistics.max_algo_stats), &(results->statistics.min_algo_stats),
+                                &(results->measurements.algostats_metadata), m, 2);
+    //snprintf(output_line, MAX_OUTPUT_LEN, "\n\t\t\t\t\t%s\n\t\t\t\t\t%s\n\t\t\t\t\t%s\n\t\t\t\t\t%s\n\t\t\t\t\t%s",
+    //         median_stats, mean_stats, std_stats, min_stats, max_stats);
+    snprintf(output_line, MAX_OUTPUT_LEN, "\n\t%s\n\t%s\n\t%s\n\t%s\n\t%s\n\t%s\n",
+             headers, median_stats, mean_stats, std_stats, min_stats, max_stats);
+}
+
+
+/*
+ * Formats performance statistics for output to the console.
+ */
+void format_performance_statistics(char output_line[MAX_OUTPUT_LEN], char occurence[STR_BUF],
+                                   const run_command_opts_t *opts, algo_results_t *results, int m)
+{
+    // Get CPU Stats text, if measured.
+    char cpu_stats[STR_BUF];
+    get_cpu_stats_results(cpu_stats, opts, results);
+
+    // Display with pre-processing time separate from search times?
+    if (opts->pre) {
+        snprintf(output_line, MAX_LINE_LEN,
+                 "\t%*.*f %*.*f %*.*f %*.*f %*s %*.*f %*.*f %*.*f %*.*f %*.*f ms\t   %s\t%s",
+                 PERF_STAT_COL_WIDTH, opts->precision, results->statistics.median_pre_time,
+                 PERF_STAT_COL_WIDTH, opts->precision, results->statistics.mean_pre_time,
+                 PERF_STAT_COL_WIDTH, opts->precision, results->statistics.min_pre_time,
+                 PERF_STAT_COL_WIDTH, opts->precision, results->statistics.max_pre_time,
+                 PERF_STAT_COL_WIDTH, "",
+                 PERF_STAT_COL_WIDTH, opts->precision, results->statistics.median_search_time,
+                 PERF_STAT_COL_WIDTH, opts->precision, results->statistics.mean_search_time,
+                 PERF_STAT_COL_WIDTH, opts->precision, results->statistics.std_search_time,
+                 PERF_STAT_COL_WIDTH, opts->precision, results->statistics.min_search_time,
+                 PERF_STAT_COL_WIDTH, opts->precision, results->statistics.max_search_time,
+                 cpu_stats, occurence);
+    } else // Display total of pre-processing and search times.
     {
-        if (opts->pre)
-        {
-            snprintf(output_line, MAX_LINE_LEN, "\t(%.*f - %.*f,  %.*f,  %.*f) + (%.*f - %.*f,  %.*f ± %.*f,  %.*f) ms\t%s",
-                     opts->precision, results->statistics.min_pre_time,
-                     opts->precision, results->statistics.max_pre_time,
-                     opts->precision, results->statistics.mean_pre_time,
-                     opts->precision, results->statistics.median_pre_time,
-                     opts->precision, results->statistics.min_search_time,
-                     opts->precision, results->statistics.max_search_time,
-                     opts->precision, results->statistics.mean_search_time,
-                     opts->precision, results->statistics.std_search_time,
-                     opts->precision, results->statistics.median_search_time,
-                     occurence);
-        }
-        else
-        {
-            snprintf(output_line, MAX_LINE_LEN, "\t%.*f - %.*f,  %.*f ± %.*f,  %.*f ms\t%s",
-                     opts->precision, results->statistics.min_total_time,
-                     opts->precision, results->statistics.max_total_time,
-                     opts->precision, results->statistics.mean_total_time,
-                     opts->precision, results->statistics.std_total_time,
-                     opts->precision, results->statistics.median_total_time,
-                     occurence);
-        }
+        snprintf(output_line, MAX_LINE_LEN, "\t%*.*f %*.*f %*.*f %*.*f %*.*f ms\t   %s\t%s",
+                 PERF_STAT_COL_WIDTH, opts->precision, results->statistics.median_total_time,
+                 PERF_STAT_COL_WIDTH, opts->precision, results->statistics.mean_total_time,
+                 PERF_STAT_COL_WIDTH, opts->precision, results->statistics.std_total_time,
+                 PERF_STAT_COL_WIDTH, opts->precision, results->statistics.min_total_time,
+                 PERF_STAT_COL_WIDTH, opts->precision, results->statistics.max_total_time,
+                 cpu_stats, occurence);
+    }
+}
+
+/*
+ * Gets the results formatted according to the run options for output to console.
+ */
+void get_results_info(char output_line[MAX_OUTPUT_LEN], const run_command_opts_t *opts, algo_results_t *results, int m)
+{
+    // Get occurrence text.
+    char occurence[STR_BUF];
+    get_occurrence_results_text(occurence, opts, results);
+
+    if (opts->statistics_type == STATS_ALGORITHM) // Algorithm statistics.
+    {
+        format_all_algo_stats(output_line, occurence, opts, results, m);
+    }
+    else { // Performance statistics.
+        format_performance_statistics(output_line, occurence, opts, results, m);
     }
 }
 
 /*
  * Prints benchmark results for an algorithm run.
  */
-void print_benchmark_res(const run_command_opts_t *opts, algo_results_t *results)
+void print_benchmark_res(const run_command_opts_t *opts, algo_results_t *results, int m)
 {
     switch (results->success_state)
     {
         case SUCCESS:
         {
-            char results_line[MAX_LINE_LEN];
-            get_results_info(results_line, opts, results);
+            char results_line[MAX_OUTPUT_LEN];
+            get_results_info(results_line, opts, results, m);
             printf("\b\b\b\b\b.[OK]  %s\n", results_line);
             break;
         }
@@ -267,13 +386,25 @@ void print_benchmark_status(const int algo, const algo_info_t *algorithms)
  * Benchmarks all selected algorithms using a set of random patterns of a set length.
  */
 int benchmark_algos_with_patterns(algo_results_t *results, const run_command_opts_t *opts, unsigned char *T,
-                                  unsigned char **pattern_list, int m, const algo_info_t *algorithms)
-{
+                                  unsigned char **pattern_list, int m, const algo_info_t *algorithms) {
     info("\n------------------------------------------------------------");
-    info("\tSearching for a set of %d patterns with length %d",opts->num_runs, m);
+    info("\tSearching for a set of %d patterns with length %d", opts->num_runs, m);
 
-    const char *pre_header = opts->pre ? "(preprocessing) + (search): " : "";
-    info("\tTesting %d algorithms                   %smin - max,  mean ± stddev,  median", algorithms->num_algos, pre_header);
+    if (opts->statistics_type == STATS_ALGORITHM) {
+        info("\tTesting %d algorithms", algorithms->num_algos);
+    }
+    else if (opts->pre)
+    {
+        info("\tTesting %d algorithms               pre: %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s", algorithms->num_algos,
+             PERF_STAT_COL_WIDTH, "median", PERF_STAT_COL_WIDTH, "mean", PERF_STAT_COL_WIDTH, "min", PERF_STAT_COL_WIDTH, "max", PERF_STAT_COL_WIDTH, "search:",
+             PERF_STAT_COL_WIDTH, "median", PERF_STAT_COL_WIDTH, "mean", PERF_STAT_COL_WIDTH, "std dev", PERF_STAT_COL_WIDTH, "min", PERF_STAT_COL_WIDTH, "max");
+    }
+    else
+    {
+        info("\tTesting %d algorithms                    %*s %*s %*s %*s %*s ", algorithms->num_algos,
+             PERF_STAT_COL_WIDTH, "median", PERF_STAT_COL_WIDTH, "mean", PERF_STAT_COL_WIDTH, "std dev", PERF_STAT_COL_WIDTH, "min",
+             PERF_STAT_COL_WIDTH, "max");
+    }
 
     for (int algo = 0; algo < algorithms->num_algos; algo++)
     {
@@ -283,9 +414,9 @@ int benchmark_algos_with_patterns(algo_results_t *results, const run_command_opt
         results[algo].success_state = run_algo(pattern_list, m, T, opts, algorithms->algo_functions[algo], results + algo);
 
         if (results[algo].success_state == SUCCESS)
-            calculate_algo_statistics(results + algo, opts->num_runs, opts->text_stats.text_actual_length);
+            calculate_algo_statistics(opts->statistics_type, results + algo, opts->num_runs, opts->text_stats.text_actual_length);
 
-        print_benchmark_res(opts, results + algo);
+        print_benchmark_res(opts, results + algo, m);
     }
 }
 
@@ -418,6 +549,9 @@ void benchmark_algorithms_with_text(const smart_config_t *smart_config, run_comm
     allocate_benchmark_results(results, num_pattern_lengths, algorithms->num_algos, opts->num_runs);
     allocate_pattern_matrix(pattern_list, opts->num_runs, opts->pattern_info.pattern_max_len);
 
+    FILE *pl = open_experiment_file_for_writing(smart_config, opts, "patterns", "csv");
+    fprintf(pl, "LENGTH\tMEASUREMENT\tPRINTABLE TEXT OR _\tHEX\n");
+
     opts->started_date = time(NULL);
     for (int m = opts->pattern_info.pattern_min_len, patt_len_idx = 0; m <= max_pattern_length;
              m = next_pattern_length(&(opts->pattern_info), m), patt_len_idx++)
@@ -425,6 +559,7 @@ void benchmark_algorithms_with_text(const smart_config_t *smart_config, run_comm
         gen_patterns(opts, pattern_list, m, T, opts->text_stats.text_actual_length, opts->num_runs);
         results[patt_len_idx].pattern_length = m;
         benchmark_algos_with_patterns(results[patt_len_idx].algo_results, opts, T, pattern_list, m, algorithms);
+        output_patterns_for_length(pl,  pattern_list, opts->num_runs, m);
     }
     opts->finished_date = time(NULL);
 
@@ -433,6 +568,8 @@ void benchmark_algorithms_with_text(const smart_config_t *smart_config, run_comm
 
     free_pattern_matrix(pattern_list, opts->num_runs);
     free_benchmark_results(results, num_pattern_lengths, algorithms->num_algos);
+
+    fclose(pl);
 }
 
 /*
@@ -517,9 +654,11 @@ void load_and_run_benchmarks(const smart_config_t *smart_config, run_command_opt
 }
 
 /*
- * Loads the algorithms to benchmark given the run options and config.
+ * Builds the algorithms to use in performance benchmarking mode.
+ * The -all algorithms command will exclude stat_ version of algorithms as they are generally not suitable for performance profiling.
+ *
  */
-void get_algorithms_to_benchmark(const smart_config_t *smart_config, run_command_opts_t *opts, algo_info_t *algorithms)
+void get_algorithms_for_performance(const smart_config_t *smart_config, run_command_opts_t *opts, algo_info_t *algorithms)
 {
     init_algo_info(algorithms);
 
@@ -528,35 +667,138 @@ void get_algorithms_to_benchmark(const smart_config_t *smart_config, run_command
         case ALGO_REGEXES:
         {
             get_all_algo_names(smart_config, algorithms);
-            filter_out_names_not_matching_regexes(algorithms, NULL, opts->algo_names, opts->num_algo_names);
+            filter_out_names_not_matching_regexes(algorithms, NULL, NULL, opts->algo_names, opts->num_algo_names);
             break;
         }
         case NAMED_SET_ALGOS:
         {
+            //TODO: ensure that the algo names in the file actually exist - load all and filter.
             read_algo_names_from_file(smart_config, algorithms, opts->algo_filename);
             if (opts->num_algo_names > 0)
             {
                 algo_info_t regex_algos;
                 init_algo_info(&regex_algos);
                 get_all_algo_names(smart_config, &regex_algos);
-                filter_out_names_not_matching_regexes(&regex_algos, NULL, opts->algo_names, opts->num_algo_names);
+                filter_out_names_not_matching_regexes(&regex_algos, NULL, NULL, opts->algo_names, opts->num_algo_names);
                 merge_algorithms(algorithms, &regex_algos, NULL);
             }
             break;
         }
         case SELECTED_ALGOS:
         {
+            //TODO: ensure that the algo names in the file actually exist - load all and filter.
             read_algo_names_from_file(smart_config, algorithms, opts->algo_filename);
             break;
         }
         case ALL_ALGOS:
         {
             get_all_algo_names(smart_config, algorithms);
+            char regex[MAX_SELECT_ALGOS][ALGO_REGEX_LEN];
+            strncpy(regex[0], STATS_FILENAME_PREFIX, ALGO_REGEX_LEN);
+            strncpy(regex[0] + strlen(STATS_FILENAME_PREFIX), ".*", ALGO_REGEX_LEN - strlen(STATS_FILENAME_PREFIX));
+            filter_out_names_matching_regexes(algorithms, NULL, regex, 1);
             break;
         }
         default:
         {
             error_and_exit("Unknown algorithm source specified: %d", opts->algo_source);
+        }
+    }
+}
+
+/*
+ * Loads the algorithm names defined in the named set file, then finds all the stat_ versions of them in the existing
+ * set of algorithms.  Also merges in any algorithms specified on the command line (also ensuring it is the stat_
+ * versions that are added).
+ */
+void load_named_set_algorithms_for_algo_stats(const smart_config_t *smart_config, run_command_opts_t *opts, algo_info_t *algorithms)
+{
+    // Get algorithms from file:
+    algo_info_t file_algos;
+    init_algo_info(&file_algos);
+    read_algo_names_from_file(smart_config, &file_algos, opts->algo_filename);
+
+    // Convert algo names into regex array:
+    char algo_regexes[MAX_SELECT_ALGOS][ALGO_REGEX_LEN];
+    for (int i = 0; i < file_algos.num_algos; i++)
+        strncpy(algo_regexes[i], file_algos.algo_names[i], ALGO_REGEX_LEN);
+
+    // Load all the algorithms that exist:
+    get_all_algo_names(smart_config, algorithms);
+
+    // Filter out from the existing algorithms anything that doesn't match a name loaded from the file, with a stat_ prefix in front of it.
+    filter_out_names_not_matching_regexes(algorithms, NULL, STATS_FILENAME_PREFIX, algo_regexes, file_algos.num_algos);
+
+    // If we have specified additional algorithms on the command line, merge those in, ensuring a stat_ prefix for them.
+    if (opts->num_algo_names > 0)
+    {
+        algo_info_t regex_algos;
+        init_algo_info(&regex_algos);
+        get_all_algo_names(smart_config, &regex_algos);
+        filter_out_names_not_matching_regexes(&regex_algos, NULL, STATS_FILENAME_PREFIX, opts->algo_names, opts->num_algo_names);
+        merge_algorithms(algorithms, &regex_algos, NULL);
+    }
+}
+
+/*
+ * Builds the list of algorithms suitable for running in algo stats mode.
+ * Ensures it uses the stat_ version of algorithms for any command line or file-based algorithm specifications.
+ * The -all algorithms command will only return _stat algorithms.
+ */
+void get_algorithms_for_algostats(const smart_config_t *smart_config, run_command_opts_t *opts, algo_info_t *algorithms)
+{
+    init_algo_info(algorithms);
+    switch (opts->algo_source)
+    {
+        case ALGO_REGEXES:
+        {
+            get_all_algo_names(smart_config, algorithms);
+            filter_out_names_not_matching_regexes(algorithms, NULL, STATS_FILENAME_PREFIX, opts->algo_names, opts->num_algo_names);
+            break;
+        }
+        case NAMED_SET_ALGOS:
+        {
+            load_named_set_algorithms_for_algo_stats(smart_config, opts, algorithms);
+            break;
+        }
+        case SELECTED_ALGOS:
+        {
+            load_named_set_algorithms_for_algo_stats(smart_config, opts, algorithms);
+            break;
+        }
+        case ALL_ALGOS:
+        {
+            get_all_algo_names(smart_config, algorithms);
+            char regex[MAX_SELECT_ALGOS][ALGO_REGEX_LEN];
+            strncpy(regex[0], STATS_FILENAME_PREFIX, ALGO_REGEX_LEN);
+            strncpy(regex[0] + strlen(STATS_FILENAME_PREFIX), ".*", ALGO_REGEX_LEN - strlen(STATS_FILENAME_PREFIX));
+            filter_out_names_not_matching_regexes(algorithms, NULL, NULL, regex, 1);
+            break;
+        }
+        default:
+        {
+            error_and_exit("Unknown algorithm source specified: %d", opts->algo_source);
+        }
+    }
+}
+
+/*
+ * Loads the algorithms to benchmark given the run options and config.
+ */
+void get_algorithms_to_benchmark(const smart_config_t *smart_config, run_command_opts_t *opts, algo_info_t *algorithms)
+{
+    switch (opts->statistics_type) {
+        case STATS_PERFORMANCE: {
+            get_algorithms_for_performance(smart_config, opts, algorithms);
+            break;
+        }
+        case STATS_ALGORITHM: {
+            get_algorithms_for_algostats(smart_config, opts, algorithms);
+            break;
+        }
+        default:
+        {
+            error_and_exit("Unknown statistics type specified: %d", opts->statistics_type);
         }
     }
 

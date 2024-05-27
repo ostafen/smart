@@ -18,6 +18,7 @@
  */
 
 #include "timer.h"
+#include "stats.h"
 #include <sys/types.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
@@ -27,7 +28,8 @@
 
 /* global variables used for computing preprocessing and searching times */
 double _search_time, _pre_time; // searching time and preprocessing time
-
+algo_stats_t _stats;            // runtime statistics for stat_ versions of algorithms
+algostats_metadata_t _metadata; // names of any extra runtime statistics fields returned by algorithms.
 TIMER timer;
 
 int search(unsigned char *x, int m, unsigned char *y, int n);
@@ -43,21 +45,65 @@ int search(unsigned char *x, int m, unsigned char *y, int n);
 #define END_PREPROCESSING                         \
 	{                                             \
 		timer_stop(&timer);                       \
-		_pre_time = timer_elapsed(&timer) * 1000; \
+        _pre_time = timer_elapsed(&timer) * 1000; \
 	}
 
 #define END_SEARCHING                                \
 	{                                                \
 		timer_stop(&timer);                          \
-		_search_time = timer_elapsed(&timer) * 1000; \
+        _search_time = timer_elapsed(&timer) * 1000; \
 	}
 
-int internal_search(unsigned char *x, int m, unsigned char *y, int n, double *search_time, double *pre_time)
+/*
+ * Safe pattern verification which updates the statistics for bytes read.
+ * Intended to replace usages of memcmp, or other naive verification methods that compare the pattern bytes to the text,
+ * while updating stats correctly.
+ *
+ * Returns the number of characters matched at position pos.
+ *
+ * x is the pattern to match of length m.
+ * y is the text to locate a match in of length n.
+ */
+int stats_match_length(int pos, unsigned char *x, int m, unsigned char *y, int n)
 {
+    int charpos = 0;
+    _stats.num_branches++;
+    while (charpos < m && pos + charpos < n) {
+        _stats.pattern_bytes_read++;
+        _stats.text_bytes_read++;
+        // we don't record this as a branch, because this would normally be done in the outer while, which is already counted.
+        // it's split out here in order that we can record the text and pattern bytes read first.
+        if (x[charpos] != y[pos + charpos]) break;
+        charpos++;
+        _stats.num_branches++;
+    }
+    return charpos;
+}
+
+void set_extra_name(char *name, int index)
+{
+    snprintf(_metadata.extra_name[index], EXTRA_FIELD_NAME_LEN, "%s", name);
+}
+
+int internal_search(unsigned char *x, int m, unsigned char *y, int n,
+                    double *pre_time, double *search_time, algo_stats_t *algo_stats, algostats_metadata_t *metadata)
+{
+    // Init measurement stats:
+    init_stats(&_stats);
+    init_metadata(&_metadata);
+
     _search_time = 0.0;
     _pre_time = 0.0;
+
+    // Search
     int occ = search(x, m, y, n);
-	*search_time = _search_time;
-	*pre_time = _pre_time;
-	return occ;
+
+    // Record measurement stats.
+    *search_time = _search_time;
+    *pre_time = _pre_time;
+    memcpy(algo_stats, &_stats, sizeof(algo_stats_t));
+    memcpy(metadata, &_metadata, sizeof(algostats_metadata_t));
+
+    // Return occurrences or error value (if negative).
+    return occ;
 }

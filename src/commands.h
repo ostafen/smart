@@ -185,11 +185,14 @@ static char *const OPTION_LONG_GET_CPU_STATS = "--cpu-stats";
 static char *const PARAM_CPU_STATS_FIRST_LEVEL_CACHE = "first";
 static char *const PARAM_CPU_STATS_LAST_LEVEL_CACHE = "last";
 static char *const PARAM_CPU_STATS_BRANCHING = "branch";
+static char *const PARAM_ALGORITHM_STATS = "algo";
+static char *const PARAM_PERFORMANCE_STATS = "perf";
 static char *const OPTION_SHORT_PRECISION = "-prec";
 static char *const OPTION_LONG_PRECISION = "--precision";
 static char *const OPTION_SHORT_DESCRIPTION = "-desc";
 static char *const OPTION_LONG_DESCRIPTION = "--description";
-
+static char *const OPTION_SHORT_STATISTICS = "-stats";
+static char *const OPTION_LONG_STATISTICS = "--statistics";
 /*
  * Run command flags.
  */
@@ -215,6 +218,11 @@ enum data_source_type{DATA_SOURCE_NOT_DEFINED, DATA_SOURCE_FILES, DATA_SOURCE_RA
  * The type of cpu pinning to use.
  */
 enum cpu_pin_type{PINNING_OFF, PIN_LAST_CPU, PIN_SPECIFIED_CPU};
+
+/*
+ * The type of statistics to gather when benchmarking.
+ */
+enum statistics_gather_type{STATS_ALGORITHM, STATS_PERFORMANCE};
 
 /*
  * Returns a human-readable description of the cpu pin types.
@@ -250,7 +258,7 @@ typedef struct run_command_opts
 {
     enum algo_sources algo_source;               // source of algorithms to benchmark.
     char algo_filename[STR_BUF];                 // The filename in the config directory containing the algorithms to benchmark.
-    const char *algo_names[MAX_SELECT_ALGOS];    // algo_names to benchmark, as POSIX regular expressions on the command line.
+    char algo_names[MAX_SELECT_ALGOS][ALGO_REGEX_LEN];  // algo_names to benchmark, as POSIX regular expressions on the command line.
     int num_algo_names;                          // Number of algo names recorded.
     enum data_source_type data_source;           // What type of data is to be scanned - files or random.
     const char *data_sources[MAX_DATA_SOURCES];  // A list of files/data_sources to load data from.
@@ -268,6 +276,7 @@ typedef struct run_command_opts
     int pinnned_cpu;                             // The CPU which was actually pinned.
     int cpu_stats;                               // A bitmask of cpu stats to acquire.  Zero means no stats to gather, 001 = L1 cache, 010 = last cache, 100 = branches.
     int occ;                                     // Boolean flag - whether to report total occurrences.
+    enum statistics_gather_type statistics_type; // The type of statistics to gather.
     int pre;                                     // Boolean flag - whether to report pre-processing time separately.
     int dif;                                     // Boolean flag - whether to report min-max times by default in the html.
     int save_results;                            // Boolean flag - whether to save benchmark results to files.
@@ -290,13 +299,14 @@ void init_run_command_opts(run_command_opts_t *opts)
     opts->num_algo_names = 0;
     for (int i = 0; i < MAX_SELECT_ALGOS; i++)
     {
-        opts->algo_names[i] = NULL;
+        opts->algo_names[0][i] = STR_END_CHAR;
     }
     opts->data_source = DATA_SOURCE_NOT_DEFINED;
     for (int i = 0; i < MAX_DATA_SOURCES; i++)
     {
         opts->data_sources[i] = NULL;
     }
+    opts->statistics_type = STATS_PERFORMANCE;
     opts->cpu_pinning = CPU_PIN_DEFAULT;
     opts->cpu_to_pin  = -1;
     opts->pinnned_cpu = -1;
@@ -335,11 +345,15 @@ void print_run_usage_and_exit(const char *command)
 {
     print_logo();
 
-    printf("\n usage: %s [algo names...] [-text | -rand | -data | -plen | -inc | -short | -vshort | -pat | -use | -all | -runs | -ts | -fb | -rs | -pre | -occ | -tb | -pin | -cstats | -desc | -ns | -h]\n\n", command);
+    printf("\n usage: %s [algo names...] [-stats | -text | -rand | -data | -plen | -inc | -short | -vshort | -pat | -use | -all | -runs | -ts | -fb | -rs | -pre | -occ | -tb | -pin | -cstats | -desc | -ns | -h]\n\n", command);
 
     printf("\tYou can specify algorithms to benchmark directly as POSIX regular expressions, e.g. smart run bsdm.* hor ...\n");
     printf("\tIf you do not specify any algorithms on the command line or by another command, the default selected algorithms will be used.\n\n");
-
+    print_help_line("Selects what type T of statistics to gather - algorithm or performance.", OPTION_SHORT_STATISTICS, OPTION_LONG_STATISTICS, "T");
+    print_help_line("If the command is not specified at all, performance stats will be gathered", "", "", "");
+    print_help_line("If no parameter is provided to the command, algorithm stats will be gathered", "", "", "");
+    print_help_line("If algo is specified, then algorithm stats will be gathered", "", "", "algo");
+    print_help_line("If perf is specified, then performance stats will be gathered", "", "", "perf");
     print_help_line("Performs experimental results loading all files F specified into a single buffer for benchmarking.", OPTION_SHORT_TEXT_SOURCE, OPTION_LONG_TEXT_SOURCE, "F ...");
     print_help_line("You can specify several individual files, or directories.  If a directory, all files in it will be loaded,", "", "", "");
     print_help_line("up to the maximum buffer size.  SMART will look for files locally, and then in its search", "", "", "");
@@ -417,6 +431,7 @@ static char *const CPU_PIN_TYPE_KEY = "CPU pinning type";
 static char *const CPU_TO_PIN_KEY = "CPU to pin";
 static char *const PINNED_CPU_KEY = "Process pinned to CPU number";
 static char *const CPU_STATS_KEY = "CPU stats";
+static char *const BENCHMARK_TYPE_KEY = "Benchmark type";
 
 static char *const COMMAND_LINE_ALGORITHMS = "Algorithms provided on the command line.";
 static char *const ALL_ALGORITHMS = "All algorithms.";
@@ -461,6 +476,7 @@ void save_run_options(FILE *fp, const run_command_opts_t *run_options)
     fprintf(fp, STR_KEY_FMT, CREATION_DATETIME, time_string);
     if (run_options->description) fprintf(fp, STR_KEY_FMT, DESCRIPTION_KEY, run_options->description);
 
+    fprintf(fp, STR_KEY_FMT, BENCHMARK_TYPE_KEY, run_options->statistics_type == STATS_ALGORITHM ? "Algorithm" : "Performance");
     fprintf(fp, INT_KEY_FMT, NUM_RUNS_KEY, run_options->num_runs);
     fprintf(fp, INT_KEY_FMT, TIME_LIMIT_KEY, run_options->time_limit_millis);
     fprintf(fp,LONG_KEY_FMT, RANDOM_SEED_KEY, run_options->random_seed);
@@ -580,7 +596,7 @@ enum select_command_type {NO_SELECT_COMMAND, ADD, REMOVE, DESELECT_ALL, SAVE_AS,
 typedef struct select_command_opts
 {
     enum select_command_type select_command;
-    const char *algos[MAX_SELECT_ALGOS];
+    char algos[MAX_SELECT_ALGOS][ALGO_REGEX_LEN];
     int n_algos;
     const char *named_set;
 } select_command_opts_t;
@@ -651,7 +667,7 @@ typedef struct test_command_opts
     enum test_command_type test_type;              // The type of test to run
     enum algo_sources algo_source;                 // source of algorithms to test.
     const char *named_set;                         // name of the named set to load algorithms from, if specified.
-    const char *algo_names[MAX_SELECT_ALGOS];      // algo_names to test, as POSIX regular expressions.
+    char algo_names[MAX_SELECT_ALGOS][ALGO_REGEX_LEN];    // algo_names to test, as POSIX regular expressions.
     int num_algo_names;                            // Number of algo names recorded.
     long random_seed;                              // Random seed used to generate text or patterns.
     pattern_len_info_t pattern_info;               // Info about what pattern sizes to test random patterns with.
@@ -669,7 +685,7 @@ void init_test_command_opts(test_command_opts_t *opts)
     opts->algo_source  = ALGO_REGEXES;       // default is just user specified algo_names unless a command says different.
     opts->named_set    = NULL;
     for (int i = 0; i < MAX_SELECT_ALGOS; i++)
-        opts->algo_names[i] = NULL;
+        opts->algo_names[0][i] = STR_END_CHAR;
     opts->num_algo_names = 0;
     opts->random_seed  = time(NULL);   // default is random seed set by the current time, unless -seed option is specified.
     opts->debug = FALSE;

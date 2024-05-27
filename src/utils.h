@@ -244,6 +244,14 @@ static int double_compare(const void *a, const void *b)
 }
 
 /*
+ * Compares a long with another long.
+ */
+static int long_compare(const void *a, const void *b)
+{
+    return (*(long*)a > *(long*)b) ? 1 : (*(long*)a < *(long*)b) ? -1 : 0;
+}
+
+/*
  * Compares a string with another string.
  */
 static int str_compare(const void *str1, const void *str2)
@@ -740,20 +748,28 @@ int matches(const char *text_to_match, regex_t *regex)
 /*
  * Compiles algorithm name regular expressions into an array of regex_t compiled expressions.
  * It adds an anchor to the start and end of each regex, so the whole regex must match the entire algorithm name.
+ * If a prefix is specified, it prepends the prefix to each regular expression.
  * Exits the program with an error if a regular expression cannot be compiled.
  */
-void compile_algo_name_regexes(regex_t *expressions[], const char * const algo_names[], int n_algos)
+//void compile_algo_name_regexes(regex_t *expressions[], const char *prefix, const char * const algo_names[], int n_algos)
+void compile_algo_name_regexes(regex_t *expressions[], const char *prefix, const char algo_names[MAX_SELECT_ALGOS][ALGO_REGEX_LEN], int n_algos)
 {
+    size_t prefixlen = prefix == NULL ? 0 : strlen(prefix);
     for (int i = 0; i < n_algos; i++)
     {
         size_t length = strlen(algo_names[i]);
 
         // Prefix the expression with ^ and terminate with $ to ensure the regex matches the entire name.
-        char anchored_expression[length + 3];
+        char anchored_expression[length + 3 + prefixlen];
         anchored_expression[0] = '^'; // anchor to start of string.
-        memcpy(anchored_expression + 1, algo_names[i], length);
-        anchored_expression[length + 1] = '$'; //anchor to end of string.
-        anchored_expression[length + 2] = STR_END_CHAR; // terminate string.
+        size_t nextpos = 1;
+        if (prefixlen > 0) {
+            memcpy(anchored_expression + nextpos, prefix, prefixlen);
+            nextpos += prefixlen;
+        }
+        memcpy(anchored_expression + nextpos, algo_names[i], length);
+        anchored_expression[length + nextpos] = '$'; //anchor to end of string.
+        anchored_expression[length + nextpos + 1] = STR_END_CHAR; // terminate string.
 
         expressions[i] = (regex_t *) malloc(sizeof(regex_t));
         if (regcomp(expressions[i], anchored_expression, REG_ICASE | REG_EXTENDED) != 0)

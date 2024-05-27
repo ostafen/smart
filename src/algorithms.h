@@ -9,14 +9,15 @@
 #include "string_set.h"
 #include "config.h"
 #include "utils.h"
+#include "algos/include/stats.h"
 
 static const char *ALGO_COLUMN_FORMAT = "%-*s ";
-static const int ALGO_NUM_COLUMNS = (MAX_LINE_LEN / ALGO_NAME_LEN);
+static const int ALGO_NUM_COLUMNS = (SMALL_LINE_LEN / ALGO_NAME_LEN);
 
 /*
  * Function signature typedef of the internal search function called to benchmark algorithms.
  */
-typedef int search_function(unsigned char *, int, unsigned char *, int, double *, double *);
+typedef int search_function(unsigned char *, int, unsigned char *, int, double *, double *, algo_stats_t *, algostats_metadata_t *);
 
 /*
  * Struct containing information about the algorithms to open and their shared object handles and function pointers.
@@ -223,11 +224,11 @@ void get_all_algo_names(const smart_config_t *smart_config, algo_info_t *algorit
  * although you can set this to NULL if you don't care which ones were removed.
  * Returns the number of names filtered out.
  */
-int filter_out_names_not_matching_regexes(algo_info_t *algorithms, algo_info_t *filtered_out,
-                                          const char * const algo_regexes[MAX_SELECT_ALGOS], const int num_regexes)
+int filter_out_names_not_matching_regexes(algo_info_t *algorithms, algo_info_t *filtered_out, const char *regex_prefix,
+                                          const char algo_names[MAX_SELECT_ALGOS][ALGO_REGEX_LEN], const int num_regexes)
 {
     regex_t *algo_name_regexes[num_regexes];
-    compile_algo_name_regexes(algo_name_regexes, algo_regexes, num_regexes);
+    compile_algo_name_regexes(algo_name_regexes, regex_prefix, algo_names, num_regexes);
 
     if (filtered_out != NULL)
     {
@@ -285,10 +286,11 @@ int filter_out_names_not_matching_regexes(algo_info_t *algorithms, algo_info_t *
  * although you can set this to NULL if you don't care which ones were removed.
  * Returns the number of names filtered out.
  */
-int filter_out_names_matching_regexes(algo_info_t *algorithms, algo_info_t *filtered_out, const char * const algo_regexes[MAX_SELECT_ALGOS], int num_regexes)
+//int filter_out_names_matching_regexes(algo_info_t *algorithms, algo_info_t *filtered_out, const char * const algo_regexes[MAX_SELECT_ALGOS], int num_regexes)
+int filter_out_names_matching_regexes(algo_info_t *algorithms, algo_info_t *filtered_out, char algo_regexes[MAX_SELECT_ALGOS][ALGO_REGEX_LEN], int num_regexes)
 {
     regex_t *algo_name_regexes[num_regexes];
-    compile_algo_name_regexes(algo_name_regexes, algo_regexes, num_regexes);
+    compile_algo_name_regexes(algo_name_regexes, NULL, algo_regexes, num_regexes);
 
     int num_filtered = 0;
     int remove_idx = -1;

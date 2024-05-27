@@ -32,11 +32,11 @@
 /*
  * Adds algorithms that match the regex algo names to the selected set.
  */
-void add_algos(const char **algos, int n_algos, const smart_config_t *smart_config)
+void add_algos(char algos[MAX_SELECT_ALGOS][ALGO_REGEX_LEN], int n_algos, const smart_config_t *smart_config)
 {
     algo_info_t matching_algos;
     get_all_algo_names(smart_config, &matching_algos);
-    filter_out_names_not_matching_regexes(&matching_algos, NULL, algos, n_algos);
+    filter_out_names_not_matching_regexes(&matching_algos, NULL, NULL, algos, n_algos);
 
     int num_merged = 0;
     if (matching_algos.num_algos > 0)
@@ -66,7 +66,7 @@ void add_algos(const char **algos, int n_algos, const smart_config_t *smart_conf
 /*
  * Removes any algorithms that match the regex algo names from the selected set.
  */
-void remove_algos(const char **algos, int n_algos, const smart_config_t *smart_config)
+void remove_algos(char algos[MAX_SELECT_ALGOS][ALGO_REGEX_LEN], int n_algos, const smart_config_t *smart_config)
 {
     algo_info_t selected_algos;
     read_algo_names_from_file(smart_config, &selected_algos, SELECTED_ALGOS_FILENAME);

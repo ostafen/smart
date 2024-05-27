@@ -21,6 +21,7 @@
 #include "utils.h"
 #include "commands.h"
 #include "bench_results.h"
+#include "algos/include/stats.h"
 
 static char *const NUM_ALGORITHMS_BENCHMARKED_KEY = "Num algorithms benchmarked";
 static char *const ALGORITHM_BENCHMARKED_KEY = "Algorithm benchmarked";
@@ -121,6 +122,62 @@ void write_tabbed_string(FILE *fp, const char *string, int num_repetitions)
     }
 }
 
+/**
+ * Takes a pattern and places the printable ascii bytes into ascii_text,
+ * replaces any value outside of printable ascii with an underscore.
+ *
+ * @param ascii_text The printable ascii text version of pattern.
+ * @param pattern_bytes The binary pattern bytes
+ * @param length The length of the pattern.
+ */
+void get_printable_ascii_text(unsigned char ascii_text[], unsigned char *pattern_bytes, int length)
+{
+    for (int i = 0; i < length; i++)
+    {
+        if (pattern_bytes[i] >= 32 && pattern_bytes[i] < 127) {
+            ascii_text[i] = pattern_bytes[i];
+        }
+        else {
+            ascii_text[i] = '_';
+        }
+    }
+    ascii_text[length] = STR_END_CHAR;
+}
+
+/**
+ * Takes a pattern and places a hex-byte representation of it into hex_text.
+ * @param hex_text The hex text (must be twice the number of bytes in pattern, plus one for null).
+ * @param pattern_bytes The pattern bytes to get a hex representation of.
+ * @param length The length of the pattern.
+ */
+void get_hex_text(unsigned char hex_text[], unsigned char *pattern_bytes, int length)
+{
+    for (int i = 0; i < length; i++)
+    {
+        sprintf(hex_text + (i * 2), "%02X", pattern_bytes[i]);
+    }
+    hex_text[length * 2] = STR_END_CHAR;
+}
+
+/**
+ * Outputs all the patterns for a given pattern length.
+ * @param pl The file to write to
+ * @param pattern_list The list of patterns of a given length
+ * @param num_patterns The number of patterns in the list.
+ * @param pat_len The length of each pattern in the list.
+ */
+void output_patterns_for_length(FILE *pl, unsigned char **pattern_list, int num_patterns, int pat_len)
+{
+    unsigned char hex_text[pat_len * 2 + 1];
+    unsigned char ascii_text[pat_len + 1];
+    for (int measurement = 0; measurement < num_patterns; measurement++)
+    {
+        get_printable_ascii_text(ascii_text, pattern_list[measurement], pat_len);
+        get_hex_text(hex_text, pattern_list[measurement], pat_len);
+        fprintf(pl, "%d\t%d\t%s\t%s\n", pat_len, measurement, ascii_text, hex_text);
+    }
+}
+
 /*
  * Writes out the summary of the experiment run to a text file.
  */
@@ -141,7 +198,7 @@ void output_benchmark_run_summary(const smart_config_t *smart_config, const run_
     {
         fprintf(sf, STR_KEY_FMT, ALGORITHM_BENCHMARKED_KEY, algorithms->algo_names[i]);
     }
-    
+
     if (opts->pinnned_cpu >= 0)
         fprintf(sf, INT_KEY_FMT, PINNED_CPU_KEY, opts->pinnned_cpu);
     else
@@ -161,14 +218,107 @@ void output_benchmark_run_summary(const smart_config_t *smart_config, const run_
 /*
  * Outputs benchmark measurements as a tab separated CSV file.
  */
-void output_benchmark_measurements_csv(const smart_config_t *smart_config, const run_command_opts_t *opts, int num_pattern_lengths,
+void output_algorithm_measurements_csv(const smart_config_t *smart_config, const run_command_opts_t *opts, int num_pattern_lengths,
+                                       benchmark_results_t *results, const algo_info_t *algorithms)
+{
+    const int MEASUREMENT_COLUMNS = 14 + NUM_EXTRA_FIELDS;
+
+    FILE *rf = open_experiment_file_for_writing(smart_config, opts, "algo-measurements", "csv");
+
+    fprintf(rf, "EXPERIMENT\tPLEN\tALGORITHM\tMeasurement");
+    fprintf(rf, "\t%% Text read\tAvg jump\tMem Used\tText bytes read\tPattern bytes read\t#Computations\t#Writes\t#Branches\t#Jumps\t#Lookups\t#Verifications\t#LookupEntries1\t#LookupEntries2");
+    for (int i = 0; i < NUM_EXTRA_FIELDS; i++) {
+        fprintf(rf, "\tExtra name %d\tExtra data %d", i, i);
+    }
+    fprintf(rf, "\n");
+
+    // For each pattern length benchmarked:
+    for (int pattern_len_no = 0; pattern_len_no < num_pattern_lengths; pattern_len_no++)
+    {
+        int pat_len = results[pattern_len_no].pattern_length;
+
+        // For each algorithm:
+        for (int algo_no = 0; algo_no < algorithms->num_algos; algo_no++)
+        {
+            char upper_case_name[ALGO_NAME_LEN];
+            set_upper_case_algo_name(upper_case_name, algorithms->algo_names[algo_no]);
+
+            algo_results_t *algo_res = &(results[pattern_len_no].algo_results[algo_no]);
+            switch (algo_res->success_state)
+            {
+                case SUCCESS:
+                {
+                    algo_measurements_t *measurements = &(algo_res->measurements);
+                    for (int measurement = 0; measurement < opts->num_runs; measurement++)
+                    {
+                        fprintf(rf, "%s\t%d\t%s\t%d\t", opts->expcode, pat_len, upper_case_name, measurement);
+
+                        fprintf(rf, "%.*f\t%.*f\t%ld\t%ld\t%ld\t%ld\t%ld\t%ld\t%ld\t%ld\t%ld\t%ld\t%ld",
+                                opts->precision, (double) measurements->algo_stats[measurement].text_bytes_read /
+                                                  opts->text_stats.text_actual_length * 100,
+                                opts->precision, (double) (opts->text_stats.text_actual_length - pat_len) /
+                                                 ((double) measurements->algo_stats[measurement].num_jumps),
+                                measurements->algo_stats[measurement].memory_used,
+                                measurements->algo_stats[measurement].text_bytes_read,
+                                measurements->algo_stats[measurement].pattern_bytes_read,
+                                measurements->algo_stats[measurement].num_computations,
+                                measurements->algo_stats[measurement].num_writes,
+                                measurements->algo_stats[measurement].num_branches,
+                                measurements->algo_stats[measurement].num_jumps,
+                                measurements->algo_stats[measurement].num_lookups,
+                                measurements->algo_stats[measurement].num_verifications,
+                                measurements->algo_stats[measurement].num_lookup_entries1,
+                                measurements->algo_stats[measurement].num_lookup_entries2);
+                        for (int i = 0; i < NUM_EXTRA_FIELDS; i++)
+                        {
+                            fprintf(rf, "\t%s\t%ld",
+                                    measurements->algostats_metadata.extra_name[i],
+                                    measurements->algo_stats[measurement].extra[i]);
+                        }
+                        fprintf(rf, "\n");
+                    }
+
+                    break;
+                }
+                case CANNOT_SEARCH:
+                {
+                    fprintf(rf, "%s\t%d\t%s\t", opts->expcode, pat_len, upper_case_name);
+                    write_tabbed_string(rf, "---", MEASUREMENT_COLUMNS);
+                    fprintf(rf, "\n");
+                    break;
+                }
+                case TIMED_OUT:
+                {
+                    fprintf(rf, "%s\t%d\t%s\t", opts->expcode, pat_len, upper_case_name);
+                    write_tabbed_string(rf, "OUT", MEASUREMENT_COLUMNS);
+                    fprintf(rf, "\n");
+                    break;
+                }
+                case ERROR:
+                {
+                    fprintf(rf, "%s\t%d\t%s\t", opts->expcode, pat_len, upper_case_name);
+                    write_tabbed_string(rf, "ERROR", MEASUREMENT_COLUMNS);
+                    fprintf(rf, "\n");
+                    break;
+                }
+            }
+        }
+    }
+
+    fclose(rf);
+}
+
+/*
+ * Outputs performance measurements as a tab separated CSV file.
+ */
+void output_performance_measurements_csv(const smart_config_t *smart_config, const run_command_opts_t *opts, int num_pattern_lengths,
                                        benchmark_results_t *results, const algo_info_t *algorithms)
 {
     const int MEASUREMENT_COLUMNS = 7;
     const int CPU_STAT_COLUMNS = 6;
     const int TOTAL_COLUMNS = MEASUREMENT_COLUMNS + CPU_STAT_COLUMNS;
 
-    FILE *rf = open_experiment_file_for_writing(smart_config, opts, "measurements", "csv");
+    FILE *rf = open_experiment_file_for_writing(smart_config, opts, "algo-measurements", "csv");
 
     fprintf(rf, "EXPERIMENT\tPLEN\tALGORITHM");
     fprintf(rf, "\tMEASUREMENT\tPRE TIME (ms)\tSEARCH TIME (ms)\tTOTAL TIME (ms)\tPRE TIME (Gb/s)\tSEARCH TIME (Gb/s)\tTOTAL TIME (Gb/s)");
@@ -258,6 +408,127 @@ void output_benchmark_measurements_csv(const smart_config_t *smart_config, const
 }
 
 /*
+ * Outputs a row of algorithm statistics.
+ */
+void output_algorithm_stats_row(FILE *rf, const run_command_opts_t *opts, const char *type, algo_stats_t *stats,
+                                algo_stats_t *extra, algostats_metadata_t *metadata, int pat_len)
+{
+    algo_stats_t *min_stats = extra == NULL? stats : extra;
+    fprintf(rf, "%s\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f",
+            type, opts->precision, (double) stats->text_bytes_read / opts->text_stats.text_actual_length * 100,
+            opts->precision, (double) (opts->text_stats.text_actual_length - pat_len) / ((double) min_stats->num_jumps),
+            0, (double) stats->memory_used,
+            0, (double) stats->text_bytes_read,
+            0, (double) stats->pattern_bytes_read,
+            0, (double) stats->num_computations,
+            0, (double) stats->num_writes,
+            0, (double) stats->num_branches,
+            0, (double) stats->num_jumps,
+            0, (double) stats->num_lookups,
+            0, (double) stats->num_verifications,
+            0, (double) stats->num_lookup_entries1,
+            0, (double) stats->num_lookup_entries2);
+    for (int i = 0; i < NUM_EXTRA_FIELDS; i++) {
+        fprintf(rf, "\t%s\t%.*f", metadata->extra_name[i], 0, (double) stats->extra[i]);
+    }
+}
+
+/*
+ * Outputs a row of algo stats for standard deviation (some computed values are not displayed for this).
+ */
+void output_algorithm_stats_std_row(FILE *rf, const char *type, algo_stats_t *stats, algostats_metadata_t  *metadata)
+{
+    fprintf(rf, "%s\t%s\t%s\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f\t%.*f",
+            type, "", "",
+            0, (double) stats->memory_used,
+            0, (double) stats->text_bytes_read,
+            0, (double) stats->pattern_bytes_read,
+            0, (double) stats->num_computations,
+            0, (double) stats->num_writes,
+            0, (double) stats->num_branches,
+            0, (double) stats->num_jumps,
+            0, (double) stats->num_lookups,
+            0, (double) stats->num_verifications,
+            0, (double) stats->num_lookup_entries1,
+            0, (double) stats->num_lookup_entries2);
+    for (int i = 0; i < NUM_EXTRA_FIELDS; i++) {
+        fprintf(rf, "\t\t%.*f", 0, (double) stats->extra[i]);
+    }
+}
+
+void output_algorithm_statistics_csv(const smart_config_t *smart_config, const run_command_opts_t *opts, int num_pattern_lengths,
+                                     benchmark_results_t *results, const algo_info_t *algorithms)
+{
+    FILE *rf = open_experiment_file_for_writing(smart_config, opts, "algo-statistics", "csv");
+
+    const int MEASUREMENT_COLUMNS = 14 + (NUM_EXTRA_FIELDS * 2);
+
+    fprintf(rf, "EXPERIMENT\tPLEN\tALGORITHM");
+    fprintf(rf, "\tStat type\t%% Text read\tAv jump\tMem used\tText bytes read\tPattern bytes read\t#Computations\t#Writes\t#Branches\t#Jumps\t#Lookups\t#Verifications\t#LookupEntries1\t#LookupEntries2");
+    for (int i = 0; i < NUM_EXTRA_FIELDS; i++) {
+        fprintf(rf, "\tExtra name %d\tExtra data %d", i, i);
+    }
+    fprintf(rf,"\n");
+
+    // For each pattern length benchmarked:
+    for (int pattern_len_no = 0; pattern_len_no < num_pattern_lengths; pattern_len_no++)
+    {
+        int pat_len = results[pattern_len_no].pattern_length;
+
+        // For each algorithm:
+        for (int algo_no = 0; algo_no < algorithms->num_algos; algo_no++)
+        {
+            char upper_case_name[ALGO_NAME_LEN];
+            set_upper_case_algo_name(upper_case_name, algorithms->algo_names[algo_no]);
+            fprintf(rf, "%s\t%d\t%s\t", opts->expcode, pat_len, upper_case_name);
+
+            algo_results_t *algo_res = &(results[pattern_len_no].algo_results[algo_no]);
+            switch (algo_res->success_state)
+            {
+                case SUCCESS:
+                {
+                    algo_statistics_t *stats = &(algo_res->statistics);
+                    algostats_metadata_t *metadata = &(algo_res->measurements.algostats_metadata);
+                    output_algorithm_stats_row(rf, opts, "median", &(stats->median_algo_stats), NULL, metadata, pat_len);
+
+                    fprintf(rf, "\n%s\t%d\t%s\t", opts->expcode, pat_len, upper_case_name);
+                    output_algorithm_stats_row(rf, opts, "mean", &(stats->mean_algo_stats), NULL, metadata, pat_len);
+
+                    fprintf(rf, "\n%s\t%d\t%s\t", opts->expcode, pat_len, upper_case_name);
+                    output_algorithm_stats_std_row(rf, "std", &(stats->std_algo_stats), metadata);
+
+                    fprintf(rf, "\n%s\t%d\t%s\t", opts->expcode, pat_len, upper_case_name);
+                    output_algorithm_stats_row(rf, opts, "min", &(stats->min_algo_stats), &(stats->max_algo_stats), metadata, pat_len);
+
+                    fprintf(rf, "\n%s\t%d\t%s\t", opts->expcode, pat_len, upper_case_name);
+                    output_algorithm_stats_row(rf, opts, "max", &(stats->max_algo_stats), &(stats->min_algo_stats), metadata, pat_len);
+                    break;
+                }
+                case CANNOT_SEARCH:
+                {
+                    write_tabbed_string(rf, "---", MEASUREMENT_COLUMNS);
+                    break;
+                }
+                case TIMED_OUT:
+                {
+                    write_tabbed_string(rf, "OUT", MEASUREMENT_COLUMNS);
+                    break;
+                }
+                case ERROR:
+                {
+                    write_tabbed_string(rf, "ERROR", MEASUREMENT_COLUMNS);
+                    break;
+                }
+            }
+            fprintf(rf, "\n");
+        }
+    }
+
+    fclose(rf);
+}
+
+
+/*
  * Outputs benchmark statistics as a tab separated CSV file.
  *
  * It records the minimum, maximum, mean and median timings for pre-processing, search and their total.
@@ -269,7 +540,7 @@ void output_benchmark_measurements_csv(const smart_config_t *smart_config, const
  *
  * Any CPU statistics captured will be output as additional columns on the end if they are present.
  */
-void output_benchmark_statistics_csv(const smart_config_t *smart_config, const run_command_opts_t *opts, int num_pattern_lengths,
+void output_performance_statistics_csv(const smart_config_t *smart_config, const run_command_opts_t *opts, int num_pattern_lengths,
                                      benchmark_results_t *results, const algo_info_t *algorithms)
 {
     FILE *rf = open_experiment_file_for_writing(smart_config, opts, "statistics", "csv");
@@ -323,6 +594,7 @@ void output_benchmark_statistics_csv(const smart_config_t *smart_config, const r
                             opts->precision, GBs(stats->median_search_time, opts->text_stats.text_actual_length),
                             opts->precision, GBs(stats->mean_pre_time + stats->mean_search_time, pat_len),
                             opts->precision, GBs(stats->median_pre_time + stats->median_search_time, pat_len));
+
                     if (opts->cpu_stats)
                     {
                         if (opts->cpu_stats & CPU_STAT_L1_CACHE)
@@ -1197,9 +1469,6 @@ void write_html_algo_charts(FILE *fp, int rows, int cols,
         }
         fprintf(fp, "];\n");
 
-        //TODO: lower bound of standard is not zero?- it is the best time the algorithm achieved for that point.
-        //      we can't dip below the best time achieved really, it's not informative.
-
         // Write out standard deviation data lower bound in gigabytes per second:
         fprintf(fp, "var std1gbs = [");
         for (int col = 0; col < cols; col++) {
@@ -1507,73 +1776,83 @@ void output_results(const smart_config_t *smart_config, run_command_opts_t *opts
 {
     // Output the summary of the experiment, statistics and raw measurements as tab-separated CSV files.
     output_benchmark_run_summary(smart_config, opts, algorithms);
-    output_benchmark_statistics_csv(smart_config, opts, num_pattern_lengths, results, algorithms);
-    output_benchmark_measurements_csv(smart_config, opts, num_pattern_lengths, results, algorithms);
 
-    // Build statistics tables with algorithms as rows and columns as pattern lengths:
-    int rows = algorithms->num_algos;
-    int cols = num_pattern_lengths;
-    double (*mean_search_time_table)[cols] = malloc(sizeof(double[rows][cols]));
-    double (*median_search_time_table)[cols] = malloc(sizeof(double[rows][cols]));
-    double (*mean_total_time_table)[cols] = malloc(sizeof(double[rows][cols]));
-    double (*median_total_time_table)[cols] = malloc(sizeof(double[rows][cols]));
-    double (*best_time_table)[cols] = malloc(sizeof(double[rows][cols]));
-    double (*worst_time_table)[cols] = malloc(sizeof(double[rows][cols]));
-    double (*mean_pre_time_table)[cols] = malloc(sizeof(double[rows][cols]));
-    double (*median_pre_time_table)[cols] = malloc(sizeof(double[rows][cols]));
-    double (*best_pre_time_table)[cols] = malloc(sizeof(double[rows][cols]));
-    double (*worst_pre_time_table)[cols] = malloc(sizeof(double[rows][cols]));
-    double (*standard_deviation)[cols] = malloc(sizeof(double[rows][cols]));
-    double (*standard_deviation_gbs)[cols] = malloc(sizeof(double[rows][cols]));
+    // If assessing algorithm statistics, just output the algo stats and measurement files.
+    if (opts->statistics_type == STATS_ALGORITHM)
+    {
+        output_algorithm_statistics_csv(smart_config, opts, num_pattern_lengths, results, algorithms);
+        output_algorithm_measurements_csv(smart_config, opts, num_pattern_lengths, results, algorithms);
+    }
+    else // If assessing algorithm performance, output the perf stats and measurement files as well as the other breakdowns and reports.
+    {
+        output_performance_statistics_csv(smart_config, opts, num_pattern_lengths, results, algorithms);
+        output_performance_measurements_csv(smart_config, opts, num_pattern_lengths, results, algorithms);
 
-    build_statistics_tables(rows, cols, mean_search_time_table, median_search_time_table,
-                            mean_total_time_table, median_total_time_table,
-                            best_time_table, worst_time_table,
-                            mean_pre_time_table, median_pre_time_table,
-                            best_pre_time_table, worst_pre_time_table, standard_deviation, standard_deviation_gbs,
-                            opts, num_pattern_lengths, results, algorithms);
+        // Build statistics tables with algorithms as rows and columns as pattern lengths:
+        int rows = algorithms->num_algos;
+        int cols = num_pattern_lengths;
+        double (*mean_search_time_table)[cols] = malloc(sizeof(double[rows][cols]));
+        double (*median_search_time_table)[cols] = malloc(sizeof(double[rows][cols]));
+        double (*mean_total_time_table)[cols] = malloc(sizeof(double[rows][cols]));
+        double (*median_total_time_table)[cols] = malloc(sizeof(double[rows][cols]));
+        double (*best_time_table)[cols] = malloc(sizeof(double[rows][cols]));
+        double (*worst_time_table)[cols] = malloc(sizeof(double[rows][cols]));
+        double (*mean_pre_time_table)[cols] = malloc(sizeof(double[rows][cols]));
+        double (*median_pre_time_table)[cols] = malloc(sizeof(double[rows][cols]));
+        double (*best_pre_time_table)[cols] = malloc(sizeof(double[rows][cols]));
+        double (*worst_pre_time_table)[cols] = malloc(sizeof(double[rows][cols]));
+        double (*standard_deviation)[cols] = malloc(sizeof(double[rows][cols]));
+        double (*standard_deviation_gbs)[cols] = malloc(sizeof(double[rows][cols]));
 
-    // Get the best times for each of the tables for each pattern length.
-    double best_mean_times[cols], best_median_times[cols], best_mean_total_times[cols], best_median_total_times[cols];
-    double best_best_times[cols], best_worst_times[cols];
-    find_best_times(rows, cols, mean_search_time_table, best_mean_times);
-    find_best_times(rows, cols, median_search_time_table, best_median_times);
-    find_best_times(rows, cols, mean_total_time_table, best_mean_total_times);
-    find_best_times(rows, cols, median_total_time_table, best_median_total_times);
-    find_best_times(rows, cols, best_time_table, best_best_times);
-    find_best_times(rows, cols, worst_time_table, best_worst_times);
+        build_statistics_tables(rows, cols, mean_search_time_table, median_search_time_table,
+                                mean_total_time_table, median_total_time_table,
+                                best_time_table, worst_time_table,
+                                mean_pre_time_table, median_pre_time_table,
+                                best_pre_time_table, worst_pre_time_table, standard_deviation, standard_deviation_gbs,
+                                opts, num_pattern_lengths, results, algorithms);
 
-    // Write out the statistics tables in TSV text, LaTex, Markdown, HTML and XML formats.
-    output_benchmark_statistic_tables(smart_config, opts, algorithms, results, rows, cols,
-                                      mean_search_time_table, best_mean_times,
-                                      median_search_time_table, best_median_times,
-                                      mean_total_time_table, best_mean_total_times,
-                                      median_total_time_table, best_median_total_times,
-                                      best_time_table, best_best_times,
-                                      worst_time_table, best_worst_times);
+        // Get the best times for each of the tables for each pattern length.
+        double best_mean_times[cols], best_median_times[cols], best_mean_total_times[cols], best_median_total_times[cols];
+        double best_best_times[cols], best_worst_times[cols];
+        find_best_times(rows, cols, mean_search_time_table, best_mean_times);
+        find_best_times(rows, cols, median_search_time_table, best_median_times);
+        find_best_times(rows, cols, mean_total_time_table, best_mean_total_times);
+        find_best_times(rows, cols, median_total_time_table, best_median_total_times);
+        find_best_times(rows, cols, best_time_table, best_best_times);
+        find_best_times(rows, cols, worst_time_table, best_worst_times);
 
-    // Write out an HTML report:
-    output_html_report(smart_config, opts, results, algorithms, rows, cols,
-                       mean_search_time_table, best_mean_times,
-                       median_search_time_table, best_median_times,
-                       mean_total_time_table, best_mean_total_times,
-                       median_total_time_table, best_median_total_times,
-                       best_time_table, best_best_times, worst_time_table, best_worst_times,
-                       mean_pre_time_table, median_pre_time_table,
-                       best_pre_time_table, worst_pre_time_table, standard_deviation, standard_deviation_gbs);
+        // Write out the statistics tables in TSV text, LaTex, Markdown, HTML and XML formats.
+        output_benchmark_statistic_tables(smart_config, opts, algorithms, results, rows, cols,
+                                          mean_search_time_table, best_mean_times,
+                                          median_search_time_table, best_median_times,
+                                          mean_total_time_table, best_mean_total_times,
+                                          median_total_time_table, best_median_total_times,
+                                          best_time_table, best_best_times,
+                                          worst_time_table, best_worst_times);
 
-    free(mean_search_time_table);
-    free(mean_total_time_table);
-    free(median_search_time_table);
-    free(median_total_time_table);
-    free(best_time_table);
-    free(worst_time_table);
-    free(mean_pre_time_table);
-    free(median_pre_time_table);
-    free(best_pre_time_table);
-    free(worst_pre_time_table);
-    free(standard_deviation);
-    free(standard_deviation_gbs);
+        // Write out an HTML report:
+        output_html_report(smart_config, opts, results, algorithms, rows, cols,
+                           mean_search_time_table, best_mean_times,
+                           median_search_time_table, best_median_times,
+                           mean_total_time_table, best_mean_total_times,
+                           median_total_time_table, best_median_total_times,
+                           best_time_table, best_best_times, worst_time_table, best_worst_times,
+                           mean_pre_time_table, median_pre_time_table,
+                           best_pre_time_table, worst_pre_time_table, standard_deviation, standard_deviation_gbs);
+
+        free(mean_search_time_table);
+        free(mean_total_time_table);
+        free(median_search_time_table);
+        free(median_total_time_table);
+        free(best_time_table);
+        free(worst_time_table);
+        free(mean_pre_time_table);
+        free(median_pre_time_table);
+        free(best_pre_time_table);
+        free(worst_pre_time_table);
+        free(standard_deviation);
+        free(standard_deviation_gbs);
+    }
 }
 
 

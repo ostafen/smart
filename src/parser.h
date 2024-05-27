@@ -424,7 +424,7 @@ void parse_run_algo_name(run_command_opts_t *opts, int curr_arg, const char **ar
 {
     if (opts->num_algo_names < MAX_SELECT_ALGOS)
     {
-        opts->algo_names[opts->num_algo_names++] = argv[curr_arg];
+        strncpy(opts->algo_names[opts->num_algo_names++], argv[curr_arg], STR_BUF);
         opts->algo_source = ALGO_REGEXES;
     }
     else
@@ -448,13 +448,44 @@ int parse_pattern(run_command_opts_t *opts, int curr_arg, int argc, const char *
     return 1;
 }
 
+
+/*
+ * Parses a statistics type.
+ * If there are no additional parameters, it will default to collecting algorithm statistics.
+ * If a parameter is provided, it can be either:
+ *
+ *   algo   to gather algorithm statistics.
+ *   perf   to gather performance statistics.
+ *
+ * Returns the number of parameters parsed.
+ */
+int parse_statistics(run_command_opts_t *opts, int curr_arg, int argc, const char **argv)
+{
+    if (next_is_param(curr_arg, argc, argv))
+    {
+        const char *param = argv[++curr_arg];
+        if (!strcmp(param, PARAM_ALGORITHM_STATS))
+            opts->statistics_type = STATS_ALGORITHM;
+        else if (!strcmp(param, PARAM_PERFORMANCE_STATS))
+            opts->statistics_type = STATS_PERFORMANCE;
+        else
+            error_and_exit("Unknown statistics type parameter %s following %s command", param, OPTION_SHORT_STATISTICS);
+        return 1;
+    }
+    else // no parameters - default to algorithm benchmarking.
+    {
+        opts->statistics_type = STATS_ALGORITHM;
+        return 0;
+    }
+}
+
 /*
  * Parses a description parameter.
  * Returns the number of parameters parsed.
  */
 int parse_description(run_command_opts_t *opts, int curr_arg, int argc, const char **argv)
 {
-    check_end_of_params(curr_arg + 1, argc, OPTION_LONG_PATTERN);
+    check_end_of_params(curr_arg + 1, argc, OPTION_LONG_DESCRIPTION);
     opts->description = argv[curr_arg + 1];
 
     return 1;
@@ -466,7 +497,7 @@ int parse_description(run_command_opts_t *opts, int curr_arg, int argc, const ch
  */
 int parse_search_data(run_command_opts_t *opts, int curr_arg, int argc, const char **argv)
 {
-    check_end_of_params(curr_arg + 1, argc, OPTION_LONG_PATTERN);
+    check_end_of_params(curr_arg + 1, argc, OPTION_LONG_SEARCH_DATA);
 
     opts->data_source = DATA_SOURCE_USER;
     opts->data_to_search = argv[curr_arg + 1];
@@ -644,6 +675,10 @@ void parse_run_args(int argc, const char **argv, smart_subcommand_t *subcommand)
         {
             curr_arg += parse_precision(opts, curr_arg, argc, argv);
         }
+        else if (matches_option(argv[curr_arg], OPTION_SHORT_STATISTICS, OPTION_LONG_STATISTICS))
+        {
+            curr_arg += parse_statistics(opts, curr_arg, argc, argv);
+        }
         else if (matches_option(argv[curr_arg], OPTION_SHORT_DESCRIPTION, OPTION_LONG_DESCRIPTION))
         {
             curr_arg += parse_description(opts, curr_arg, argc, argv);
@@ -727,7 +762,7 @@ void parse_test_args(int argc, const char **argv, smart_subcommand_t *subcommand
         }
         else
         {
-            opts->algo_names[num_algo_names++] = argv[curr_arg];
+            strncpy(opts->algo_names[num_algo_names++], argv[curr_arg], STR_BUF);
         }
     }
 
@@ -824,7 +859,7 @@ void parse_select_args(int argc, const char **argv, smart_subcommand_t *subcomma
         }
         else
         {
-            opts->algos[k++] = argv[curr_arg];
+            strncpy(opts->algos[k++], argv[curr_arg], STR_BUF);
         }
     }
 
